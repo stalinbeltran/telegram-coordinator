@@ -1,0 +1,4 @@
+{
+  "name": "echo",
+  "command": "node -e \"let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write('>>USER '+s))\""
+}
