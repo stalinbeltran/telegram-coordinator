@@ -20,6 +20,7 @@ function sidOf(ctx: Context): string {
 async function send(ctx: Context, text: string): Promise<void> {
   const thread = ctx.message?.message_thread_id;
   const body = text.length ? text : '(vacío)';
+  console.log(`[OUT] chat=${ctx.chat?.id} thread=${thread ?? '-'} text=${JSON.stringify(body.slice(0, 200))}`);
   for (let i = 0; i < body.length; i += TELEGRAM_LIMIT) {
     await ctx.reply(body.slice(i, i + TELEGRAM_LIMIT), { message_thread_id: thread });
   }
@@ -31,6 +32,16 @@ async function main(): Promise<void> {
 
   const bot = new Bot(BOT_TOKEN);
 
+  // Log de TODO mensaje entrante (antes de cualquier filtro).
+  bot.on('message', async (ctx, next) => {
+    const m = ctx.message;
+    console.log(
+      `[IN] user=${ctx.from?.id} chat=${ctx.chat?.id} thread=${m?.message_thread_id ?? '-'} ` +
+        `text=${JSON.stringify(m?.text ?? m?.caption ?? '(sin texto)')}`,
+    );
+    await next();
+  });
+
   // /whoami funciona SIN allowlist, para que descubras tu id al configurar.
   bot.command('whoami', async (ctx) => {
     await send(ctx, `Tu user id es: ${ctx.from?.id}\nChat id: ${ctx.chat?.id}`);
@@ -40,6 +51,7 @@ async function main(): Promise<void> {
   bot.use(async (ctx, next) => {
     const uid = ctx.from?.id;
     if (uid && ALLOWED_USER_IDS.includes(uid)) return next();
+    console.log(`[BLOCKED] user=${uid} no está en ALLOWED_USER_IDS=[${ALLOWED_USER_IDS.join(',')}]`);
     // Silencio para no filtrar la existencia del bot a terceros.
   });
 
