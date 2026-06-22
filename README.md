@@ -46,29 +46,40 @@ ls -a             (con sesión abierta) se ejecuta en el sistema
 ## Kit de arranque (sembrado automático)
 
 - Ejecutor **`shell`** → plantilla `{{input}}`: ejecuta lo que envíes.
+- Ejecutor **`definer`** → crea ejecutores/encargados con parámetros simples.
 - Encargado **`echo`** → reenvía la salida del ejecutor de vuelta a ti.
 
 Con esto basta para crear todo lo demás desde Telegram.
 
-## Definir ejecutores/encargados desde Telegram
+## Definir ejecutores/encargados (forma fácil: `definer`)
 
-Estando en sesión con `shell`, escribe comandos que escriban archivos JSON.
+`/use definer` y envía un mensaje donde la **1ra línea es el encabezado** y el
+**resto es el comando** (literal, puede ser multilínea):
 
-**Ejemplo: un ejecutor `grep` con encargado `echo`** (bash/Linux):
-
-```bash
-cat > data/executors/grep.json <<'EOF'
-{ "name": "grep", "command": "grep -n {{input}}", "encargados": ["echo"] }
-EOF
+```
+exec <nombre> [encargado1 encargado2 ...]
+<comando>
+```
+```
+enc <nombre>
+<comando>
 ```
 
-En Windows/PowerShell:
+- En `exec`, si no listas encargados se asigna **`echo`** por defecto.
+  Para no asignar ninguno: `exec <nombre> -`.
+- El comando puede contener `{{input}}` (se sustituye por tu texto) o leer `stdin`.
 
-```powershell
-Set-Content -Encoding utf8 data/executors/grep.json '{ "name":"grep","command":"grep -n {{input}}","encargados":["echo"] }'
+**Ejemplo — crear un ejecutor `grep`:**
+
+```
+exec grep
+grep -n {{input}}
 ```
 
 Luego `/end`, `/use grep`, y manda `"patron" archivo.txt`.
+
+> Alternativa manual: en sesión con `shell` puedes escribir directamente los
+> archivos JSON en `data/executors/` o `data/encargados/`.
 
 ### Protocolo de comandos (salida de un encargado)
 

@@ -62,6 +62,16 @@ export async function seedBootKit(): Promise<void> {
     console.log('🌱 Sembrado ejecutor "shell".');
   }
 
+  if (!(await getExecutor('definer'))) {
+    const definer: Executor = {
+      name: 'definer',
+      command: 'node scripts/define.mjs',
+      encargados: ['echo'],
+    };
+    await writeFile(join(execDir, 'definer.json'), JSON.stringify(definer, null, 2) + '\n');
+    console.log('🌱 Sembrado ejecutor "definer".');
+  }
+
   if (!(await getEncargado('echo'))) {
     const echo: Encargado = {
       name: 'echo',

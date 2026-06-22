@@ -1,0 +1,7 @@
+{
+  "name": "definer",
+  "command": "node scripts/define.mjs",
+  "encargados": [
+    "echo"
+  ]
+}
