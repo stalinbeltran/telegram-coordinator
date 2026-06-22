@@ -1,0 +1,7 @@
+{
+  "name": "directorio",
+  "command": "dir",
+  "encargados": [
+    "echo"
+  ]
+}

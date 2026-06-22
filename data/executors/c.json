@@ -1,0 +1,7 @@
+{
+  "name": "c",
+  "command": "claude -p {{input}}",
+  "encargados": [
+    "echo"
+  ]
+}
