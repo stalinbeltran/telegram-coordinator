@@ -124,6 +124,17 @@ function runClaudeSession(prompt) {
 
 // --- Bucle principal -------------------------------------------------------
 async function main() {
+  // Aviso inicial (claude-watch es mudo; aquí es donde se informa del reseteo).
+  const firstWhen = new Date(Date.now() + initialWaitMs).toLocaleTimeString();
+  const mins = Math.max(1, Math.round(initialWaitMs / 60000));
+  await tg(
+    [
+      '⏳ Se alcanzó el límite de uso de Claude en esta sesión.',
+      `Reanudaré la conversación automáticamente alrededor de las ${firstWhen} (~${mins} min).`,
+      'No necesitas enviar nada: te aviso aquí cuando continúe.',
+    ].join('\n'),
+  );
+
   await sleep(initialWaitMs);
 
   for (let attempt = 1; attempt <= MAX; attempt++) {

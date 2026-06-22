@@ -2,6 +2,7 @@
   "name": "c",
   "command": "node scripts/claude-session.mjs",
   "encargados": [
+    "echo",
     "claude-watch"
   ]
 }
