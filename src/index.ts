@@ -115,6 +115,7 @@ async function main(): Promise<void> {
         for (const r of replies) await send(ctx, r);
       }
     } catch (err) {
+      console.error('❌ Error inesperado del coordinador:', err);
       await send(ctx, `❌ Error inesperado del coordinador:\n${String(err)}`);
     }
   });

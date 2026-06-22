@@ -2,6 +2,12 @@ import { getExecutor, getEncargado } from './registry.js';
 import { runCommand } from './runner.js';
 import { parseCommands } from './protocol.js';
 
+/** Registra el error en la terminal y lo devuelve para enviarlo por Telegram. */
+function fail(message: string): string {
+  console.error(message);
+  return message;
+}
+
 /**
  * Procesa un mensaje del usuario para una sesión:
  *   1. corre el ejecutor ligado con el texto del usuario,
@@ -12,12 +18,12 @@ import { parseCommands } from './protocol.js';
 export async function processIncoming(executorName: string, text: string): Promise<string[]> {
   const executor = await getExecutor(executorName);
   if (!executor) {
-    return [`❌ El ejecutor "${executorName}" ya no existe. Usa /end y abre otra sesión.`];
+    return [fail(`❌ El ejecutor "${executorName}" ya no existe. Usa /end y abre otra sesión.`)];
   }
 
   const result = await runCommand(executor.command, text);
   if (!result.ok) {
-    return [`❌ Error del ejecutor "${executor.name}":\n${result.output}`];
+    return [fail(`❌ Error del ejecutor "${executor.name}":\n${result.output}`)];
   }
 
   // Sin encargados: devolvemos la salida cruda del ejecutor.
@@ -29,13 +35,13 @@ export async function processIncoming(executorName: string, text: string): Promi
   for (const encName of executor.encargados) {
     const enc = await getEncargado(encName);
     if (!enc) {
-      replies.push(`⚠️ Encargado "${encName}" no encontrado.`);
+      replies.push(fail(`⚠️ Encargado "${encName}" no encontrado.`));
       continue;
     }
 
     const encResult = await runCommand(enc.command, result.output);
     if (!encResult.ok) {
-      replies.push(`❌ Error del encargado "${encName}":\n${encResult.output}`);
+      replies.push(fail(`❌ Error del encargado "${encName}":\n${encResult.output}`));
       continue;
     }
 
@@ -44,7 +50,9 @@ export async function processIncoming(executorName: string, text: string): Promi
         if (action.text.trim()) replies.push(action.text);
       } else {
         const shellRes = await runCommand(action.cmd, '');
-        replies.push(shellRes.ok ? shellRes.output : `❌ Error al ejecutar comando:\n${shellRes.output}`);
+        replies.push(
+          shellRes.ok ? shellRes.output : fail(`❌ Error al ejecutar comando:\n${shellRes.output}`),
+        );
       }
     }
   }
