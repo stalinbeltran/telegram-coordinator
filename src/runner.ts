@@ -30,7 +30,11 @@ function killTree(child: ChildProcess): void {
  * - Si no, el texto de entrada se pasa por stdin.
  * Nunca lanza excepciones: los errores se devuelven en `output` con ok=false.
  */
-export function runCommand(template: string, input: string): Promise<RunResult> {
+export function runCommand(
+  template: string,
+  input: string,
+  extraEnv?: Record<string, string>,
+): Promise<RunResult> {
   return new Promise((resolvePromise) => {
     const usesPlaceholder = template.includes('{{input}}');
     const cmd = usesPlaceholder ? template.split('{{input}}').join(input) : template;
@@ -41,6 +45,7 @@ export function runCommand(template: string, input: string): Promise<RunResult> 
         shell: true,
         windowsHide: true,
         detached: process.platform !== 'win32', // grupo propio en POSIX para matarlo entero
+        env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
       });
     } catch (err) {
       resolvePromise({ ok: false, output: `No se pudo iniciar el comando: ${String(err)}` });

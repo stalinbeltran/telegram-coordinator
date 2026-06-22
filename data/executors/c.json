@@ -1,6 +1,6 @@
 {
   "name": "c",
-  "command": "claude -p \"{{input}}\"",
+  "command": "node scripts/claude-session.mjs",
   "encargados": [
     "echo"
   ]

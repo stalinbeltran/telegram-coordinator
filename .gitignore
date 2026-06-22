@@ -2,3 +2,4 @@ node_modules/
 .env
 # Las sesiones son estado efímero; los ejecutores/encargados sí se pueden versionar.
 data/sessions/
+data/claude-sessions/

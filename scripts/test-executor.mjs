@@ -13,6 +13,8 @@
 
 // Evita que config.ts aborte por falta de token cuando depuras sin .env.
 process.env.BOT_TOKEN = process.env.BOT_TOKEN || 'debug-token';
+// Identidad de sesión para depurar ejecutores con estado (se hereda al hijo).
+process.env.COORD_SESSION = process.env.COORD_SESSION || 'debug-session';
 
 const { getExecutor, getEncargado } = await import('../src/registry.js');
 const { runCommand } = await import('../src/runner.js');

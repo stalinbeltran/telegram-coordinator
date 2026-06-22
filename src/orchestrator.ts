@@ -15,13 +15,26 @@ function fail(message: string): string {
  *   3. interpreta los comandos de los encargados (>>USER / >>SHELL).
  * Devuelve la lista de textos a enviar de vuelta por Telegram.
  */
-export async function processIncoming(executorName: string, text: string): Promise<string[]> {
+export async function processIncoming(
+  executorName: string,
+  text: string,
+  sessionId: string,
+): Promise<string[]> {
   const executor = await getExecutor(executorName);
   if (!executor) {
     return [fail(`❌ El ejecutor "${executorName}" ya no existe. Usa /end y abre otra sesión.`)];
   }
 
-  const result = await runCommand(executor.command, text);
+  // Identidad de sesión expuesta a todo comando, para ejecutores con estado
+  // (p.ej. continuidad de conversación de claude por tema).
+  const [chat = '', thread = ''] = sessionId.split('_');
+  const env: Record<string, string> = {
+    COORD_SESSION: sessionId,
+    COORD_CHAT: chat,
+    COORD_THREAD: thread,
+  };
+
+  const result = await runCommand(executor.command, text, env);
   if (!result.ok) {
     return [fail(`❌ Error del ejecutor "${executor.name}":\n${result.output}`)];
   }
@@ -39,7 +52,7 @@ export async function processIncoming(executorName: string, text: string): Promi
       continue;
     }
 
-    const encResult = await runCommand(enc.command, result.output);
+    const encResult = await runCommand(enc.command, result.output, env);
     if (!encResult.ok) {
       replies.push(fail(`❌ Error del encargado "${encName}":\n${encResult.output}`));
       continue;
@@ -49,7 +62,7 @@ export async function processIncoming(executorName: string, text: string): Promi
       if (action.type === 'user') {
         if (action.text.trim()) replies.push(action.text);
       } else {
-        const shellRes = await runCommand(action.cmd, '');
+        const shellRes = await runCommand(action.cmd, '', env);
         replies.push(
           shellRes.ok ? shellRes.output : fail(`❌ Error al ejecutar comando:\n${shellRes.output}`),
         );

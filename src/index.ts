@@ -120,7 +120,7 @@ async function main(): Promise<void> {
       return;
     }
     try {
-      const replies = await processIncoming(exec, text);
+      const replies = await processIncoming(exec, text, sidOf(ctx));
       if (replies.length === 0) {
         await send(ctx, '(sin respuesta)');
       } else {
