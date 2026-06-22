@@ -6,7 +6,8 @@
   "description": "Coordinador inmutable que enruta mensajes de Telegram a ejecutores/encargados definibles dinámicamente.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "test": "node --test \"tests/**/*.test.mjs\""
   },
   "dependencies": {
     "grammy": "^1.30.0"
