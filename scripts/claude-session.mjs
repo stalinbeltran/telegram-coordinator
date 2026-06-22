@@ -16,6 +16,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { isRateLimited } from './limit-detect.mjs';
 
 const DATA_DIR = process.env.DATA_DIR || 'data';
 const session = process.env.COORD_SESSION || 'default';
@@ -72,8 +73,10 @@ const firstTime = !existsSync(marker);
 
 let res = await runClaude(firstTime ? 'create' : 'resume', uuid, prompt);
 
-// Si la continuación falló (sesión perdida/limpiada), arranca una nueva.
-if (!res.ok && !firstTime) {
+// Si la continuación falló (sesión perdida/limpiada), arranca una nueva. PERO no
+// cuando el fallo es un límite de uso: ahí la sesión sigue intacta y crear una
+// nueva perdería el contexto. En ese caso dejamos que el encargado la reanude.
+if (!res.ok && !firstTime && !isRateLimited(`${res.err}\n${res.out}`)) {
   res = await runClaude('create', uuid, prompt);
 }
 
@@ -84,6 +87,12 @@ if (res.ok) {
     JSON.stringify({ session, uuid, updated: new Date().toISOString() }, null, 2) + '\n',
   );
   process.stdout.write(res.out.trim() || '(sin respuesta de claude)');
+} else if (isRateLimited(`${res.err}\n${res.out}`)) {
+  // Límite de tokens: NO es un error fatal para el flujo. Volcamos el banner a
+  // stdout y salimos con código 0 para que el ejecutor se considere "exitoso" y
+  // el orquestador SÍ corra los encargados (con exit!=0 los saltaría). Así el
+  // encargado `claude-watch` puede detectar el límite y programar la reanudación.
+  process.stdout.write((res.err || res.out || 'Usage limit reached.').trim());
 } else {
   console.error((res.err || res.out || 'claude falló sin mensaje.').trim());
   process.exit(1);

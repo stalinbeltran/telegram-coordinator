@@ -1,0 +1,4 @@
+{
+  "name": "claude-watch",
+  "command": "node scripts/claude-watch.mjs"
+}
