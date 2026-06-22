@@ -89,6 +89,27 @@ Luego `/end`, `/use grep`, y manda `"patron" archivo.txt`.
 (sin prefijo)     equivale a >>USER con todo el texto
 ```
 
+## Depurar un ejecutor (sin Telegram)
+
+Prueba cualquier ejecutor que hayas creado y mira cada paso (comando resuelto,
+exit code, stdout/stderr, encargados y la respuesta final):
+
+```bash
+npx tsx scripts/test-executor.mjs <ejecutor> "<texto de entrada>"
+# ejemplos:
+npx tsx scripts/test-executor.mjs directorio
+npx tsx scripts/test-executor.mjs shell "echo hola"
+npx tsx scripts/test-executor.mjs c "resume este repo"
+```
+
+Para comandos lentos (p.ej. `claude -p`), sube el timeout:
+
+```powershell
+$env:COMMAND_TIMEOUT_MS="120000"; npx tsx scripts/test-executor.mjs c "..."
+```
+
+(Y de forma permanente, ponlo en `.env`: `COMMAND_TIMEOUT_MS=120000`.)
+
 ## Estructura
 
 ```

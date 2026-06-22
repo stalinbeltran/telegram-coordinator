@@ -1,9 +1,27 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { COMMAND_TIMEOUT_MS } from './config.js';
 
 export interface RunResult {
   ok: boolean;
   output: string;
+}
+
+/** Mata el proceso y TODO su árbol de hijos (clave en Windows con shell:true). */
+function killTree(child: ChildProcess): void {
+  if (!child.pid) return;
+  if (process.platform === 'win32') {
+    spawn('taskkill', ['/pid', String(child.pid), '/T', '/F']);
+  } else {
+    try {
+      process.kill(-child.pid, 'SIGKILL'); // mata el grupo de procesos
+    } catch {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        /* ya murió */
+      }
+    }
+  }
 }
 
 /**
@@ -17,13 +35,33 @@ export function runCommand(template: string, input: string): Promise<RunResult> 
     const usesPlaceholder = template.includes('{{input}}');
     const cmd = usesPlaceholder ? template.split('{{input}}').join(input) : template;
 
-    let child;
+    let child: ChildProcess;
     try {
-      child = spawn(cmd, { shell: true, timeout: COMMAND_TIMEOUT_MS });
+      child = spawn(cmd, {
+        shell: true,
+        windowsHide: true,
+        detached: process.platform !== 'win32', // grupo propio en POSIX para matarlo entero
+      });
     } catch (err) {
       resolvePromise({ ok: false, output: `No se pudo iniciar el comando: ${String(err)}` });
       return;
     }
+
+    let settled = false;
+    const finish = (r: RunResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolvePromise(r);
+    };
+
+    const timer = setTimeout(() => {
+      killTree(child);
+      finish({
+        ok: false,
+        output: `⏱️ Tiempo de espera agotado (${COMMAND_TIMEOUT_MS} ms). Comando cancelado.`,
+      });
+    }, COMMAND_TIMEOUT_MS);
 
     let stdout = '';
     let stderr = '';
@@ -31,16 +69,14 @@ export function runCommand(template: string, input: string): Promise<RunResult> 
     child.stderr?.on('data', (d) => (stderr += d.toString()));
 
     child.on('error', (err) => {
-      resolvePromise({ ok: false, output: err.message });
+      finish({ ok: false, output: err.message });
     });
 
-    child.on('close', (code, signal) => {
-      if (signal) {
-        resolvePromise({ ok: false, output: `Comando terminado por señal ${signal} (¿timeout?).` });
-      } else if (code === 0) {
-        resolvePromise({ ok: true, output: stdout.trim() || '(sin salida)' });
+    child.on('close', (code) => {
+      if (code === 0) {
+        finish({ ok: true, output: stdout.trim() || '(sin salida)' });
       } else {
-        resolvePromise({ ok: false, output: (stderr || stdout || `exit code ${code}`).trim() });
+        finish({ ok: false, output: (stderr || stdout || `exit code ${code}`).trim() });
       }
     });
 
