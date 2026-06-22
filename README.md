@@ -89,6 +89,37 @@ Luego `/end`, `/use grep`, y manda `"patron" archivo.txt`.
 (sin prefijo)     equivale a >>USER con todo el texto
 ```
 
+## Ejecutor `c`: conversar con claude (con memoria por tema)
+
+El ejecutor `c` usa [scripts/claude-session.mjs](scripts/claude-session.mjs), un
+wrapper que mantiene **una conversación de claude independiente por cada tema de
+Telegram** (continuidad nativa: `--session-id` el primer mensaje, `--resume` los
+siguientes). Así puedes tener varias charlas en paralelo, una por tema.
+
+```
+/use c
+Recuerda el número 7
+¿Qué número te dije?      → responde 7
+```
+
+### Identidad de sesión para ejecutores con estado
+
+El coordinador expone a TODO comando (ejecutor, encargado y `>>SHELL`) estas
+variables de entorno, para que un ejecutor pueda guardar/leer estado por sesión:
+
+- `COORD_SESSION` — id de la sesión (`<chatId>_<threadId>`)
+- `COORD_CHAT`, `COORD_THREAD`
+
+### Permisos de claude
+
+Controlado por `CLAUDE_PERMISSION_MODE` en `.env`:
+
+- `default` — claude pide permiso (en `-p` suele **bloquear** acciones).
+- `acceptEdits` — auto-aprueba edición de archivos, no shell.
+- `bypassPermissions` — ⚠️ claude ejecuta **cualquier cosa** sin preguntar.
+
+Tras cambiarlo, reinicia el bot.
+
 ## Depurar un ejecutor (sin Telegram)
 
 Prueba cualquier ejecutor que hayas creado y mira cada paso (comando resuelto,
