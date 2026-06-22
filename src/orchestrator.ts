@@ -1,6 +1,7 @@
 import { getExecutor, getEncargado } from './registry.js';
 import { runCommand } from './runner.js';
 import { parseCommands } from './protocol.js';
+import { COMMAND_TIMEOUT_MS } from './config.js';
 
 /** Registra el error en la terminal y lo devuelve para enviarlo por Telegram. */
 function fail(message: string): string {
@@ -34,7 +35,7 @@ export async function processIncoming(
     COORD_THREAD: thread,
   };
 
-  const result = await runCommand(executor.command, text, env);
+  const result = await runCommand(executor.command, text, env, executor.timeoutMs ?? COMMAND_TIMEOUT_MS);
   if (!result.ok) {
     return [fail(`❌ Error del ejecutor "${executor.name}":\n${result.output}`)];
   }
@@ -52,7 +53,7 @@ export async function processIncoming(
       continue;
     }
 
-    const encResult = await runCommand(enc.command, result.output, env);
+    const encResult = await runCommand(enc.command, result.output, env, enc.timeoutMs ?? COMMAND_TIMEOUT_MS);
     if (!encResult.ok) {
       replies.push(fail(`❌ Error del encargado "${encName}":\n${encResult.output}`));
       continue;

@@ -45,6 +45,15 @@ if (!executor) {
 console.log(`EJECUTOR: ${executor.name}`);
 console.log(`  plantilla : ${executor.command}`);
 console.log(`  encargados: ${executor.encargados?.join(', ') || '(ninguno)'}`);
+console.log(
+  `  timeout   : ${
+    executor.timeoutMs === undefined
+      ? '(global)'
+      : executor.timeoutMs <= 0
+        ? 'sin límite'
+        : `${executor.timeoutMs} ms`
+  }`,
+);
 const usesPlaceholder = executor.command.includes('{{input}}');
 const resolved = usesPlaceholder ? executor.command.split('{{input}}').join(input) : executor.command;
 console.log(`  entrada   : ${JSON.stringify(input)} ${usesPlaceholder ? '(sustituida en {{input}})' : '(por stdin)'}`);
@@ -52,7 +61,7 @@ console.log(`  comando   : ${resolved}`);
 line();
 
 let t = Date.now();
-const result = await runCommand(executor.command, input);
+const result = await runCommand(executor.command, input, undefined, executor.timeoutMs);
 console.log(`▶ Ejecutor terminó en ${Date.now() - t} ms · ok=${result.ok}`);
 show('  salida', result.output);
 line('═');
@@ -77,7 +86,7 @@ for (const encName of executor.encargados) {
   }
   console.log(`  comando: ${enc.command}`);
   t = Date.now();
-  const encResult = await runCommand(enc.command, result.output);
+  const encResult = await runCommand(enc.command, result.output, undefined, enc.timeoutMs);
   console.log(`  ▶ terminó en ${Date.now() - t} ms · ok=${encResult.ok}`);
   show('  salida', encResult.output);
   if (!encResult.ok) {

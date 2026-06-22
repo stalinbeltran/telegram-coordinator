@@ -13,6 +13,9 @@
 //    Para no asignar ninguno, usa:  exec <nombre> -
 //  - El comando va SIEMPRE en las líneas siguientes (puede ser multilínea
 //    y contener cualquier carácter, incluido {{input}}).
+//  - Timeout (opcional) como dato: añade un token `timeout=<ms>` en el
+//    encabezado. `timeout=0` desactiva el límite (tareas largas como claude).
+//    Ej:  exec c echo claude-watch timeout=0
 
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -47,6 +50,16 @@ const parts = header.split(/\s+/);
 const kind = parts.shift();
 const name = parts.shift();
 
+// Token opcional `timeout=<ms>` en cualquier posición del encabezado.
+let timeoutMs;
+for (let i = parts.length - 1; i >= 0; i--) {
+  const m = /^timeout=(-?\d+)$/.exec(parts[i]);
+  if (m) {
+    timeoutMs = Number(m[1]);
+    parts.splice(i, 1);
+  }
+}
+
 if (kind !== 'exec' && kind !== 'enc') fail(`Tipo desconocido "${kind}". Usa "exec" o "enc".`);
 if (!name) fail('Falta el <nombre>.');
 if (!/^[\w.-]+$/.test(name)) fail(`Nombre inválido "${name}". Usa letras, números, "_", "-" o ".".`);
@@ -68,13 +81,18 @@ if (kind === 'exec') {
   entity = { name, command };
 }
 
+if (timeoutMs !== undefined) entity.timeoutMs = timeoutMs;
+
 await mkdir(dir, { recursive: true });
 const file = join(dir, `${name}.json`);
 await writeFile(file, JSON.stringify(entity, null, 2) + '\n');
 
 const tipo = kind === 'exec' ? 'Ejecutor' : 'Encargado';
-const extra =
+let extra =
   kind === 'exec'
     ? `\n   encargados: ${entity.encargados.join(', ') || '(ninguno)'}`
     : '';
+if (timeoutMs !== undefined) {
+  extra += `\n   timeout: ${timeoutMs <= 0 ? 'sin límite' : `${timeoutMs} ms`}`;
+}
 console.log(`✅ ${tipo} "${name}" guardado.\n   comando: ${command}${extra}\n   archivo: ${file}`);

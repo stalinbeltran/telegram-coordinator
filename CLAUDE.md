@@ -112,8 +112,8 @@ scripts/
   claude-session.mjs   wrapper de claude con continuidad por sesión
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 data/
-  executors/*.json     { name, command, encargados: [] }
-  encargados/*.json     { name, command }
+  executors/*.json     { name, command, encargados: [], timeoutMs? }
+  encargados/*.json     { name, command, timeoutMs? }
   sessions/*.json       (efímero, ignorado por git)
   claude-sessions/*.json (markers de claude por sesión, ignorado por git)
 ```
@@ -124,6 +124,13 @@ data/
   `shell:true`, matar solo el shell deja vivos a los hijos y el comando se cuelga
   para siempre. Por eso `runner.ts` mata **todo el árbol** (`taskkill /T /F` en
   Windows, kill de grupo en POSIX). No reintroduzcas el `timeout` de `spawn`.
+- **Timeout por ejecutor/encargado (es DATO, no código):** cada JSON puede
+  declarar `timeoutMs`. Ausente = usa el global; `0` o negativo = **sin timeout**
+  (corre hasta terminar). Así los ejecutores con tareas largas (p.ej. `c` →
+  `claude`, ya viene con `timeoutMs: 0`) no se cancelan a los 30s, sin cablear
+  excepciones en el coordinador; el resto conserva la red de seguridad del
+  timeout global. Se puede fijar al crear con `definer` usando el token
+  `timeout=<ms>` en el encabezado (`exec c echo claude-watch timeout=0`).
 - **`claude -p` es sin estado** por invocación: la continuidad la da
   `claude-session.mjs` con un UUID estable derivado de `COORD_SESSION`.
 - **Permisos de claude** (`CLAUDE_PERMISSION_MODE`): `default` (pide permiso,

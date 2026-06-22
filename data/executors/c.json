@@ -4,5 +4,6 @@
   "encargados": [
     "echo",
     "claude-watch"
-  ]
+  ],
+  "timeoutMs": 0
 }

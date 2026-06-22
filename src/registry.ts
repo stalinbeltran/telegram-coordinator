@@ -6,11 +6,15 @@ export interface Executor {
   name: string;
   command: string;
   encargados: string[];
+  /** Límite de ejecución en ms. Ausente = global; <= 0 = sin timeout. */
+  timeoutMs?: number;
 }
 
 export interface Encargado {
   name: string;
   command: string;
+  /** Límite de ejecución en ms. Ausente = global; <= 0 = sin timeout. */
+  timeoutMs?: number;
 }
 
 const execDir = join(DATA_DIR, 'executors');
