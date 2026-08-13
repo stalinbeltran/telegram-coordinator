@@ -146,13 +146,13 @@ node scripts/claude-session.mjs --model <alias|nombre> --effort <nivel>
 
 - `--model` — alias (`fable`, `opus`, `sonnet`) o nombre completo (`claude-opus-5`).
 - `--effort` — `low`, `medium`, `high`, `xhigh`, `max`.
-- Sin flags (como el ejecutor `c`), claude usa sus propios valores por defecto.
+- Sin flags, claude usa sus propios valores por defecto.
 
-Vienen dos variantes listas, además de `c`:
+Variantes que vienen listas:
 
 | Ejecutor | Modelo | Esfuerzo |
 | --- | --- | --- |
-| `c` | (default de claude) | (default de claude) |
+| `c` | `opus` | `max` |
 | `c-rapido` | `sonnet` | `low` |
 | `c-max` | `opus` | `max` |
 

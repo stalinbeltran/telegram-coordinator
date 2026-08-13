@@ -1,6 +1,6 @@
 {
   "name": "c",
-  "command": "node scripts/claude-session.mjs",
+  "command": "node scripts/claude-session.mjs --model opus --effort max",
   "encargados": [
     "echo",
     "claude-watch"
