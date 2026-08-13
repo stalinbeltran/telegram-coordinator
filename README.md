@@ -148,15 +148,9 @@ node scripts/claude-session.mjs --model <alias|nombre> --effort <nivel>
 - `--effort` — `low`, `medium`, `high`, `xhigh`, `max`.
 - Sin flags, claude usa sus propios valores por defecto.
 
-Variantes que vienen listas:
+El ejecutor `c` viene con `--model opus --effort max`.
 
-| Ejecutor | Modelo | Esfuerzo |
-| --- | --- | --- |
-| `c` | `opus` | `max` |
-| `c-rapido` | `sonnet` | `low` |
-| `c-max` | `opus` | `max` |
-
-Crear las tuyas no requiere tocar código: desde Telegram, con `definer`,
+Crear variantes no requiere tocar código: desde Telegram, con `definer`,
 
 ```
 exec c-barato echo claude-watch timeout=0
@@ -165,7 +159,7 @@ node scripts/claude-session.mjs --model sonnet --effort low
 
 Y como el hilo de claude se deriva del **tema** (`COORD_SESSION`), no del
 ejecutor, puedes cambiar de perfil a mitad de conversación sin perder contexto:
-`/end` y `/use c-max` en el mismo tema continúan la misma charla.
+`/end` y `/use c-barato` en el mismo tema continúan la misma charla.
 
 ### Identidad de sesión para ejecutores con estado
 

@@ -135,9 +135,9 @@ data/
   `claude-session.mjs` con un UUID estable derivado de `COORD_SESSION`.
 - **Modelo y esfuerzo de claude son DATO, no código:** `claude-session.mjs`
   acepta `--model <alias|nombre>` y `--effort <low|medium|high|xhigh|max>` y los
-  reenvía a `claude`. Se declaran en la plantilla del ejecutor, así que las
-  variantes (`c`, `c-rapido`, `c-max`, …) se crean con `definer` sin tocar el
-  coordinador. Sin flags, manda el default de claude. El hilo depende del tema
+  reenvía a `claude`. Se declaran en la plantilla del ejecutor (`c` trae
+  `--model opus --effort max`), así que las variantes se crean con `definer` sin
+  tocar el coordinador. Sin flags, manda el default de claude. El hilo depende del tema
   (`COORD_SESSION`), no del ejecutor: cambiar de variante en el mismo tema
   **conserva** la conversación.
 - **Permisos de claude** (`CLAUDE_PERMISSION_MODE`): `default` (pide permiso,

@@ -1,9 +1,0 @@
-{
-  "name": "c-max",
-  "command": "node scripts/claude-session.mjs --model opus --effort max",
-  "encargados": [
-    "echo",
-    "claude-watch"
-  ],
-  "timeoutMs": 0
-}
