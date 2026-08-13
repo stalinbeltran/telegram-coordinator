@@ -136,6 +136,37 @@ Recuerda el número 7
 ¿Qué número te dije?      → responde 7
 ```
 
+### Modelo y esfuerzo (perfiles como dato)
+
+El perfil se declara en la **plantilla del ejecutor**, no en el coordinador:
+
+```
+node scripts/claude-session.mjs --model <alias|nombre> --effort <nivel>
+```
+
+- `--model` — alias (`fable`, `opus`, `sonnet`) o nombre completo (`claude-opus-5`).
+- `--effort` — `low`, `medium`, `high`, `xhigh`, `max`.
+- Sin flags (como el ejecutor `c`), claude usa sus propios valores por defecto.
+
+Vienen dos variantes listas, además de `c`:
+
+| Ejecutor | Modelo | Esfuerzo |
+| --- | --- | --- |
+| `c` | (default de claude) | (default de claude) |
+| `c-rapido` | `sonnet` | `low` |
+| `c-max` | `opus` | `max` |
+
+Crear las tuyas no requiere tocar código: desde Telegram, con `definer`,
+
+```
+exec c-barato echo claude-watch timeout=0
+node scripts/claude-session.mjs --model sonnet --effort low
+```
+
+Y como el hilo de claude se deriva del **tema** (`COORD_SESSION`), no del
+ejecutor, puedes cambiar de perfil a mitad de conversación sin perder contexto:
+`/end` y `/use c-max` en el mismo tema continúan la misma charla.
+
 ### Identidad de sesión para ejecutores con estado
 
 El coordinador expone a TODO comando (ejecutor, encargado y `>>SHELL`) estas

@@ -1,0 +1,9 @@
+{
+  "name": "c-rapido",
+  "command": "node scripts/claude-session.mjs --model sonnet --effort low",
+  "encargados": [
+    "echo",
+    "claude-watch"
+  ],
+  "timeoutMs": 0
+}

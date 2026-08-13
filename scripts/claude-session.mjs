@@ -7,6 +7,14 @@
 //   Mensajes siguientes: la continúa con --resume <uuid>.
 // - Imprime SOLO la respuesta de claude por stdout (la recoge el encargado echo).
 //
+// Perfil (modelo + esfuerzo) como DATO, no como código: se declara en la
+// plantilla del ejecutor, así que puedes tener varias variantes sin tocar nada:
+//     node scripts/claude-session.mjs --model opus   --effort high
+//     node scripts/claude-session.mjs --model sonnet --effort low
+// Sin flags, claude usa sus propios valores por defecto.
+//   --model  : alias ("fable", "opus", "sonnet") o nombre completo ("claude-opus-5").
+//   --effort : low | medium | high | xhigh | max
+//
 // Permisos: por defecto "acceptEdits" (claude puede crear/editar archivos sin
 // preguntar, pero no más). Para autonomía total ponlo en .env:
 //     CLAUDE_PERMISSION_MODE=bypassPermissions   (⚠️ claude ejecuta cualquier cosa)
@@ -21,6 +29,37 @@ import { isRateLimited } from './limit-detect.mjs';
 const DATA_DIR = process.env.DATA_DIR || 'data';
 const session = process.env.COORD_SESSION || 'default';
 const permissionMode = process.env.CLAUDE_PERMISSION_MODE || 'acceptEdits';
+
+const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
+
+// Lee --model / --effort de la plantilla del ejecutor (acepta "--x v" y "--x=v").
+function parseProfile(argv) {
+  const profile = {};
+  for (let i = 0; i < argv.length; i++) {
+    const m = /^--(model|effort)(?:=(.*))?$/.exec(argv[i]);
+    if (!m) {
+      console.error(`Opción desconocida: ${argv[i]}. Solo se aceptan --model y --effort.`);
+      process.exit(1);
+    }
+    const value = m[2] !== undefined ? m[2] : argv[++i];
+    if (!value) {
+      console.error(`Falta el valor de --${m[1]}.`);
+      process.exit(1);
+    }
+    profile[m[1]] = value;
+  }
+  if (profile.effort && !EFFORT_LEVELS.includes(profile.effort)) {
+    console.error(`Esfuerzo inválido "${profile.effort}". Usa: ${EFFORT_LEVELS.join(', ')}.`);
+    process.exit(1);
+  }
+  return profile;
+}
+
+const profile = parseProfile(process.argv.slice(2));
+const profileArgs = [
+  ...(profile.model ? ['--model', profile.model] : []),
+  ...(profile.effort ? ['--effort', profile.effort] : []),
+];
 
 function uuidFrom(s) {
   const h = createHash('sha1').update(s).digest('hex');
@@ -47,7 +86,7 @@ function runClaude(mode, uuid, prompt) {
   return new Promise((res) => {
     const sessionArgs =
       mode === 'resume' ? ['--resume', uuid] : ['--session-id', uuid];
-    const args = ['-p', '--permission-mode', permissionMode, ...sessionArgs];
+    const args = ['-p', '--permission-mode', permissionMode, ...profileArgs, ...sessionArgs];
     const child = spawn('claude', args, { shell: true, windowsHide: true });
     let out = '';
     let err = '';
