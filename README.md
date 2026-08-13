@@ -25,7 +25,8 @@ Tú (Telegram, un tema = una sesión)
 1. Crea un bot con [@BotFather](https://t.me/BotFather) → `/newbot` → copia el token.
 2. `cp .env.example .env` y pega el token en `BOT_TOKEN`.
 3. `npm install`
-4. `npm run dev`
+4. `npm run dev` (con recarga al editar; para producción, `npm run start`).
+   Solo puede correr **una** instancia a la vez: ver Notas.
 5. Escríbele `/whoami` al bot, copia tu user id en `ALLOWED_USER_IDS` del `.env`
    y reinicia. **Sin esto el bot ignora a todos** (es ejecución remota de comandos:
    la allowlist es tu única protección).
@@ -45,11 +46,25 @@ ls -a             (con sesión abierta) se ejecuta en el sistema
 
 ## Kit de arranque (sembrado automático)
 
+El coordinador siembra esto en `data/` la primera vez que arranca, si no existe
+([registry.ts](src/registry.ts)):
+
 - Ejecutor **`shell`** → plantilla `{{input}}`: ejecuta lo que envíes.
 - Ejecutor **`definer`** → crea ejecutores/encargados con parámetros simples.
 - Encargado **`echo`** → reenvía la salida del ejecutor de vuelta a ti.
 
 Con esto basta para crear todo lo demás desde Telegram.
+
+### Además, ya versionados en el repo
+
+Estos **no** los siembra el código: son archivos JSON commiteados en `data/`, así
+que vienen con el clon y puedes borrarlos o cambiarlos sin tocar `src/`.
+
+| Nombre | Tipo | Qué hace |
+| --- | --- | --- |
+| `c` | ejecutor | conversa con `claude` con memoria por tema (ver abajo). Sin timeout (`timeoutMs: 0`) y con encargados `echo` + `claude-watch`. |
+| `claude-watch` | encargado | vigila el límite de uso de Claude y programa la reanudación automática (ver abajo). Es mudo: no te escribe. |
+| `directorio` | ejecutor | ejemplo mínimo (`dir`): lista el directorio del coordinador. Solo Windows. |
 
 ## Definir ejecutores/encargados (forma fácil: `definer`)
 
@@ -89,6 +104,25 @@ Luego `/end`, `/use grep`, y manda `"patron" archivo.txt`.
 (sin prefijo)     equivale a >>USER con todo el texto
 ```
 
+## Timeouts (también son dato, no código)
+
+Todo comando corre con un timeout que, al vencer, mata **el árbol completo** de
+procesos (en Windows, matar solo el shell dejaba hijos vivos y el comando colgado
+para siempre).
+
+- **Global**: `COMMAND_TIMEOUT_MS` en `.env` (30 s por defecto).
+- **Por ejecutor/encargado**: el campo `timeoutMs` en su JSON gana al global.
+  - ausente → usa el global
+  - `0` o negativo → **sin timeout** (corre hasta terminar)
+
+Así un ejecutor de tareas largas no necesita excepciones cableadas en el
+coordinador. Con `definer` se fija en el encabezado con el token `timeout=<ms>`:
+
+```
+exec c echo claude-watch timeout=0
+node scripts/claude-session.mjs
+```
+
 ## Ejecutor `c`: conversar con claude (con memoria por tema)
 
 El ejecutor `c` usa [scripts/claude-session.mjs](scripts/claude-session.mjs), un
@@ -120,6 +154,60 @@ Controlado por `CLAUDE_PERMISSION_MODE` en `.env`:
 
 Tras cambiarlo, reinicia el bot.
 
+## Reanudación automática al agotar el límite de Claude
+
+Si `claude` corta a mitad de una tarea porque se acabaron los tokens, no tienes
+que estar pendiente: el ejecutor `c` **se reanuda solo** cuando el límite se
+restablece, y te avisa por el mismo tema.
+
+Reparto de responsabilidades (cada encargado hace **una** cosa; solo `echo` habla
+con el usuario):
+
+```
+c (claude-session.mjs)  ── banner del límite por stdout, exit 0 ──┐
+                                                                  ├→ echo         te reenvía la salida
+                                                                  └→ claude-watch detecta el límite y
+                                                                                  lanza el resumer (mudo)
+claude-resumer.mjs (proceso DESACOPLADO, fuera del coordinador)
+  1. te avisa a Telegram a qué hora reanudará
+  2. espera hasta el reinicio de tokens
+  3. reinyecta un "continúa" a claude-session.mjs (--resume: no pierde el contexto)
+  4. si el límite sigue activo, recalcula y reintenta
+  5. te entrega el resultado en el mismo tema
+```
+
+Piezas ([scripts/](scripts/)):
+
+- [limit-detect.mjs](scripts/limit-detect.mjs) — decide si un texto es un banner
+  de límite y calcula cuánto falta para el reinicio. Dos capas: frases
+  inequívocas, y una detección ponderada por señales para variantes nuevas sin
+  disparar falsos positivos cuando claude menciona "rate limit" de pasada.
+  También parsea la hora de reinicio (`in 2 hours`, `resets 3pm`, `15:00`, con
+  zona horaria IANA opcional).
+- [claude-watch.mjs](scripts/claude-watch.mjs) — el encargado. Solo decide y
+  lanza; emite un `>>USER` vacío (el orquestador descarta los `>>USER` sin
+  texto) para no duplicar la voz de `echo`.
+- [claude-resumer.mjs](scripts/claude-resumer.mjs) — se lanza `detached`, así
+  que **sobrevive al timeout del coordinador**, y por eso se manda los mensajes a
+  Telegram él mismo por la Bot API, heredando `BOT_TOKEN` y `COORD_*` del
+  entorno. Usa un cerrojo por sesión para no duplicar reanudaciones.
+
+Detalle de diseño: ante un límite, `claude-session.mjs` sale con **código 0** a
+propósito (vuelca el banner por stdout). Con exit ≠ 0 el orquestador se salta los
+encargados y `claude-watch` nunca vería el límite. Tampoco crea una sesión nueva
+en ese caso: la conversación sigue intacta y reiniciarla perdería el contexto.
+
+Ajustes (todos opcionales, en `.env`):
+
+| Variable | Def. | Para qué |
+| --- | --- | --- |
+| `CLAUDE_RETRY_MAX` | `5` | reintentos máximos si el límite sigue activo. |
+| `CLAUDE_RETRY_RUN_TIMEOUT_MS` | `600000` | timeout de cada llamada a claude del resumer. |
+| `CLAUDE_CONTINUE_PROMPT` | (ver script) | el "continúa" que se reinyecta. |
+| `CLAUDE_DETECTION_PRECISION` | `0.7` | umbral 0..1 de la detección ponderada. |
+| `CLAUDE_RETRY_MARGIN_SECONDS` | `30` | margen extra tras la hora de reinicio. |
+| `CLAUDE_RETRY_FALLBACK_HOURS` | `5` | espera si no se logra leer la hora. |
+
 ## Depurar un ejecutor (sin Telegram)
 
 Prueba cualquier ejecutor que hayas creado y mira cada paso (comando resuelto,
@@ -133,13 +221,26 @@ npx tsx scripts/test-executor.mjs shell "echo hola"
 npx tsx scripts/test-executor.mjs c "resume este repo"
 ```
 
-Para comandos lentos (p.ej. `claude -p`), sube el timeout:
+El harness respeta el `timeoutMs` del propio ejecutor, así que `c` (que trae
+`timeoutMs: 0`) corre sin límite y no hay que tocar nada. Para un ejecutor tuyo
+que sí use el timeout global y resulte lento, súbelo solo para esa prueba:
 
 ```powershell
-$env:COMMAND_TIMEOUT_MS="120000"; npx tsx scripts/test-executor.mjs c "..."
+$env:COMMAND_TIMEOUT_MS="120000"; npx tsx scripts/test-executor.mjs mi-ejecutor "..."
 ```
 
-(Y de forma permanente, ponlo en `.env`: `COMMAND_TIMEOUT_MS=120000`.)
+(Y de forma permanente, en `.env`: `COMMAND_TIMEOUT_MS=120000`. O mejor, dale a
+ese ejecutor su propio `timeoutMs`.)
+
+## Tests y tipos
+
+```powershell
+npm test              # node --test sobre tests/**/*.test.mjs
+npx tsc --noEmit      # verificación de tipos (el proyecto corre con tsx, sin build)
+```
+
+Los tests cubren la detección de límite de uso y el encargado `claude-watch`, que
+son la parte con más lógica propia y la más fácil de romper en silencio.
 
 ## Estructura
 
@@ -149,21 +250,61 @@ src/
   config.ts        carga de .env y validación
   registry.ts      ejecutores/encargados + sembrado del kit de arranque
   sessions.ts      sesiones por tema (persistidas)
-  runner.ts        ejecución de shell con timeout y captura de errores
+  runner.ts        ejecución de shell con timeout (mata el árbol) y captura de errores
   protocol.ts      parseo de >>USER / >>SHELL
   orchestrator.ts  flujo ejecutor → encargados → comandos
+scripts/
+  define.mjs           crea ejecutores/encargados desde texto simple (ejecutor `definer`)
+  claude-session.mjs   wrapper de claude con continuidad por sesión (ejecutor `c`)
+  limit-detect.mjs     detección del límite de uso + hora de reinicio
+  claude-watch.mjs     encargado que dispara la reanudación
+  claude-resumer.mjs   proceso desacoplado que espera, reanuda y avisa por Telegram
+  test-executor.mjs    harness para depurar un ejecutor SIN Telegram
+tests/
+  limit-detect.test.mjs
+  claude-watch.test.mjs
 data/
-  executors/*.json
-  encargados/*.json
-  sessions/*.json  (efímero, ignorado por git)
+  executors/*.json        { name, command, encargados: [], timeoutMs? }
+  encargados/*.json       { name, command, timeoutMs? }
+  sessions/*.json         (efímero, ignorado por git)
+  claude-sessions/*.json  (markers de claude por sesión, ignorado por git)
 ```
 
 ## Notas
 
+- **Una sola instancia**: Telegram solo admite un proceso haciendo long polling
+  por bot. Si arrancas un segundo, da **error 409**. Antes de reiniciar, detén el
+  anterior.
 - **Multiplataforma**: el shell por defecto es `cmd.exe` (Windows) o `/bin/sh`
   (Linux). Las plantillas que dependan del SO defínelas según dónde corra el
   coordinador. Los helpers de arranque usan `node -e` para funcionar en ambos.
-- **Timeout** por comando: `COMMAND_TIMEOUT_MS` (30 s por defecto).
+- **Node ≥ 20.12**: `.env` se carga con `process.loadEnvFile`, sin dependencias.
+- **Los errores nunca tumban el coordinador**: cualquier fallo de un comando se
+  reporta a Telegram y a la terminal con el mismo texto, y el proceso sigue vivo.
 - **Despliegue** (p.ej. droplet de DigitalOcean): usa long polling, no necesita
   IP pública ni puertos abiertos. Corre con un gestor de procesos (pm2/systemd).
+
+### Variables de entorno
+
+| Variable | Def. | Para qué |
+| --- | --- | --- |
+| `BOT_TOKEN` | — | **obligatoria**, la da @BotFather. Sin ella el proceso sale. |
+| `ALLOWED_USER_IDS` | vacío | ids autorizados, separados por coma. Vacío = solo responde `/whoami`. |
+| `DATA_DIR` | `data` | dónde viven ejecutores, encargados y sesiones. |
+| `COMMAND_TIMEOUT_MS` | `30000` | timeout global por comando (lo puede anular `timeoutMs`). |
+| `CLAUDE_PERMISSION_MODE` | `acceptEdits` | permisos del ejecutor `c`. |
+
+Las de la reanudación automática (`CLAUDE_RETRY_*`, `CLAUDE_DETECTION_PRECISION`,
+`CLAUDE_CONTINUE_PROMPT`) están en su propia sección más arriba.
+
+## Seguridad
+
+Esto es **ejecución remota de comandos por diseño**. Tenlo presente:
+
+- `ALLOWED_USER_IDS` es la única defensa. Quien esté en esa lista tiene shell en
+  tu máquina. No la dejes vacía ni la hagas permisiva por comodidad.
+- Con `CLAUDE_PERMISSION_MODE=bypassPermissions`, el ejecutor `c` puede hacer
+  **cualquier cosa** sin preguntar.
+- `.env` no está versionado y **nunca** debe aparecer en respuestas, logs ni en
+  el chat. Si alguna vez se filtra el `BOT_TOKEN`, rótalo con @BotFather.
 ```
