@@ -112,6 +112,7 @@ scripts/
   define.mjs           crea ejecutores/encargados desde texto simple
   claude-session.mjs   wrapper de claude con continuidad por sesión
   shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
+  notify.mjs           aviso a Telegram desde un proceso desacoplado
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 data/
   executors/*.json     { name, command, encargados: [], timeoutMs? }
@@ -141,6 +142,45 @@ data/
   ejecutor `shell` es `scripts/shell-cwd.mjs`, que guarda el directorio por sesión
   en `data/shell-cwd/` y ejecuta cada comando con ese `cwd`. No hay nada cableado
   en el coordinador: el estado vive en el script, como en `claude-session.mjs`.
+- **Un mensaje = un proceso que muere al responder, y se lleva todo lo que lanzó.**
+  `claude-session.mjs` hace `spawn('claude', ['-p', …])`: el proceso existe para producir
+  *una* respuesta y sale. Todo lo que ese proceso haya arrancado en segundo plano muere con
+  él. Hay dos consecuencias, y la segunda se olvida:
+  1. **El trabajo largo hay que desacoplarlo.** `setsid`/`detached: true` + `unref()` le da
+     grupo propio y sobrevive. Es lo que ya hace `claude-watch.mjs` al lanzar
+     `claude-resumer.mjs` («grupo propio: no muere con este encargado»).
+  2. **El vigilante también muere — así que nadie avisa de nada.** Un watcher armado dentro
+     del turno (cualquier cosa que espere a que termine el trabajo) se muere al acabar la
+     respuesta, y entre un mensaje y el siguiente **no queda nada vivo que pueda mandar un
+     aviso**. Medido el 2026-08-14 con un benchmark de 11 min en `foveal-vision`: el trabajo,
+     relanzado con `setsid`, sobrevivió y terminó bien; los tres vigilantes armados para
+     avisar murieron los tres con su turno, y el aviso prometido no llegó nunca. El usuario
+     tuvo que preguntar «¿cómo va?» para que se mirara el resultado.
+
+  **Regla práctica**: desacopla el trabajo **y el aviso**. Lo que no puede hacerse es
+  esperar dentro del turno.
+
+  **El aviso lo da `scripts/notify.mjs`** (existe desde 2026-08-14; antes esto no se podía
+  cumplir y la regla era «no prometas un aviso»). Corre desacoplado y se manda el mensaje él
+  mismo por Bot API con lo que heredó del entorno (`BOT_TOKEN`, `COORD_CHAT`, `COORD_THREAD`),
+  que es lo que `claude-resumer.mjs` ya hacía para su caso particular:
+
+  ```sh
+  setsid sh -c '<trabajo largo>; node scripts/notify.mjs "terminó: <dónde está el resultado>"' &
+  ```
+
+  Y para **despertar la conversación** además de avisar, sin nada nuevo: `claude-session.mjs`
+  lee el prompt por stdin y escribe la respuesta por stdout, así que se componen con una
+  tubería.
+
+  ```sh
+  setsid sh -c '<trabajo>; echo "<qué mirar>" | node scripts/claude-session.mjs | node scripts/notify.mjs' &
+  ```
+
+  Aun así, **di siempre dónde queda el resultado** (fichero, log, directorio) y compruébalo al
+  principio del turno siguiente: el aviso puede fallar —red caída, hilo borrado— y `notify.mjs`
+  solo puede dejar constancia del fallo en su propio log, que nadie está mirando. El aviso es
+  una comodidad; el artefacto en disco es la fuente de verdad.
 - **Modelo y esfuerzo de claude son DATO, no código:** `claude-session.mjs`
   acepta `--model <alias|nombre>` y `--effort <low|medium|high|xhigh|max>` y los
   reenvía a `claude`. Se declaran en la plantilla del ejecutor (`c` trae

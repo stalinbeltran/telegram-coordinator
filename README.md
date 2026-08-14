@@ -270,6 +270,44 @@ Ajustes (todos opcionales, en `.env`):
 | `CLAUDE_RETRY_MARGIN_SECONDS` | `30` | margen extra tras la hora de reinicio. |
 | `CLAUDE_RETRY_FALLBACK_HOURS` | `5` | espera si no se logra leer la hora. |
 
+## Avisar cuando termine algo largo (`notify.mjs`)
+
+**Un mensaje es un proceso que muere al responder**, y se lleva todo lo que lanzó.
+Un trabajo de 10 minutos hay que desacoplarlo (`setsid`, o `detached`+`unref`) o
+muere a medias — pero entonces tampoco queda nadie vivo para avisar de que
+terminó. [scripts/notify.mjs](scripts/notify.mjs) es ese "alguien": corre
+desacoplado y se manda el mensaje él mismo por Bot API.
+
+```sh
+setsid sh -c '<trabajo largo>; node scripts/notify.mjs "terminó: <dónde está el resultado>"' &
+```
+
+También lee de stdin, así que la salida de algo se manda tal cual (troceada si
+pasa de 4000 caracteres):
+
+```sh
+setsid sh -c 'npm run bench > bench.log 2>&1; tail -20 bench.log | node scripts/notify.mjs' &
+```
+
+Y para **despertar la conversación** además de avisar no hace falta nada nuevo:
+`claude-session.mjs` lee el prompt por stdin y escribe la respuesta por stdout,
+así que se componen con una tubería.
+
+```sh
+setsid sh -c '<trabajo>; echo "mira bench.log y resume" | node scripts/claude-session.mjs | node scripts/notify.mjs' &
+```
+
+Hereda `BOT_TOKEN` y `COORD_CHAT`/`COORD_THREAD` de quien lo lanzó (el
+coordinador los pasa a todo comando); fuera de una sesión, se le indican con
+`--chat` y `--thread`. Salidas: `0` enviado, `1` no se pudo enviar, `2` mal
+invocado o sin configuración. Reintenta los fallos de red y los 5xx, **no** los
+4xx (un chat inexistente no se arregla esperando), y el token no aparece nunca
+en sus mensajes de error.
+
+> **El aviso es una comodidad, no la fuente de verdad.** Puede fallar —red caída,
+> tema borrado— y entonces solo queda constancia en el log del propio trabajo, que
+> nadie está mirando. Di siempre dónde queda el resultado.
+
 ## Depurar un ejecutor (sin Telegram)
 
 Prueba cualquier ejecutor que hayas creado y mira cada paso (comando resuelto,
@@ -322,10 +360,12 @@ scripts/
   claude-watch.mjs     encargado que dispara la reanudación
   claude-resumer.mjs   proceso desacoplado que espera, reanuda y avisa por Telegram
   shell-cwd.mjs        shell con directorio de trabajo persistente (ejecutor `shell`)
+  notify.mjs           avisa al tema de Telegram desde un proceso desacoplado
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 tests/
   limit-detect.test.mjs
   claude-watch.test.mjs
+  notify.test.mjs
 data/
   executors/*.json        { name, command, encargados: [], timeoutMs? }
   encargados/*.json       { name, command, timeoutMs? }
