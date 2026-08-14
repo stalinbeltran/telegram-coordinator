@@ -3,3 +3,4 @@ node_modules/
 # Las sesiones son estado efímero; los ejecutores/encargados sí se pueden versionar.
 data/sessions/
 data/claude-sessions/
+data/shell-cwd/

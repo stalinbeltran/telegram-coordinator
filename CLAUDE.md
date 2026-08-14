@@ -85,7 +85,8 @@ encargado, `>>SHELL`), para habilitar ejecutores con estado sin cablear nada:
 
 ## Kit de arranque (sembrado automático en `data/` al primer arranque)
 
-- Ejecutor **`shell`** (`{{input}}`): ejecuta lo que envíes.
+- Ejecutor **`shell`** (`node scripts/shell-cwd.mjs`): ejecuta lo que envíes, con
+  el directorio de trabajo (`cd`) persistente por tema.
 - Ejecutor **`definer`** (`node scripts/define.mjs`): crea ejecutores/encargados
   con parámetros simples (encabezado + comando). Ver README.
 - Ejecutor **`c`** (`node scripts/claude-session.mjs`): conversa con `claude`
@@ -110,12 +111,14 @@ src/
 scripts/
   define.mjs           crea ejecutores/encargados desde texto simple
   claude-session.mjs   wrapper de claude con continuidad por sesión
+  shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 data/
   executors/*.json     { name, command, encargados: [], timeoutMs? }
   encargados/*.json     { name, command, timeoutMs? }
   sessions/*.json       (efímero, ignorado por git)
   claude-sessions/*.json (markers de claude por sesión, ignorado por git)
+  shell-cwd/*.json      (directorio actual por sesión, ignorado por git)
 ```
 
 ## Detalles técnicos que importan
@@ -133,6 +136,11 @@ data/
   `timeout=<ms>` en el encabezado (`exec c echo claude-watch timeout=0`).
 - **`claude -p` es sin estado** por invocación: la continuidad la da
   `claude-session.mjs` con un UUID estable derivado de `COORD_SESSION`.
+- **El `cd` tampoco sobrevive entre mensajes** (cada comando es un `spawn` nuevo;
+  un hijo no puede cambiar el cwd de su padre). Mismo patrón de solución: el
+  ejecutor `shell` es `scripts/shell-cwd.mjs`, que guarda el directorio por sesión
+  en `data/shell-cwd/` y ejecuta cada comando con ese `cwd`. No hay nada cableado
+  en el coordinador: el estado vive en el script, como en `claude-session.mjs`.
 - **Modelo y esfuerzo de claude son DATO, no código:** `claude-session.mjs`
   acepta `--model <alias|nombre>` y `--effort <low|medium|high|xhigh|max>` y los
   reenvía a `claude`. Se declaran en la plantilla del ejecutor (`c` trae

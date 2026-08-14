@@ -1,6 +1,6 @@
 {
   "name": "shell",
-  "command": "{{input}}",
+  "command": "node scripts/shell-cwd.mjs",
   "encargados": [
     "echo"
   ]

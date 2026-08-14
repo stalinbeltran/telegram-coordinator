@@ -49,7 +49,8 @@ ls -a             (con sesión abierta) se ejecuta en el sistema
 El coordinador siembra esto en `data/` la primera vez que arranca, si no existe
 ([registry.ts](src/registry.ts)):
 
-- Ejecutor **`shell`** → plantilla `{{input}}`: ejecuta lo que envíes.
+- Ejecutor **`shell`** → ejecuta lo que envíes, con `cd` **persistente** por tema
+  ([ver abajo](#ejecutor-shell-el-cd-persiste-por-tema)).
 - Ejecutor **`definer`** → crea ejecutores/encargados con parámetros simples.
 - Encargado **`echo`** → reenvía la salida del ejecutor de vuelta a ti.
 
@@ -122,6 +123,42 @@ coordinador. Con `definer` se fija en el encabezado con el token `timeout=<ms>`:
 exec c echo claude-watch timeout=0
 node scripts/claude-session.mjs
 ```
+
+## Ejecutor `shell`: el `cd` persiste por tema
+
+Un shell "a pelo" ignora el `cd` entre mensajes: cada uno corre en un `spawn`
+nuevo y un proceso hijo no puede cambiar el directorio de su padre, así que el
+`cd` muere con el shell que lo ejecutó y el mensaje siguiente vuelve a empezar en
+la carpeta del coordinador.
+
+Por eso `shell` no es `{{input}}` a secas, sino
+[scripts/shell-cwd.mjs](scripts/shell-cwd.mjs), que trata el directorio como
+**estado de sesión** igual que `c` trata la conversación: lo guarda en
+`data/shell-cwd/<sesión>.json` y ejecuta cada comando ahí. Los comandos que
+mandas son los mismos de siempre.
+
+```
+/use shell
+pwd            → 📁 C:\Desarrollo\telegram-coordinator
+cd src         → 📁 C:\Desarrollo\telegram-coordinator\src
+dir /b         → lista src, no la raíz
+cd ..          → 📁 C:\Desarrollo\telegram-coordinator
+```
+
+- Reconoce `cd <ruta>`, `cd ..`, `cd ~`, `cd -` (vuelve al anterior),
+  `cd "ruta con espacios"`, `cd /d X:\...` y `D:` a secas (cambio de unidad).
+- `cd` sin argumentos, `pwd` o un mensaje vacío responden el directorio actual.
+- Si la carpeta no existe, te lo dice y **no** te mueve.
+- Cada tema tiene su propio directorio: dos temas pueden trabajar en carpetas
+  distintas a la vez.
+- Si la carpeta guardada desaparece, vuelve a la del coordinador en lugar de
+  fallar.
+
+Límites conocidos: en `cd x && dir` el `cd` lo hace el shell, no el script, así
+que el comando funciona pero el cambio **no** persiste (para moverte, manda el
+`cd` solo); y en Linux `cd` sin argumentos imprime el directorio en vez de ir a
+`$HOME` (usa `cd ~`). Si alguna vez quieres el shell sin estado, es un `definer`
+de dos líneas: `exec crudo` + `{{input}}`.
 
 ## Ejecutor `c`: conversar con claude (con memoria por tema)
 
@@ -284,6 +321,7 @@ scripts/
   limit-detect.mjs     detección del límite de uso + hora de reinicio
   claude-watch.mjs     encargado que dispara la reanudación
   claude-resumer.mjs   proceso desacoplado que espera, reanuda y avisa por Telegram
+  shell-cwd.mjs        shell con directorio de trabajo persistente (ejecutor `shell`)
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 tests/
   limit-detect.test.mjs
@@ -293,6 +331,7 @@ data/
   encargados/*.json       { name, command, timeoutMs? }
   sessions/*.json         (efímero, ignorado por git)
   claude-sessions/*.json  (markers de claude por sesión, ignorado por git)
+  shell-cwd/*.json        (directorio actual por sesión, ignorado por git)
 ```
 
 ## Notas

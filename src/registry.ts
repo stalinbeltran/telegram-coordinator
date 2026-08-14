@@ -53,7 +53,7 @@ export async function getEncargado(name: string): Promise<Encargado | undefined>
 
 /**
  * Siembra el kit mínimo de arranque la primera vez (es DATO, no código):
- *  - ejecutor `shell`: ejecuta literalmente lo que envíes.
+ *  - ejecutor `shell`: ejecuta lo que envíes, con `cd` persistente por sesión.
  *  - encargado `echo`: reenvía la salida del ejecutor de vuelta a ti.
  */
 export async function seedBootKit(): Promise<void> {
@@ -61,7 +61,11 @@ export async function seedBootKit(): Promise<void> {
   await mkdir(encDir, { recursive: true });
 
   if (!(await getExecutor('shell'))) {
-    const shell: Executor = { name: 'shell', command: '{{input}}', encargados: ['echo'] };
+    const shell: Executor = {
+      name: 'shell',
+      command: 'node scripts/shell-cwd.mjs',
+      encargados: ['echo'],
+    };
     await writeFile(join(execDir, 'shell.json'), JSON.stringify(shell, null, 2) + '\n');
     console.log('🌱 Sembrado ejecutor "shell".');
   }
