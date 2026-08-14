@@ -133,6 +133,33 @@ data/
   `timeout=<ms>` en el encabezado (`exec c echo claude-watch timeout=0`).
 - **`claude -p` es sin estado** por invocación: la continuidad la da
   `claude-session.mjs` con un UUID estable derivado de `COORD_SESSION`.
+- **Un mensaje = un proceso que muere al responder, y se lleva todo lo que lanzó.**
+  `claude-session.mjs` hace `spawn('claude', ['-p', …])`: el proceso existe para producir
+  *una* respuesta y sale. Todo lo que ese proceso haya arrancado en segundo plano muere con
+  él. Hay dos consecuencias, y la segunda se olvida:
+  1. **El trabajo largo hay que desacoplarlo.** `setsid`/`detached: true` + `unref()` le da
+     grupo propio y sobrevive. Es lo que ya hace `claude-watch.mjs` al lanzar
+     `claude-resumer.mjs` («grupo propio: no muere con este encargado»).
+  2. **El vigilante también muere — así que nadie avisa de nada.** Un watcher armado dentro
+     del turno (cualquier cosa que espere a que termine el trabajo) se muere al acabar la
+     respuesta, y entre un mensaje y el siguiente **no queda nada vivo que pueda mandar un
+     aviso**. Medido el 2026-08-14 con un benchmark de 11 min en `foveal-vision`: el trabajo,
+     relanzado con `setsid`, sobrevivió y terminó bien; los tres vigilantes armados para
+     avisar murieron los tres con su turno, y el aviso prometido no llegó nunca. El usuario
+     tuvo que preguntar «¿cómo va?» para que se mirara el resultado.
+
+  **Regla práctica**: desacopla el trabajo, y **no prometas un aviso**. Di dónde queda el
+  resultado (fichero, log, directorio) y compruébalo al principio del turno siguiente. Un
+  «te aviso cuando termine» es una promesa que este diseño no puede cumplir.
+
+  **Lo que falta para poder cumplirla**: un notificador genérico. El mecanismo ya existe y
+  está probado, pero solo para un caso: `claude-resumer.mjs` corre desacoplado y **se manda
+  él mismo los mensajes a Telegram** por Bot API con lo que heredó del entorno
+  (`BOT_TOKEN`, `COORD_CHAT`, `COORD_THREAD`), e incluso reinyecta un prompt para reanudar la
+  conversación. Falta la versión de propósito general —un `scripts/notify.mjs` que cualquier
+  trabajo largo pueda invocar al terminar— para poder escribir
+  `setsid sh -c '<trabajo>; node scripts/notify.mjs "terminó: <dónde está el resultado>"' &`.
+  Mientras no exista, el aviso lo da el usuario preguntando.
 - **Modelo y esfuerzo de claude son DATO, no código:** `claude-session.mjs`
   acepta `--model <alias|nombre>` y `--effort <low|medium|high|xhigh|max>` y los
   reenvía a `claude`. Se declaran en la plantilla del ejecutor (`c` trae
