@@ -110,6 +110,7 @@ src/
 scripts/
   define.mjs           crea ejecutores/encargados desde texto simple
   claude-session.mjs   wrapper de claude con continuidad por sesión
+  notify.mjs           aviso a Telegram desde un proceso desacoplado
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 data/
   executors/*.json     { name, command, encargados: [], timeoutMs? }
@@ -148,18 +149,30 @@ data/
      avisar murieron los tres con su turno, y el aviso prometido no llegó nunca. El usuario
      tuvo que preguntar «¿cómo va?» para que se mirara el resultado.
 
-  **Regla práctica**: desacopla el trabajo, y **no prometas un aviso**. Di dónde queda el
-  resultado (fichero, log, directorio) y compruébalo al principio del turno siguiente. Un
-  «te aviso cuando termine» es una promesa que este diseño no puede cumplir.
+  **Regla práctica**: desacopla el trabajo **y el aviso**. Lo que no puede hacerse es
+  esperar dentro del turno.
 
-  **Lo que falta para poder cumplirla**: un notificador genérico. El mecanismo ya existe y
-  está probado, pero solo para un caso: `claude-resumer.mjs` corre desacoplado y **se manda
-  él mismo los mensajes a Telegram** por Bot API con lo que heredó del entorno
-  (`BOT_TOKEN`, `COORD_CHAT`, `COORD_THREAD`), e incluso reinyecta un prompt para reanudar la
-  conversación. Falta la versión de propósito general —un `scripts/notify.mjs` que cualquier
-  trabajo largo pueda invocar al terminar— para poder escribir
-  `setsid sh -c '<trabajo>; node scripts/notify.mjs "terminó: <dónde está el resultado>"' &`.
-  Mientras no exista, el aviso lo da el usuario preguntando.
+  **El aviso lo da `scripts/notify.mjs`** (existe desde 2026-08-14; antes esto no se podía
+  cumplir y la regla era «no prometas un aviso»). Corre desacoplado y se manda el mensaje él
+  mismo por Bot API con lo que heredó del entorno (`BOT_TOKEN`, `COORD_CHAT`, `COORD_THREAD`),
+  que es lo que `claude-resumer.mjs` ya hacía para su caso particular:
+
+  ```sh
+  setsid sh -c '<trabajo largo>; node scripts/notify.mjs "terminó: <dónde está el resultado>"' &
+  ```
+
+  Y para **despertar la conversación** además de avisar, sin nada nuevo: `claude-session.mjs`
+  lee el prompt por stdin y escribe la respuesta por stdout, así que se componen con una
+  tubería.
+
+  ```sh
+  setsid sh -c '<trabajo>; echo "<qué mirar>" | node scripts/claude-session.mjs | node scripts/notify.mjs' &
+  ```
+
+  Aun así, **di siempre dónde queda el resultado** (fichero, log, directorio) y compruébalo al
+  principio del turno siguiente: el aviso puede fallar —red caída, hilo borrado— y `notify.mjs`
+  solo puede dejar constancia del fallo en su propio log, que nadie está mirando. El aviso es
+  una comodidad; el artefacto en disco es la fuente de verdad.
 - **Modelo y esfuerzo de claude son DATO, no código:** `claude-session.mjs`
   acepta `--model <alias|nombre>` y `--effort <low|medium|high|xhigh|max>` y los
   reenvía a `claude`. Se declaran en la plantilla del ejecutor (`c` trae
