@@ -203,6 +203,25 @@ data/
   vez; si vuelve a pasar, avisa al usuario para rotarlo.)
 - `.env` y los datos efímeros están en `.gitignore`. No los commitees.
 
+## Estos servidores son efímeros: lo que no está empujado, no existe
+
+La máquina se rehace sin aviso y de ella solo sobrevive lo que está en el remoto.
+Por eso el push no es el cierre del encargo, es parte de cada cambio: **cambio o
+documentación terminada → commit → push**, el mismo día, sin acumular.
+
+Y hay que mirar **a qué rama llega**: un clon limpio saca `main`, así que un commit
+parado en `dev` es invisible para la máquina siguiente. Mientras el merge esté
+pendiente, el trabajo no existe para nadie más.
+
+Medido el 2026-08-14: el droplet apareció recién restaurado (clon limpio, sin
+`.venv` ni datos). El procedimiento para reconstruir el dato del benchmark del
+proyecto hermano **sí estaba commiteado y empujado —pero a `dev` del generador, sin
+fusionar a `main`—**, así que aquí no había ni rastro: se dio por imposible lo que sí
+estaba escrito, y se gastó una corrida de benchmark sobre la fuente equivocada.
+
+Vale igual para lo que no es código: un reporte o una medición que merezca conservarse
+se commitea. Lo que queda en `/tmp` o en un directorio ignorado, se pierde.
+
 ## Cómo trabajar en este repo
 
 - Para verificar tipos: `npx tsc --noEmit`. Se ejecuta con `tsx` (sin build).
