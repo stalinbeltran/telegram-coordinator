@@ -1,0 +1,8 @@
+{
+  "name": "preflight",
+  "command": "node scripts/bench-preflight.mjs {{input}}",
+  "encargados": [
+    "echo"
+  ],
+  "timeoutMs": 120000
+}

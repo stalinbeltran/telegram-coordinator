@@ -1,0 +1,275 @@
+#!/usr/bin/env node
+// ¿Tiene esta máquina lo que hace falta para correr el benchmark de vCPU?
+//
+// Existe porque la respuesta ha sido "no" varias veces seguidas, y de formas
+// que no se ven hasta que ya has empezado: el droplet es nuevo, el dataset no
+// está, el token tampoco, y lo que se descubre a mitad de un encargo se
+// resuelve improvisando. Esto lo pregunta TODO de golpe, antes de nada, y para
+// cada cosa que falta dice el comando exacto que la arregla.
+//
+//   node scripts/bench-preflight.mjs          comprueba y lista lo que falta
+//   node scripts/bench-preflight.mjs --fix    además arregla lo que puede solo
+//
+// Sale con código 0 sólo si se puede medir ya. Lo que no puede arreglarse desde
+// dentro (que el lanzador no haya enviado el token) se dice con el comando que
+// hay que correr FUERA, en la máquina lanzadora.
+
+import { execFileSync, execSync } from 'node:child_process';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const FIX = process.argv.includes('--fix');
+const HOME = homedir();
+const SRC = join(HOME, 'src');
+const LANZADOR = join(SRC, 'digital-ocean-dropplet-auto-launching');
+const DO_API = 'https://api.digitalocean.com/v2';
+const VOLUMEN = process.env.BENCH_VOLUME || 'bench-data';
+const MNT = `/mnt/${VOLUMEN}`;
+
+// Lo que el volumen tiene que contener para que un droplet de medición pueda
+// ponerse a entrenar sin generar nada.
+const ARTEFACTOS = [
+  'window-datasets/bench-dirty1000-16/windows.npz',
+  'FINGERPRINT.json',
+];
+
+const resultados = [];
+let bloqueado = false;
+
+function anota(estado, que, detalle, remedio = '') {
+  resultados.push({ estado, que, detalle, remedio });
+  if (estado === 'FALTA') bloqueado = true;
+}
+
+function sh(cmd, opts = {}) {
+  return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts }).trim();
+}
+
+function intenta(cmd, opts = {}) {
+  try {
+    return { ok: true, salida: sh(cmd, opts) };
+  } catch (e) {
+    return { ok: false, salida: ((e.stdout || '') + (e.stderr || '')).trim() || String(e.message) };
+  }
+}
+
+async function api(ruta, opciones = {}) {
+  const token = process.env.DO_TOKEN || process.env.DIGITALOCEAN_TOKEN || '';
+  const r = await fetch(`${DO_API}${ruta}`, {
+    ...opciones,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(opciones.headers || {}),
+    },
+  });
+  const texto = await r.text();
+  const cuerpo = texto ? JSON.parse(texto) : {};
+  if (!r.ok) throw new Error(`HTTP ${r.status} en ${ruta}: ${texto.slice(0, 300)}`);
+  return cuerpo;
+}
+
+// La API de metadatos sólo responde dentro de un droplet. Fuera (una laptop),
+// que no responda es la respuesta: aquí no se lanza nada.
+async function metadatos() {
+  try {
+    const r = await fetch('http://169.254.169.254/metadata/v1.json', {
+      signal: AbortSignal.timeout(3000),
+    });
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+// --------------------------------------------------------------------- checks
+
+async function main() {
+  console.log('Comprobando lo que hace falta para el benchmark de vCPU…\n');
+
+  // 1. ¿Estamos en un droplet, y en cuál?
+  const meta = await metadatos();
+  if (meta) {
+    anota('OK', 'esta máquina', `droplet ${meta.droplet_id} · ${meta.region} · ${meta.hostname}`);
+  } else {
+    anota('AVISO', 'esta máquina', 'no responde la API de metadatos: no parece un droplet');
+  }
+  const region = meta?.region || 'nyc1';
+
+  // 2. El token. Sin él no hay nada que hacer, y no se puede arreglar desde aquí.
+  const token = process.env.DO_TOKEN || process.env.DIGITALOCEAN_TOKEN || '';
+  if (!token) {
+    anota(
+      'FALTA',
+      'DO_TOKEN',
+      'no está en el entorno (debería venir de ~/.config/dev-secrets.env)',
+      'Desde la máquina LANZADORA, no desde aquí:\n' +
+        `      python scripts/do_droplet.py push-do-token ${meta?.hostname || '<droplet>'}\n` +
+        '    o relanzar el droplet con --make-launcher, que lo envía junto con lo demás.',
+    );
+  } else {
+    try {
+      const cuenta = await api('/account');
+      anota(
+        'OK',
+        'DO_TOKEN',
+        `válido · límite de ${cuenta.account.droplet_limit} droplets · ${cuenta.account.email}`,
+      );
+    } catch (e) {
+      anota('FALTA', 'DO_TOKEN', `presente pero la API lo rechaza: ${e.message}`,
+        'Rótalo desde la lanzadora: python scripts/do_droplet.py push-do-token <droplet>');
+    }
+  }
+
+  // 3. El repo del lanzador: es el programa que sabe crear y destruir droplets.
+  if (existsSync(join(LANZADOR, 'scripts', 'do_droplet.py'))) {
+    anota('OK', 'repo del lanzador', LANZADOR);
+  } else if (FIX) {
+    const r = intenta(
+      `git clone -q https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching.git ${LANZADOR}`,
+    );
+    if (r.ok) anota('ARREGLADO', 'repo del lanzador', `clonado en ${LANZADOR}`);
+    else anota('FALTA', 'repo del lanzador', r.salida, 'clónalo a mano en ~/src');
+  } else {
+    anota('FALTA', 'repo del lanzador', `no está en ${LANZADOR}`,
+      'node scripts/bench-preflight.mjs --fix   (lo clona)');
+  }
+
+  // 4. La clave SSH. El token deja CREAR droplets; entrar en ellos es otra cosa,
+  //    y es la que se olvida: sin par propio registrado en la cuenta, las
+  //    máquinas que lances existen, facturan y no las puedes tocar.
+  const clave = join(HOME, '.ssh', 'do_droplet');
+  let claveOk = existsSync(clave);
+  if (!claveOk && FIX) {
+    const r = intenta(`ssh-keygen -t ed25519 -f ${clave} -N "" -C "bench-${meta?.hostname || 'local'}"`);
+    claveOk = r.ok;
+    if (!r.ok) anota('FALTA', 'clave SSH', r.salida, 'ssh-keygen -t ed25519 -f ~/.ssh/do_droplet -N ""');
+  }
+  if (claveOk && token) {
+    const publica = readFileSync(`${clave}.pub`, 'utf8').trim();
+    const material = publica.split(/\s+/)[1];
+    try {
+      const { ssh_keys: claves } = await api('/account/keys?per_page=200');
+      const ya = claves.find((k) => k.public_key.split(/\s+/)[1] === material);
+      if (ya) {
+        anota('OK', 'clave SSH', `~/.ssh/do_droplet registrada en la cuenta como '${ya.name}'`);
+      } else if (FIX) {
+        const nombre = `lanzador-${meta?.hostname || 'bench'}`;
+        const { ssh_key } = await api('/account/keys', {
+          method: 'POST',
+          body: JSON.stringify({ name: nombre, public_key: publica }),
+        });
+        anota('ARREGLADO', 'clave SSH', `registrada en la cuenta como '${ssh_key.name}'`);
+      } else {
+        anota('FALTA', 'clave SSH', 'existe pero NO está registrada en la cuenta',
+          'node scripts/bench-preflight.mjs --fix   (la registra)\n' +
+          '    Ojo: sólo la aceptarán los droplets creados DESPUÉS de registrarla.');
+      }
+    } catch (e) {
+      anota('FALTA', 'clave SSH', `no pude consultar las claves de la cuenta: ${e.message}`);
+    }
+  } else if (!claveOk) {
+    anota('FALTA', 'clave SSH', 'no existe ~/.ssh/do_droplet',
+      'node scripts/bench-preflight.mjs --fix   (la genera y la registra)');
+  }
+
+  // 5. Los repos del trabajo.
+  for (const [repo, dir] of [
+    ['stalinbeltran/foveal-vision', 'foveal-vision'],
+    ['stalinbeltran/image-text-sample-generator', 'image-text-sample-generator'],
+  ]) {
+    const ruta = join(SRC, dir);
+    if (existsSync(join(ruta, '.git'))) {
+      const rama = intenta('git rev-parse --abbrev-ref HEAD', { cwd: ruta });
+      anota('OK', `repo ${dir}`, `${ruta} (${rama.ok ? rama.salida : '?'})`);
+    } else if (FIX) {
+      const r = intenta(`git clone -q https://github.com/${repo}.git ${ruta}`);
+      if (r.ok) anota('ARREGLADO', `repo ${dir}`, `clonado en ${ruta}`);
+      else anota('FALTA', `repo ${dir}`, r.salida);
+    } else {
+      anota('FALTA', `repo ${dir}`, `no está en ${ruta}`,
+        'node scripts/bench-preflight.mjs --fix   (lo clona)');
+    }
+  }
+
+  // 6. El dataset. Es lo caro: se genera con Chromium y mil renders. Vive en un
+  //    volumen justo para no repetirlo en cada máquina nueva.
+  let volumen = null;
+  if (token) {
+    try {
+      const { volumes } = await api('/volumes?per_page=200');
+      volumen = volumes.find((v) => v.name === VOLUMEN) || null;
+    } catch (e) {
+      anota('AVISO', 'volumen', `no pude listar volúmenes: ${e.message}`);
+    }
+  }
+
+  const montado = existsSync(MNT) && intenta(`mountpoint -q ${MNT}`).ok;
+  const artefactosOk = ARTEFACTOS.every((a) => existsSync(join(MNT, a)));
+
+  if (montado && artefactosOk) {
+    let huella = '?';
+    try {
+      huella = JSON.parse(readFileSync(join(MNT, 'FINGERPRINT.json'), 'utf8')).sha256_windows_npz.slice(0, 12);
+    } catch { /* el fichero está, su contenido ya lo dirá quien lo use */ }
+    const tam = (statSync(join(MNT, ARTEFACTOS[0])).size / 1e6).toFixed(1);
+    anota('OK', 'dataset', `${MNT} montado, windows.npz ${tam} MB, huella ${huella}…`);
+  } else if (montado) {
+    anota('FALTA', 'dataset', `${MNT} está montado pero vacío o incompleto`,
+      'Generarlo una vez (tarda, usa Chromium):\n' +
+      '      cd ~/src/foveal-vision && python3 scripts/bench_dataset.py');
+  } else if (volumen && volumen.droplet_ids?.length && meta && volumen.droplet_ids.includes(meta.droplet_id)) {
+    anota('FALTA', 'dataset', `el volumen '${VOLUMEN}' está conectado pero no montado`,
+      `cd ~/src/digital-ocean-dropplet-auto-launching && python3 scripts/do_droplet.py volume attach ${VOLUMEN}`);
+  } else if (volumen) {
+    anota('FALTA', 'dataset', `el volumen '${VOLUMEN}' existe (${volumen.size_gigabytes} GB en ${volumen.region.slug}) pero no está en esta máquina`,
+      `cd ~/src/digital-ocean-dropplet-auto-launching && python3 scripts/do_droplet.py volume attach ${VOLUMEN} --droplet ${meta?.hostname || '<este droplet>'}`);
+  } else {
+    anota('FALTA', 'dataset', `no existe el volumen '${VOLUMEN}' en la cuenta`,
+      'cd ~/src/digital-ocean-dropplet-auto-launching\n' +
+      `      python3 scripts/do_droplet.py volume create ${VOLUMEN} --size-gb 10 --region ${region}\n` +
+      `      python3 scripts/do_droplet.py volume attach ${VOLUMEN} --droplet ${meta?.hostname || '<este droplet>'}\n` +
+      '    y luego generarlo:  cd ~/src/foveal-vision && python3 scripts/bench_dataset.py');
+  }
+
+  // 7. Herramientas que usa la orquestación.
+  for (const [bin, para] of [
+    ['python3', 'el lanzador'],
+    ['ssh', 'entrar en los droplets de medición'],
+    ['scp', 'copiarles el dataset'],
+    ['git', 'guardar los reportes'],
+  ]) {
+    const r = intenta(`command -v ${bin}`);
+    if (r.ok) anota('OK', bin, r.salida);
+    else anota('FALTA', bin, `no está en el PATH (hace falta para ${para})`, `sudo apt-get install -y ${bin}`);
+  }
+
+  // ------------------------------------------------------------------ informe
+  console.log('');
+  const ancho = Math.max(...resultados.map((r) => r.que.length));
+  for (const r of resultados) {
+    const marca = { OK: '  ok  ', FALTA: ' FALTA', AVISO: ' aviso', ARREGLADO: 'puesto' }[r.estado];
+    console.log(`[${marca}] ${r.que.padEnd(ancho)}  ${r.detalle}`);
+  }
+
+  const faltan = resultados.filter((r) => r.estado === 'FALTA');
+  if (faltan.length) {
+    console.log(`\n${faltan.length === 1 ? 'Falta una cosa' : `Faltan ${faltan.length} cosas`}:\n`);
+    for (const r of faltan) {
+      console.log(`  ${r.que}: ${r.detalle}`);
+      if (r.remedio) console.log(`    → ${r.remedio}`);
+      console.log('');
+    }
+    if (!FIX) console.log('Varias se arreglan solas con:  node scripts/bench-preflight.mjs --fix');
+  } else {
+    console.log('\nTodo listo: se puede medir. El siguiente paso es');
+    console.log('  cd ~/src/foveal-vision && python3 scripts/bench_fleet.py --sizes 2,4,8');
+  }
+  process.exit(bloqueado ? 1 : 0);
+}
+
+main().catch((e) => {
+  console.error(`\nERROR inesperado en el preflight: ${e.stack || e.message}`);
+  process.exit(2);
+});

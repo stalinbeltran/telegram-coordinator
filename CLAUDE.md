@@ -118,6 +118,7 @@ scripts/
   shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
   notify.mjs           aviso a Telegram desde un proceso desacoplado
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
+  bench-preflight.mjs  ¿tiene esta máquina con qué medir? (--fix arregla)
 data/
   executors/*.json     { name, command, encargados: [], timeoutMs? }
   encargados/*.json     { name, command, timeoutMs? }
@@ -247,6 +248,109 @@ estaba escrito, y se gastó una corrida de benchmark sobre la fuente equivocada.
 
 Vale igual para lo que no es código: un reporte o una medición que merezca conservarse
 se commitea. Lo que queda en `/tmp` o en un directorio ignorado, se pierde.
+
+## Encargo en curso: medir velocidad de entrenamiento por vCPU
+
+**Si estás leyendo esto en un servidor recién lanzado, empieza por aquí.** Este
+encargo se ha reabierto varias veces y siempre se atascaba en el mismo sitio: se
+descubría a mitad que faltaba algo (el dato, el token, la clave), y lo que se
+descubre a mitad se resuelve improvisando. Por eso lo primero no es medir, es
+preguntar qué falta:
+
+```bash
+node scripts/bench-preflight.mjs          # qué hay y qué falta
+node scripts/bench-preflight.mjs --fix    # además arregla lo que puede solo
+```
+
+Sale con código 0 **sólo** si se puede medir ya. Para cada cosa que falta imprime
+el comando exacto que la arregla, y distingue las que se arreglan aquí dentro de
+la única que no: el token, que lo tiene que enviar la máquina lanzadora.
+
+### Qué es «todo lo necesario» (esta es la definición)
+
+| # | Qué | Quién lo pone | Si falta |
+|---|---|---|---|
+| 1 | `DO_TOKEN` en el entorno | el lanzador, con `--make-launcher` o `push-do-token` | **no se puede** crear ni destruir droplets. Es lo único que no se arregla desde dentro |
+| 2 | Repo `~/src/digital-ocean-dropplet-auto-launching` | `--make-launcher`, o `--fix` | no hay con qué hablar con la API |
+| 3 | Par de claves `~/.ssh/do_droplet` **registrado en la cuenta** | `--make-launcher`, o `--fix` | se crean droplets en los que no se puede entrar: existen, facturan y no sirven |
+| 4 | Repos `~/src/foveal-vision` y `~/src/image-text-sample-generator` | `--repo` al lanzar, o `--fix` | no hay benchmark ni generador |
+| 5 | Volumen `bench-data` montado en `/mnt/bench-data` con el dataset | `--volume bench-data` al lanzar | hay que regenerar el dato: ~15-20 min de renders. **Se puede**, no es un bloqueo |
+| 6 | `python3`, `ssh`, `scp`, `git` | cloud-init | los trae el arranque; si falta alguno, `apt-get install` |
+
+El punto 3 es el que se olvida siempre: **el token deja CREAR droplets, pero no
+ENTRAR en ellos**. Un droplet acepta las claves registradas en la cuenta en el
+momento de nacer, así que la clave tiene que estar registrada *antes* de lanzar
+nada. Los droplets creados antes de registrarla no la aceptarán nunca.
+
+### Cómo se lanza este servidor para que no falte nada
+
+Desde la máquina lanzadora (no desde aquí):
+
+```bash
+python scripts/do_droplet.py volume create bench-data --size-gb 10   # una vez en la vida
+python scripts/do_droplet.py launch trabajo \
+  --service telegram-coordinator \
+  --make-launcher \
+  --volume bench-data \
+  --repo stalinbeltran/foveal-vision \
+  --repo stalinbeltran/image-text-sample-generator
+```
+
+`--make-launcher` es lo que convierte a esta máquina en lanzadora: envía el
+token, clona el repo del lanzador y le genera un par de claves propio con la
+pública registrada en la cuenta. Las tres cosas van juntas porque pedidas por
+separado se olvida una.
+
+### El trabajo
+
+Medir `seconds_per_epoch` en droplets de distinta capacidad de vCPU. Esta
+máquina **no se mide a sí misma**: lanza una máquina por tamaño, le copia el
+dato, mide, y **la destruye**. Ella sigue viva; las de medición son desechables.
+
+```bash
+python3 ~/src/foveal-vision/scripts/bench_fleet.py --vcpus 2,4,8
+```
+
+Tarda decenas de minutos, así que **no se corre dentro de un turno**: hay un
+ejecutor `bench` que ya lo lanza desacoplado y avisa al terminar (`/use bench`,
+luego `--vcpus 2,4,8`). El aviso es una comodidad; la fuente de verdad son
+`~/src/foveal-vision/benchmarks/vcpu_*.json` y el log en `/tmp/`, y **se miran al
+principio del turno siguiente**.
+
+El detalle completo —qué mide, de dónde sale el dato, qué se espera encontrar y
+qué cuesta— está en
+[`foveal-vision/docs/benchmark-vcpu.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/benchmark-vcpu.md).
+
+### El dataset se genera, y está comprobado que se puede
+
+Esto es lo que más veces se ha dado por imposible. **No lo es.** Los specs del
+generador están congelados en git (`specs.jsonl`, seed 1) y la extracción de
+ventanas tiene su propia semilla, así que el dato se reconstruye igual en
+cualquier máquina. Comprobado el 2026-08-19 en este mismo droplet: renderizando
+dos veces el mismo spec, los `sha256` de los PNG salen **idénticos byte a byte**.
+
+```bash
+cd ~/src/foveal-vision
+python3 scripts/bench_dataset.py build                      # ~15-20 min
+python3 scripts/bench_dataset.py publish --to /mnt/bench-data
+```
+
+Vive en un **volumen** justo para no repetir esos 20 minutos en cada máquina
+nueva: un volumen es lo único de la cuenta que sobrevive a su droplet. Los
+droplets de medición **no** lo montan (un volumen va en una máquina a la vez, y
+además hay que medir el disco local, no la red): se les copia el dato y se
+verifica la huella SHA-256 **en el destino**, porque un dataset a medias daría un
+número más rápido con exactamente la misma pinta que uno bueno.
+
+### Coste, que es lo único irreversible aquí
+
+Los droplets facturan por segundo mientras existan. Los de medición nacen con el
+tag `bench-efimero` —que no usa nada más— y se destruyen en un `finally`. Si algo
+se corta a mitad:
+
+```bash
+python3 ~/src/foveal-vision/scripts/bench_fleet.py --reap
+```
 
 ## Cómo trabajar en este repo
 
