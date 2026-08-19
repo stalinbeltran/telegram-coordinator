@@ -1,0 +1,5 @@
+{
+  "name": "creset",
+  "command": "node scripts/claude-reset.mjs",
+  "encargados": []
+}

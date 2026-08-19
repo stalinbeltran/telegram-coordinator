@@ -10,6 +10,13 @@
 //
 // Variables útiles para depurar:
 //   COMMAND_TIMEOUT_MS=120000 npx tsx scripts/test-executor.mjs c "..."   (más tiempo)
+//   COORD_SESSION=pruebas npx tsx scripts/test-executor.mjs creset "x"    (otro tema)
+//
+// ⚠️ COORD_SESSION se HEREDA si ya venía puesta, y llega puesta cuando el propio
+// coordinador te lanzó (un `c` depurándose a sí mismo). Entonces esto NO trabaja
+// sobre "debug-session", sino sobre el tema de verdad — y con un ejecutor que
+// toca estado (`creset` reinicia la conversación) eso se nota. Por eso la sesión
+// en uso se imprime abajo: mírala antes de probar algo destructivo.
 
 // Evita que config.ts aborte por falta de token cuando depuras sin .env.
 process.env.BOT_TOKEN = process.env.BOT_TOKEN || 'debug-token';
@@ -34,6 +41,7 @@ if (!execName) {
 
 console.log(`TIMEOUT por comando: ${process.env.COMMAND_TIMEOUT_MS ?? 30000} ms`);
 console.log(`DATA_DIR: ${process.env.DATA_DIR ?? 'data'}`);
+console.log(`COORD_SESSION: ${process.env.COORD_SESSION}`);
 line('═');
 
 const executor = await getExecutor(execName);

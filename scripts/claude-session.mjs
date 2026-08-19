@@ -2,9 +2,12 @@
 // (un tema de Telegram = una conversación de claude independiente).
 //
 // - Lee tu mensaje por stdin (no necesita comillas ni escapes).
-// - Deriva un UUID estable de COORD_SESSION (lo pone el coordinador).
-// - Primer mensaje de la sesión: crea la conversación con --session-id <uuid>.
+// - Deriva un UUID estable del tema (COORD_SESSION) y su época: ver
+//   claude-marker.mjs, que es donde vive ese estado.
+// - Primer mensaje de la conversación: la crea con --session-id <uuid>.
 //   Mensajes siguientes: la continúa con --resume <uuid>.
+// - Para empezar de cero SIN cambiar de tema: `/use creset`, que sube la época
+//   y con ella el uuid (scripts/claude-reset.mjs).
 // - Imprime SOLO la respuesta de claude por stdout (la recoge el encargado echo).
 //
 // Perfil (modelo + esfuerzo) como DATO, no como código: se declara en la
@@ -20,14 +23,16 @@
 //     CLAUDE_PERMISSION_MODE=bypassPermissions   (⚠️ claude ejecuta cualquier cosa)
 
 import { spawn } from 'node:child_process';
-import { writeFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { createHash } from 'node:crypto';
 import { isRateLimited } from './limit-detect.mjs';
+import {
+  SESSION,
+  readMarker,
+  epochOf,
+  isStarted,
+  uuidFor,
+  writeMarker,
+} from './claude-marker.mjs';
 
-const DATA_DIR = process.env.DATA_DIR || 'data';
-const session = process.env.COORD_SESSION || 'default';
 const permissionMode = process.env.CLAUDE_PERMISSION_MODE || 'acceptEdits';
 
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -61,18 +66,6 @@ const profileArgs = [
   ...(profile.effort ? ['--effort', profile.effort] : []),
 ];
 
-function uuidFrom(s) {
-  const h = createHash('sha1').update(s).digest('hex');
-  // Formato UUID v4 válido (8-4-4-4-12) derivado determinísticamente de la sesión.
-  return [
-    h.slice(0, 8),
-    h.slice(8, 12),
-    '4' + h.slice(13, 16),
-    '8' + h.slice(17, 20),
-    h.slice(20, 32),
-  ].join('-');
-}
-
 function readStdin() {
   return new Promise((res) => {
     let s = '';
@@ -105,26 +98,28 @@ if (!prompt) {
   process.exit(1);
 }
 
-const uuid = uuidFrom(session);
-const dir = join(DATA_DIR, 'claude-sessions');
-const marker = join(dir, session.replace(/[^\w.-]/g, '_') + '.json');
-const firstTime = !existsSync(marker);
+const marker = readMarker();
+const epoch = epochOf(marker);
+const uuid = uuidFor(SESSION, epoch);
+const started = isStarted(marker);
 
-let res = await runClaude(firstTime ? 'create' : 'resume', uuid, prompt);
+let res = await runClaude(started ? 'resume' : 'create', uuid, prompt);
 
-// Si la continuación falló (sesión perdida/limpiada), arranca una nueva. PERO no
-// cuando el fallo es un límite de uso: ahí la sesión sigue intacta y crear una
-// nueva perdería el contexto. En ese caso dejamos que el encargado la reanude.
-if (!res.ok && !firstTime && !isRateLimited(`${res.err}\n${res.out}`)) {
-  res = await runClaude('create', uuid, prompt);
+// Si falló, se prueba el modo CONTRARIO. El marker y lo que claude tiene guardado
+// pueden desincronizarse en LOS DOS sentidos (borrar el marker con ~/.claude
+// intacta, o rehacer data/ sin rehacer ~/.claude), y antes solo se cubría uno:
+// una creación que chocaba con un uuid ya existente moría sin red.
+// Si el reintento tampoco va, se reporta el fallo ORIGINAL —el del modo que
+// tocaba— porque es el que explica algo; el otro solo diría que no existe.
+// NO se reintenta ante un límite de uso: ahí la sesión sigue intacta y tocarla
+// perdería el contexto, así que se deja que el encargado la reanude.
+if (!res.ok && !isRateLimited(`${res.err}\n${res.out}`)) {
+  const retry = await runClaude(started ? 'create' : 'resume', uuid, prompt);
+  if (retry.ok) res = retry;
 }
 
 if (res.ok) {
-  await mkdir(dir, { recursive: true });
-  await writeFile(
-    marker,
-    JSON.stringify({ session, uuid, updated: new Date().toISOString() }, null, 2) + '\n',
-  );
+  await writeMarker(SESSION, { epoch, uuid, started: true });
   process.stdout.write(res.out.trim() || '(sin respuesta de claude)');
 } else if (isRateLimited(`${res.err}\n${res.out}`)) {
   // Límite de tokens: NO es un error fatal para el flujo. Volcamos el banner a

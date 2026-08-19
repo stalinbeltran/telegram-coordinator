@@ -64,6 +64,7 @@ que vienen con el clon y puedes borrarlos o cambiarlos sin tocar `src/`.
 | Nombre | Tipo | Qué hace |
 | --- | --- | --- |
 | `c` | ejecutor | conversa con `claude` con memoria por tema (ver abajo). Sin timeout (`timeoutMs: 0`) y con encargados `echo` + `claude-watch`. |
+| `creset` | ejecutor | reinicia la conversación de `c` **en este tema** (ver abajo). Sin encargados: responde él mismo. |
 | `claude-watch` | encargado | vigila el límite de uso de Claude y programa la reanudación automática (ver abajo). Es mudo: no te escribe. |
 | `directorio` | ejecutor | ejemplo mínimo (`dir`): lista el directorio del coordinador. Solo Windows. |
 
@@ -198,6 +199,38 @@ Y como el hilo de claude se deriva del **tema** (`COORD_SESSION`), no del
 ejecutor, puedes cambiar de perfil a mitad de conversación sin perder contexto:
 `/end` y `/use c-barato` en el mismo tema continúan la misma charla.
 
+### Empezar de cero sin cambiar de tema (`/use creset`)
+
+El id de la conversación **no se guarda: se deriva** del tema. Eso da la memoria
+por tema, pero también significaba que dentro de un tema la conversación era la
+misma para siempre y crecía sin techo. **Nada la cortaba**: ni `/end` (que solo
+suelta la atadura con el ejecutor), ni reiniciar el bot, ni cambiar de perfil, ni
+chocar con el límite de uso. La única salida era abrir un tema nuevo — y perder
+con él el `cd` del shell y todo lo demás del hilo.
+
+`creset` la corta sin salir del tema:
+
+```
+/use creset
+ya                → 🔄 Conversación de claude reiniciada en este tema (época 0 → 1).
+/use c
+¿Qué número te dije?   → no lo sabe: es una conversación nueva
+```
+
+El texto que mandes da igual, solo hace falta *algo* para que el ejecutor corra
+(`/use` liga la sesión, no ejecuta nada por sí solo).
+
+Cómo funciona, sin romper la derivación: el marker del tema guarda una **época**,
+y el uuid sale de `<tema>#<época>` ([claude-marker.mjs](scripts/claude-marker.mjs)).
+Subir la época da un uuid que claude no ha visto nunca. La época 0 se deriva del
+tema a secas, así que las conversaciones que ya existían siguen siendo las mismas.
+
+- **No borra nada**: la charla anterior se queda en el almacén de claude, solo
+  deja de usarse.
+- **El reset es por tema**: los demás temas siguen intactos.
+- La época vive en `data/` (efímero, ignorado por git). Si se pierde al rehacer la
+  máquina se vuelve a la época 0 y se empieza en blanco, que es lo que ya pasaba.
+
 ### Identidad de sesión para ejecutores con estado
 
 El coordinador expone a TODO comando (ejecutor, encargado y `>>SHELL`) estas
@@ -321,6 +354,16 @@ npx tsx scripts/test-executor.mjs shell "echo hola"
 npx tsx scripts/test-executor.mjs c "resume este repo"
 ```
 
+El harness imprime el `COORD_SESSION` que va a usar. **Míralo antes de probar algo
+que toque estado.** Por defecto es `debug-session`, pero la variable se *hereda* si
+ya venía puesta — y viene puesta cuando el propio coordinador te lanzó (un `c`
+depurándose a sí mismo). En ese caso el harness trabaja sobre el tema de verdad, y
+con `creset` eso significa reiniciar la conversación real. Para forzar otra:
+
+```bash
+COORD_SESSION=pruebas npx tsx scripts/test-executor.mjs creset "x"
+```
+
 El harness respeta el `timeoutMs` del propio ejecutor, así que `c` (que trae
 `timeoutMs: 0`) corre sin límite y no hay que tocar nada. Para un ejecutor tuyo
 que sí use el timeout global y resulte lento, súbelo solo para esa prueba:
@@ -356,6 +399,8 @@ src/
 scripts/
   define.mjs           crea ejecutores/encargados desde texto simple (ejecutor `definer`)
   claude-session.mjs   wrapper de claude con continuidad por sesión (ejecutor `c`)
+  claude-marker.mjs    estado por tema de esa conversación (época + uuid)
+  claude-reset.mjs     sube la época: conversación nueva sin cambiar de tema (`creset`)
   limit-detect.mjs     detección del límite de uso + hora de reinicio
   claude-watch.mjs     encargado que dispara la reanudación
   claude-resumer.mjs   proceso desacoplado que espera, reanuda y avisa por Telegram

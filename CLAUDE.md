@@ -91,6 +91,8 @@ encargado, `>>SHELL`), para habilitar ejecutores con estado sin cablear nada:
   con parámetros simples (encabezado + comando). Ver README.
 - Ejecutor **`c`** (`node scripts/claude-session.mjs`): conversa con `claude`
   con **memoria por tema** (continuidad nativa `--session-id`/`--resume`).
+- Ejecutor **`creset`** (`node scripts/claude-reset.mjs`): corta la conversación
+  de `c` en **este** tema y empieza otra en blanco. Ver más abajo.
 - Encargado **`echo`**: reenvía la salida del ejecutor al usuario (`>>USER`).
 
 Con `shell`/`definer` + `echo` puedes construir todo lo demás desde Telegram sin
@@ -111,6 +113,8 @@ src/
 scripts/
   define.mjs           crea ejecutores/encargados desde texto simple
   claude-session.mjs   wrapper de claude con continuidad por sesión
+  claude-marker.mjs    estado por tema de esa conversación (época + uuid)
+  claude-reset.mjs     sube la época: conversación nueva sin cambiar de tema
   shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
   notify.mjs           aviso a Telegram desde un proceso desacoplado
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
@@ -137,6 +141,28 @@ data/
   `timeout=<ms>` en el encabezado (`exec c echo claude-watch timeout=0`).
 - **`claude -p` es sin estado** por invocación: la continuidad la da
   `claude-session.mjs` con un UUID estable derivado de `COORD_SESSION`.
+- **Ese UUID no se guarda, se DERIVA — y por eso hace falta `/use creset`.** Al
+  derivarse del tema, dentro de un tema la conversación era la misma *para
+  siempre*: crecía sin techo y nada la cortaba. Ni `/end` (que solo suelta la
+  atadura con el ejecutor, `sessions.ts`), ni reiniciar el bot, ni cambiar de
+  variante de modelo, ni chocar con el límite de uso (ahí no cortar es
+  deliberado: conservar el contexto). La única salida era abrir un tema nuevo,
+  perdiendo con él el `cd` del shell y todo el hilo.
+
+  La solución no rompe la derivación, la **parametriza**: el marker guarda una
+  **época** y el uuid sale de `<tema>#<época>` (`scripts/claude-marker.mjs`).
+  `creset` sube la época → uuid que claude no ha visto → conversación en blanco,
+  mismo tema, sin tocar el coordinador. La época 0 se deriva del tema a secas, así
+  que las conversaciones anteriores a esto siguen siendo las mismas.
+
+  La conversación vieja **no se borra**: deja de estar referenciada. Y la época
+  vive en `data/` (efímero): si se pierde con la máquina se vuelve a la 0, que es
+  el mismo precio que ya se paga al rehacer el servidor.
+
+  Al crear/reanudar, si un modo falla se prueba el contrario: marker y almacén de
+  claude pueden desincronizarse en **los dos** sentidos (borrar el marker con
+  `~/.claude` intacta, o rehacer `data/` sin rehacer `~/.claude`). Se reporta el
+  error del modo que *tocaba*, que es el que explica algo.
 - **El `cd` tampoco sobrevive entre mensajes** (cada comando es un `spawn` nuevo;
   un hijo no puede cambiar el cwd de su padre). Mismo patrón de solución: el
   ejecutor `shell` es `scripts/shell-cwd.mjs`, que guarda el directorio por sesión
