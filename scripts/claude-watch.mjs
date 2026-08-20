@@ -13,6 +13,7 @@
 // sea la única voz hacia el usuario.
 
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { isRateLimited, calculateWaitMs } from './limit-detect.mjs';
 
 function readStdin() {
@@ -30,7 +31,22 @@ if (isRateLimited(output)) {
   // Programa la reanudación en segundo plano. El tiempo de espera del límite ACTUAL
   // se calcula aquí y se pasa al resumer; este lo recalcula en cada reintento.
   const waitMs = calculateWaitMs(output);
-  const child = spawn(process.execPath, ['scripts/claude-resumer.mjs', String(waitMs)], {
+
+  // `detached` da sesión y grupo de procesos propios, que basta para no morir con
+  // este encargado. Pero NO da cgroup propio, y el servicio es
+  // KillMode=control-group: un `systemctl restart` del coordinador mata todo lo
+  // que quede dentro de su cgroup, resumer incluido. Pasó el 2026-08-19.
+  //
+  // `desacoplar.sh` lo mete en un cgroup aparte cuando se puede (systemd + sudo),
+  // y si no cae a setsid, que es exactamente como estaba antes. En Windows no
+  // aplica: se lanza como siempre.
+  const envoltorio = 'scripts/desacoplar.sh';
+  const conCgroupPropio = process.platform !== 'win32' && existsSync(envoltorio);
+  const [orden, args] = conCgroupPropio
+    ? [envoltorio, [process.execPath, 'scripts/claude-resumer.mjs', String(waitMs)]]
+    : [process.execPath, ['scripts/claude-resumer.mjs', String(waitMs)]];
+
+  const child = spawn(orden, args, {
     detached: true, // grupo propio: no muere con este encargado
     stdio: 'ignore',
     windowsHide: true,
