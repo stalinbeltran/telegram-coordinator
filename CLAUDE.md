@@ -188,9 +188,21 @@ data/
      arrancó `claude --resume`; a las 22:05:36 se reinició el coordinador para darle el
      `DO_TOKEN` y lo mató con la respuesta a medias. Nunca llegó nada a Telegram.
 
-     **Regla**: mientras haya algo desacoplado en marcha, reiniciar el bot lo mata. Si hace
-     falta reiniciar, cuenta con perderlo — o dale un cgroup propio (`systemd-run --scope`)
-     o cambia el `KillMode` del unit.
+     **La solución es `scripts/desacoplar.sh`**: mete el comando en su propio cgroup con
+     `systemd-run --scope`, y cae a `setsid` donde no se pueda (sin sudo, sin systemd,
+     Windows). Ya lo usan `claude-watch.mjs` para el resumer y el ejecutor `bench` para la
+     flota. Para trabajo largo nuevo, lánzalo por ahí en vez de `setsid` a pelo.
+
+     **No cambies el `KillMode` del unit**, que es la salida obvia y aquí es una trampa: el
+     `MainPID` es `npm start` y el que hace polling es un **nieto**, así que
+     `KillMode=process` dejaría vivo al viejo mientras arranca el nuevo → dos instancias
+     haciendo polling → **error 409**, justo el fallo que rompe la comunicación.
+
+     **Y no le pases secretos**: `sudo` escribe la lista entera de `--preserve-env` en claro
+     en el journal, así que `BOT_TOKEN`/`DO_TOKEN` por ahí acaban en disco en cada
+     lanzamiento. Solo viaja lo que no es credencial (`COORD_*`, `HOME`, `PATH`) y el
+     **cwd**, que es lo que permite a cada trabajo cargar los suyos de disco (`.env`,
+     `~/.config/dev-secrets.env`).
   2. **El vigilante también muere — así que nadie avisa de nada.** Un watcher armado dentro
      del turno (cualquier cosa que espere a que termine el trabajo) se muere al acabar la
      respuesta, y entre un mensaje y el siguiente **no queda nada vivo que pueda mandar un
