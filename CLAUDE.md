@@ -176,6 +176,21 @@ data/
   1. **El trabajo largo hay que desacoplarlo.** `setsid`/`detached: true` + `unref()` le da
      grupo propio y sobrevive. Es lo que ya hace `claude-watch.mjs` al lanzar
      `claude-resumer.mjs` («grupo propio: no muere con este encargado»).
+
+     **Pero «grupo propio» no es «cgroup propio», y contra `systemctl` manda el cgroup.**
+     `setsid` cambia la sesión y el grupo de procesos; el cgroup se hereda y no se toca.
+     El servicio es `KillMode=control-group` (el default), así que un `systemctl restart`
+     mata **todo** lo que haya en `/system.slice/telegram-coordinator.service`, incluido lo
+     que se creía a salvo. Comprobado: un `setsid sleep` acaba con `ppid=1`, sesión y pgid
+     propios… y exactamente el mismo cgroup que el bot.
+
+     Medido el 2026-08-19: el resumer esperó sus 220 min, despertó puntual a las 22:00:32 y
+     arrancó `claude --resume`; a las 22:05:36 se reinició el coordinador para darle el
+     `DO_TOKEN` y lo mató con la respuesta a medias. Nunca llegó nada a Telegram.
+
+     **Regla**: mientras haya algo desacoplado en marcha, reiniciar el bot lo mata. Si hace
+     falta reiniciar, cuenta con perderlo — o dale un cgroup propio (`systemd-run --scope`)
+     o cambia el `KillMode` del unit.
   2. **El vigilante también muere — así que nadie avisa de nada.** Un watcher armado dentro
      del turno (cualquier cosa que espere a que termine el trabajo) se muere al acabar la
      respuesta, y entre un mensaje y el siguiente **no queda nada vivo que pueda mandar un
