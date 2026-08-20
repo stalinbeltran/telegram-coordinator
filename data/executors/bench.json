@@ -1,6 +1,6 @@
 {
   "name": "bench",
-  "command": "setsid sh -c 'cd \"$HOME/src/foveal-vision\" && python3 scripts/bench_fleet.py {{input}} > /tmp/fleet-$COORD_SESSION.log 2>&1; node \"$HOME/src/telegram-coordinator/scripts/notify.mjs\" \"flota de benchmark terminada. Reportes en ~/src/foveal-vision/benchmarks/, log en /tmp/fleet-$COORD_SESSION.log\"' >/dev/null 2>&1 & echo \"Flota lanzada en segundo plano (sobrevive a este turno). Tarda decenas de minutos. Log: /tmp/fleet-$COORD_SESSION.log -- avisara al terminar, pero el log es la fuente de verdad.\"",
+  "command": "setsid sh -c 'cd \"$HOME/src/foveal-vision\" || exit 1; if [ -d /mnt/bench-data ]; then BENCH_VOLUME=/mnt/bench-data; else BENCH_VOLUME=\"$HOME/bench-data\"; fi; export BENCH_VOLUME; python3 scripts/bench_fleet.py {{input}} > /tmp/fleet-$COORD_SESSION.log 2>&1; node \"$HOME/src/telegram-coordinator/scripts/notify.mjs\" \"flota de benchmark terminada. Reportes en ~/src/foveal-vision/benchmarks/, log en /tmp/fleet-$COORD_SESSION.log\"' >/dev/null 2>&1 & echo \"Flota lanzada en segundo plano (sobrevive a este turno). Tarda decenas de minutos. Log: /tmp/fleet-$COORD_SESSION.log -- avisara al terminar, pero el log es la fuente de verdad.\"",
   "encargados": [
     "echo"
   ],
