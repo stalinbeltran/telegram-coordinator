@@ -21,7 +21,7 @@
 //   CLAUDE_CONTINUE_PROMPT       (def abajo)   el "continúa" que se reinyecta.
 
 import { spawn } from 'node:child_process';
-import { existsSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRateLimited, calculateWaitMs } from './limit-detect.mjs';
 
@@ -50,8 +50,37 @@ const CONTINUE_PROMPT =
 const initialWaitMs = Number(process.argv[2]) || calculateWaitMs('');
 
 // Cerrojo por sesión: evita dos resumers simultáneos para el mismo tema.
+//
+// Pero un cerrojo sólo vale mientras su dueño viva. A este proceso lo pueden
+// matar sin que ejecute el `cleanup` de abajo: `detached` le da sesión propia,
+// NO cgroup propio, así que un `systemctl restart` del coordinador lo mata a
+// él y a todo el árbol (KillMode=control-group, que es el default). Pasó el
+// 2026-08-19: el resumer desperto puntual a las 22:00:32, y el reinicio de las
+// 22:05:36 lo mato con claude a media respuesta.
+//
+// El fichero quedaba ahi para siempre, y como esto era un `existsSync` a secas,
+// CUALQUIER limite futuro de ese tema salia por aqui en silencio: sin reanudar,
+// sin avisar y sin dejar rastro. El cerrojo se convertia en un interruptor de
+// apagado permanente. Por eso ahora se comprueba si el dueño sigue vivo.
 const lockFile = join(DATA_DIR, 'claude-sessions', SESSION.replace(/[^\w.-]/g, '_') + '.resume.lock');
-if (existsSync(lockFile)) process.exit(0);
+if (existsSync(lockFile) && dueñoVivo(lockFile)) process.exit(0);
+
+function dueñoVivo(fichero) {
+  let pid;
+  try {
+    pid = JSON.parse(readFileSync(fichero, 'utf8')).pid;
+  } catch {
+    return false; // ilegible o a medio escribir: no es un dueño que respetar
+  }
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0); // señal 0: no mata, sólo pregunta si existe
+    return true;
+  } catch (e) {
+    // EPERM = existe pero es de otro usuario -> vivo. ESRCH = no existe.
+    return e.code === 'EPERM';
+  }
+}
 try {
   writeFileSync(lockFile, JSON.stringify({ pid: process.pid, started: new Date().toISOString() }) + '\n');
 } catch {
