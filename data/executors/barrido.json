@@ -1,0 +1,8 @@
+{
+  "name": "barrido",
+  "command": "scripts/desacoplar.sh sh scripts/vast-sweep.sh {{input}} >/dev/null 2>&1 & echo \"Barrido lanzado en su propio cgroup (sobrevive a este turno Y a un reinicio del bot). Tarda decenas de minutos: mide un nivel por vez, empuja los resultados y comprueba que no queda nada facturando. Avisara al terminar, pero la fuente de verdad son los JSON en ~/src/digital-ocean-dropplet-auto-launching/results/ y el log /tmp/vast-sweep-$COORD_SESSION.log\"",
+  "encargados": [
+    "echo"
+  ],
+  "timeoutMs": 60000
+}

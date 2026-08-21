@@ -117,8 +117,10 @@ scripts/
   claude-reset.mjs     sube la época: conversación nueva sin cambiar de tema
   shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
   notify.mjs           aviso a Telegram desde un proceso desacoplado
+  desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart)
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
   bench-preflight.mjs  ¿tiene esta máquina con qué medir? (--fix arregla)
+  vast-sweep.sh        barrido en Vast: medir + publicar + no dejar nada vivo
 data/
   executors/*.json     { name, command, encargados: [], timeoutMs? }
   encargados/*.json     { name, command, timeoutMs? }

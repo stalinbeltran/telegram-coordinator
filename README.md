@@ -341,6 +341,53 @@ en sus mensajes de error.
 > tema borrado— y entonces solo queda constancia en el log del propio trabajo, que
 > nadie está mirando. Di siempre dónde queda el resultado.
 
+### `barrido`: el patrón entero, aplicado
+
+El ejecutor `barrido` mide velocidad en máquinas alquiladas en Vast.ai. Es el
+ejemplo completo de todo lo de arriba, y por eso vale como plantilla para
+cualquier trabajo largo:
+
+```
+/use barrido
+--cpus 2,4,8,16
+```
+
+Contesta al instante («lanzado, tarda decenas de minutos») y avisa al terminar.
+Por dentro son dos piezas, y la separación es deliberada:
+
+- **El ejecutor** ([data/executors/barrido.json](data/executors/barrido.json)) es
+  una sola línea: `desacoplar.sh` + el script + un `echo`. No sabe nada del
+  benchmark.
+- **El trabajo** ([scripts/vast-sweep.sh](scripts/vast-sweep.sh)) hace tres cosas
+  en orden, y las tres tienen que pasar aunque el turno muera a mitad:
+  1. **medir** — `vast_instance.py sweep` alquila una máquina por nivel de vCPU,
+     mide y la destruye;
+  2. **publicar** — commit y push de los JSON de `results/`. Si la rama no es
+     `main`, lo dice: un clon limpio no lo vería;
+  3. **barrer** — comprobar que no queda nada facturando. El `finally` del
+     barrido ya destruye lo suyo, pero *comprobarlo* es distinto de *confiar*.
+     Lo que sobreviva con etiqueta `sweep-*`/`bench-*` se cierra; lo demás se
+     reporta y **no se toca**, que puede ser algo tuyo.
+
+Vive en `scripts/` y no dentro del JSON porque un ejecutor es una plantilla de
+comando, no un sitio donde escribir cien líneas: así se lee, se versiona y se
+prueba sin Telegram ni gastar un céntimo.
+
+```sh
+VAST_SWEEP_LOG=/dev/stdout sh scripts/vast-sweep.sh --dry-run
+```
+
+Necesita el repo del lanzador en `~/src/digital-ocean-dropplet-auto-launching`
+(o `VAST_LANZADOR` apuntando a él) y `VAST_AI_API_TOKEN` en `.env` o en
+`~/.config/dev-secrets.env` — de disco, porque `desacoplar.sh` no deja pasar
+secretos a propósito.
+
+> **`sweep` coge siempre la oferta más barata del rango, así que un host roto es
+> pegajoso.** Un nivel que falla dos veces seguidas suele ser eso, no mala
+> suerte: reintentar sin cambiar nada vuelve a caer en la misma máquina. Se sale
+> estrechando la búsqueda (`--min-ram 8`), no cableando una lista de ofertas
+> prohibidas.
+
 ## Depurar un ejecutor (sin Telegram)
 
 Prueba cualquier ejecutor que hayas creado y mira cada paso (comando resuelto,
@@ -406,6 +453,8 @@ scripts/
   claude-resumer.mjs   proceso desacoplado que espera, reanuda y avisa por Telegram
   shell-cwd.mjs        shell con directorio de trabajo persistente (ejecutor `shell`)
   notify.mjs           avisa al tema de Telegram desde un proceso desacoplado
+  desacoplar.sh        corre un comando en su propio cgroup (sobrevive al restart)
+  vast-sweep.sh        barrido de velocidad en Vast.ai (ejecutor `barrido`)
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 tests/
   limit-detect.test.mjs
