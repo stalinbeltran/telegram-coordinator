@@ -1,6 +1,6 @@
 import { Bot, type Context } from 'grammy';
 import { BOT_TOKEN, ALLOWED_USER_IDS } from './config.js';
-import { seedBootKit, listExecutors, getExecutor } from './registry.js';
+import { seedBootKit, listExecutors, getExecutor, reportarFuentes, repoDe } from './registry.js';
 import {
   loadSessions,
   getSession,
@@ -28,6 +28,7 @@ async function send(ctx: Context, text: string): Promise<void> {
 
 async function main(): Promise<void> {
   await seedBootKit();
+  await reportarFuentes();
   await loadSessions();
 
   const bot = new Bot(BOT_TOKEN);
@@ -66,6 +67,7 @@ async function main(): Promise<void> {
         '  /end              cierra la sesión de este tema',
         '  /who              muestra el ejecutor activo',
         '  /executors        lista los ejecutores disponibles',
+        '  /executors <n>    la ficha de uno: qué hace y ejemplos',
         '  /whoami           muestra tu id de Telegram',
         '',
         'Con una sesión abierta, cualquier texto se envía al ejecutor.',
@@ -80,10 +82,47 @@ async function main(): Promise<void> {
       await send(ctx, 'No hay ejecutores definidos.');
       return;
     }
-    const lines = execs.map(
-      (e) => `• ${e.name}  →  encargados: ${e.encargados?.join(', ') || '(ninguno)'}`,
+
+    // `/executors <nombre>`: la ficha entera. Sustituye al catálogo que antes
+    // había que imprimir desde otro repo, porque la descripción ya viaja en el
+    // mismo JSON que define el ejecutor.
+    const pedido = (ctx.match ?? '').trim();
+    if (pedido) {
+      const e = execs.find((x) => x.name === pedido);
+      if (!e) {
+        await send(ctx, `No existe el ejecutor "${pedido}". Usa /executors para ver la lista.`);
+        return;
+      }
+      const det = [
+        `• ${e.name}   [${repoDe(e)}]`,
+        e.descripcion ? `\n${e.descripcion}` : '\n(sin descripción en su JSON)',
+        '',
+        `encargados: ${e.encargados?.join(', ') || '(ninguno)'}`,
+        `timeout   : ${
+          e.timeoutMs === undefined ? '(global)' : e.timeoutMs <= 0 ? 'sin límite' : `${e.timeoutMs} ms`
+        }`,
+        `directorio: ${e.cwd}`,
+        `definido  : ${e.origen?.fichero}`,
+      ];
+      if (e.ejemplos?.length) det.push('', 'Ejemplos:', ...e.ejemplos.map((x) => `  ${x}`));
+      if (e.origen?.pisados.length) {
+        det.push('', '⚠️ Definido más de una vez; los pisados son:', ...e.origen.pisados.map((p) => `  ${p}`));
+      }
+      await send(ctx, det.join('\n'));
+      return;
+    }
+
+    const lines = execs.map((e) => {
+      const aviso = e.origen?.pisados.length ? '  ⚠️ duplicado' : '';
+      const desc = e.descripcion ?? `encargados: ${e.encargados?.join(', ') || '(ninguno)'}`;
+      return `• ${e.name}   [${repoDe(e)}]${aviso}\n    ${desc}`;
+    });
+    await send(
+      ctx,
+      'Ejecutores (entre corchetes, el repo que lo declara):\n\n' +
+        lines.join('\n') +
+        '\n\nDetalle de uno: /executors <nombre>',
     );
-    await send(ctx, 'Ejecutores:\n' + lines.join('\n'));
   });
 
   bot.command('use', async (ctx) => {
@@ -92,12 +131,19 @@ async function main(): Promise<void> {
       await send(ctx, 'Uso: /use <ejecutor>');
       return;
     }
-    if (!(await getExecutor(name))) {
+    const exec = await getExecutor(name);
+    if (!exec) {
       await send(ctx, `No existe el ejecutor "${name}". Usa /executors para ver la lista.`);
       return;
     }
     await setSession(sidOf(ctx), name);
-    await send(ctx, `✅ Sesión abierta con "${name}". Envía tus mensajes.`);
+    // Los ejemplos se muestran AQUÍ porque es cuando hacen falta: acabas de
+    // abrir la sesión y lo siguiente que escribes es la entrada del ejecutor.
+    const extra = [
+      exec.descripcion ? `\n${exec.descripcion}` : '',
+      exec.ejemplos?.length ? '\n\nEjemplos:\n' + exec.ejemplos.map((x) => `  ${x}`).join('\n') : '',
+    ].join('');
+    await send(ctx, `✅ Sesión abierta con "${name}". Envía tus mensajes.${extra}`);
   });
 
   bot.command('who', async (ctx) => {

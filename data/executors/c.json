@@ -1,5 +1,9 @@
 {
   "name": "c",
+  "descripcion": "Conversa con claude (opus, esfuerzo max) con memoria por tema.",
+  "ejemplos": [
+    "¿qué cambió en este repo esta semana?"
+  ],
   "command": "node scripts/claude-session.mjs --model opus --effort max",
   "encargados": [
     "echo",

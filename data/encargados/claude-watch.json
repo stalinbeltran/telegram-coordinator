@@ -1,4 +1,5 @@
 {
   "name": "claude-watch",
+  "descripcion": "Detecta el límite de uso de claude y arma la reanudación desacoplada.",
   "command": "node scripts/claude-watch.mjs"
 }

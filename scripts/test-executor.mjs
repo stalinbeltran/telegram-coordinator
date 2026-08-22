@@ -23,7 +23,9 @@ process.env.BOT_TOKEN = process.env.BOT_TOKEN || 'debug-token';
 // Identidad de sesión para depurar ejecutores con estado (se hereda al hijo).
 process.env.COORD_SESSION = process.env.COORD_SESSION || 'debug-session';
 
-const { getExecutor, getEncargado } = await import('../src/registry.js');
+const { getExecutor, getEncargado, fuentes, repoDe } = await import('../src/registry.js');
+const { COORD_HOME } = await import('../src/config.js');
+process.env.COORD_HOME = COORD_HOME;
 const { runCommand } = await import('../src/runner.js');
 const { parseCommands } = await import('../src/protocol.js');
 
@@ -42,6 +44,9 @@ if (!execName) {
 console.log(`TIMEOUT por comando: ${process.env.COMMAND_TIMEOUT_MS ?? 30000} ms`);
 console.log(`DATA_DIR: ${process.env.DATA_DIR ?? 'data'}`);
 console.log(`COORD_SESSION: ${process.env.COORD_SESSION}`);
+console.log(`COORD_HOME: ${COORD_HOME}`);
+console.log('FUENTES (manda la primera):');
+for (const f of await fuentes()) console.log(`  ${f.dir}   → cwd ${f.raiz}`);
 line('═');
 
 const executor = await getExecutor(execName);
@@ -50,7 +55,12 @@ if (!executor) {
   process.exit(1);
 }
 
-console.log(`EJECUTOR: ${executor.name}`);
+console.log(`EJECUTOR: ${executor.name}   [${repoDe(executor)}]`);
+console.log(`  definido  : ${executor.origen?.fichero}`);
+console.log(`  directorio: ${executor.cwd}`);
+if (executor.origen?.pisados.length) {
+  console.log(`  ⚠️ pisa a : ${executor.origen.pisados.join(', ')}`);
+}
 console.log(`  plantilla : ${executor.command}`);
 console.log(`  encargados: ${executor.encargados?.join(', ') || '(ninguno)'}`);
 console.log(
@@ -69,7 +79,7 @@ console.log(`  comando   : ${resolved}`);
 line();
 
 let t = Date.now();
-const result = await runCommand(executor.command, input, undefined, executor.timeoutMs);
+const result = await runCommand(executor.command, input, undefined, executor.timeoutMs, executor.cwd);
 console.log(`▶ Ejecutor terminó en ${Date.now() - t} ms · ok=${result.ok}`);
 show('  salida', result.output);
 line('═');
@@ -93,8 +103,9 @@ for (const encName of executor.encargados) {
     continue;
   }
   console.log(`  comando: ${enc.command}`);
+  console.log(`  directorio: ${enc.cwd}`);
   t = Date.now();
-  const encResult = await runCommand(enc.command, result.output, undefined, enc.timeoutMs);
+  const encResult = await runCommand(enc.command, result.output, undefined, enc.timeoutMs, enc.cwd);
   console.log(`  ▶ terminó en ${Date.now() - t} ms · ok=${encResult.ok}`);
   show('  salida', encResult.output);
   if (!encResult.ok) {
@@ -107,7 +118,7 @@ for (const encName of executor.encargados) {
     if (action.type === 'user') {
       if (action.text.trim()) replies.push(action.text);
     } else {
-      const shellRes = await runCommand(action.cmd, '');
+      const shellRes = await runCommand(action.cmd, '', undefined, undefined, enc.cwd);
       replies.push(shellRes.ok ? shellRes.output : `❌ Error al ejecutar comando:\n${shellRes.output}`);
     }
   }

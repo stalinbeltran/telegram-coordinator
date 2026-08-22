@@ -1,5 +1,9 @@
 {
   "name": "definer",
+  "descripcion": "Crea ejecutores y encargados desde texto simple, sin tocar código.",
+  "ejemplos": [
+    "exec saludo echo\necho hola"
+  ],
   "command": "node scripts/define.mjs",
   "encargados": [
     "echo"

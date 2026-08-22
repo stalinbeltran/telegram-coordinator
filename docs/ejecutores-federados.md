@@ -1,19 +1,35 @@
 # Ejecutores federados: que los comandos estén siempre disponibles, en cualquier máquina
 
-**Fecha:** 2026-08-22. **Estado:** propuesta, no implementada.
+**Fecha:** 2026-08-22. **Estado: implementado** el mismo día, en las cuatro fases.
 **Origen:** la [revisión de commits de agosto](revision-2026-08-22.md), patrón F.
 
-El coordinador dice que un ejecutor es **dato, no código**, y que añadir uno no
-debe requerir tocar nada. Es verdad a medias: hoy hay **cuatro** caminos distintos
-para que un ejecutor llegue a una máquina, tres de ellos con un paso manual, y
-ninguno cubre el caso que más se usa —un comando que vive en **otro** repo—.
+> **Lo que cambió respecto a la propuesta, al construirlo** (el resto quedó igual):
+>
+> - `DATA_DIR` **no se declara** en `data/fuentes.json`: es implícita y va siempre
+>   primera. Así una lista vacía, ausente o rota deja exactamente el
+>   comportamiento de antes, y lo local siempre puede pisar lo descubierto.
+> - Hizo falta una pieza que la propuesta no tenía: **`COORD_HOME`**, la raíz del
+>   coordinador expuesta como variable de entorno a todo comando. Desde que un
+>   ejecutor corre en el directorio de *su* repo, el cwd ya no apunta al
+>   coordinador, y `bench` necesita encontrar `notify.mjs` y `desacoplar.sh`.
+> - `preflight` y `barrido` **no** se movieron: llaman a scripts del coordinador
+>   (`bench-preflight.mjs`, `vast-sweep.sh`), así que ya estaban en su repo. Sólo
+>   se movió `bench`. La regla no es «de qué trata» sino «a qué llama».
+> - `do_droplet.py executors` no se quedó sin uso: ahora lee la convención
+>   (`~/src/*/telegram/executors/`) en vez del descriptor, así que sirve para
+>   **todos** los repos y no sólo para el del lanzador.
 
-Este documento describe el problema con lo que costó, la propuesta, y por qué es
-un cambio pequeño.
+El coordinador dice que un ejecutor es **dato, no código**, y que añadir uno no
+debe requerir tocar nada. Era verdad a medias: había **cuatro** caminos distintos
+para que un ejecutor llegue a una máquina, tres de ellos con un paso manual, y
+ninguno cubría bien el caso que más se usa —un comando que vive en **otro** repo—.
+
+Este documento describe el problema con lo que costó, el cambio que se hizo, y
+por qué es pequeño.
 
 ---
 
-## 1. Cómo llega hoy un ejecutor a una máquina
+## 1. Cómo llegaba un ejecutor a una máquina (hasta el 2026-08-22)
 
 | # | Camino | Quién lo usa | Qué hace falta |
 |---|---|---|---|
@@ -98,7 +114,7 @@ comando y un reinicio, se pospone.** Por eso el freno llegó después del aceler
 
 ---
 
-## 2. La propuesta: descubrir, no copiar
+## 2. El cambio: descubrir, no copiar
 
 Que cada repo declare sus propios ejecutores, y que el coordinador **los lea donde
 están** en vez de que se los copien.
@@ -122,18 +138,23 @@ cualquier máquina con `git clone` o `git pull`.
 ```json
 {
   "fuentes": [
-    "data",
     "~/src/*/telegram"
   ]
 }
 ```
 
 Cada entrada es un directorio que contiene `executors/` y/o `encargados/`. Se
-admite **un** `*` de un nivel. `data` va primero a propósito: lo local siempre
-puede pisar a lo descubierto, que es la salida cuando algo de otro repo estorba.
+admite **un** `*` dentro de un segmento. Lo relativo se resuelve contra la raíz
+del coordinador; `~` se expande.
 
-Sobreescribible con `COORD_FUENTES` en `.env` para casos raros (Windows, repos
-fuera de `~/src`). Sigue siendo dato: **no hay ninguna ruta cableada en `src/`**.
+**`DATA_DIR` no se declara: es la fuente 0, implícita y siempre primera.** Dos
+razones, y las dos importan: lo local siempre puede pisar a lo descubierto (la
+salida cuando algo de otro repo estorba), y una lista vacía, ausente o rota deja
+el comportamiento de toda la vida en vez de dejar al bot sin ejecutores.
+
+Sobreescribible con `COORD_FUENTES` en `.env` (separado por comas) para casos
+raros: Windows, repos fuera de `~/src`, o pruebas. Sigue siendo dato: **no hay
+ninguna ruta cableada en `src/`**.
 
 Es una lista **explícita**, no un escaneo del disco: la superficie de lo que el
 bot puede ejecutar tiene que ser algo que se lea de un fichero, no algo que
@@ -160,7 +181,16 @@ dependa de qué haya clonado alguien.
   campo `cwd` explícito queda disponible para los casos que no encajen.
 - **`descripcion`**: una línea. `/executors` la imprime.
 - **`ejemplos`**: lista de cadenas. `/use <nombre>` las muestra al abrir la sesión,
-  que es justo cuando hacen falta.
+  que es justo cuando hacen falta, y `/executors <nombre>` da la ficha entera
+  (descripción, ejemplos, encargados, timeout, cwd y el fichero que lo define).
+
+Y una pieza que la propuesta no tenía y el primer intento pidió: **`COORD_HOME`**,
+la raíz del coordinador, expuesta como variable de entorno a todo comando junto a
+`COORD_SESSION`/`COORD_CHAT`/`COORD_THREAD`. Desde que cada ejecutor corre en el
+directorio de su propio repo, el cwd ya no apunta al coordinador; `COORD_HOME` es
+como un ejecutor de fuera sigue encontrando `notify.mjs` o `desacoplar.sh` sin
+suponer que el coordinador está en `~/src`. Viaja también por `desacoplar.sh`, que
+lo añade a su lista de variables no sensibles.
 
 Esto **absorbe** el bloque `ayuda` del descriptor, el comando
 `do_droplet.py executors` y el ejecutor `ayuda`. El objetivo declarado de aquel
@@ -178,12 +208,15 @@ que crees es peor que un ejecutor que falta.
 - El **huevo y gallina**: no queda ningún paso de aplicación. `actualizar` —que ya
   hace `git pull` en todos los repos de `~/src`— es suficiente.
 - El segundo mensaje (`ejecutores`) y el reinicio innecesario.
-- `install-executors` como camino normal (puede quedarse como reliquia; ya no hay
-  motivo para llamarlo).
-- El bloque `files`/`ayuda` de `services/telegram-launcher.json`, que se muda a
+- `install-executors` como camino normal. Se queda, pero avisando: si un servicio
+  no declara `files` lo dice y explica dónde viven ahora los ejecutores, en vez de
+  contestar «nada que cambiar» y dejarte adivinando.
+- Los ejecutores `ejecutores` y `ayuda`, que existían sólo para dar esos dos
+  rodeos.
+- El bloque `files`/`ayuda` de `services/telegram-launcher.json`, mudado a
   `digital-ocean-dropplet-auto-launching/telegram/executors/*.json`.
-- Los nueve `cd "$HOME/src/…" &&` y las rutas ajenas cableadas en `bench` y
-  `barrido`.
+- Los ocho `cd "$HOME/src/…" &&` de los ejecutores del lanzador y las rutas ajenas
+  cableadas en `bench`.
 
 ### 2.6 Qué NO cambia
 
@@ -200,7 +233,7 @@ que crees es peor que un ejecutor que falta.
 
 ---
 
-## 3. La propiedad que esto compra: el tipo de máquina decide los comandos
+## 3. Lo que esto compra: el tipo de máquina decide los comandos
 
 Ésta es la parte que responde a «que los comandos estén siempre disponibles en un
 mini u otro».
@@ -225,57 +258,70 @@ Una máquina de trabajo sin el lanzador clonado **no tiene** `apagar-do`, y est�
 bien: no puede destruir droplets. La capacidad y el comando llegan juntos, que es
 la versión operativa del argumento de `b35a0cb`.
 
-Y resuelve el caso incómodo del README del lanzador —*«los ejecutores que crees
+Y deja a tiro el caso incómodo del README del lanzador —*«los ejecutores que crees
 desde el móvil viven en el droplet; si quieres conservarlos, haz `git push` antes
-de destruirlo»*—: hoy hay que acordarse de empujar desde el repo del coordinador,
-donde ese ejecutor probablemente no pinta nada. Extensión natural, para otro día:
-que `definer` acepte un destino (`definer --en foveal-vision …`) y el ejecutor
-nazca ya en el repo donde se va a commitear.
+de destruirlo»*—: hay que acordarse de empujar desde el repo del coordinador,
+donde ese ejecutor probablemente no pinta nada. Extensión natural, pendiente: que
+`definer` acepte un destino (`definer --en foveal-vision …`) y el ejecutor nazca
+ya en el repo donde se va a commitear.
 
 ---
 
-## 4. Coste de implementarlo
+## 4. Lo que costó, y lo que hay que comprobar
 
-Todo el cambio vive en tres ficheros del coordinador, y ninguno toca el protocolo,
-las sesiones ni el runner de forma incompatible:
+Todo el cambio del coordinador vive en cinco ficheros, y ninguno toca el
+protocolo ni las sesiones:
 
-| fichero | cambio | tamaño |
+| fichero | cambio | líneas |
 |---|---|---|
-| `src/registry.ts` | `readJsonDir` sobre N directorios en vez de 1; resolver `fuentes.json` (con `~` y un `*`); recordar de qué fuente salió cada ejecutor; avisar de colisiones | ~50 líneas |
-| `src/runner.ts` | aceptar `cwd` opcional en `spawn` | ~3 líneas |
-| `src/index.ts` | `/executors` imprime `descripcion`; `/use` imprime `ejemplos` | ~10 líneas |
-| `src/orchestrator.ts` | pasar el `cwd` del ejecutor a `runCommand` | ~2 líneas |
+| `src/registry.ts` | leer N fuentes en vez de 1; resolver `fuentes.json` (con `~` y un `*`); recordar de dónde salió cada definición; anotar y avisar de colisiones | +150 |
+| `src/index.ts` | `/executors` con descripción y repo; `/executors <nombre>` con la ficha; `/use` con los ejemplos; informe de fuentes al arrancar | +45 |
+| `src/config.ts` | `COORD_HOME`, deducido de dónde vive el fichero y no del cwd | +10 |
+| `src/orchestrator.ts` | pasar el `cwd` de cada definición a `runCommand`, y `COORD_HOME` en el entorno | +15 |
+| `src/runner.ts` | `cwd` opcional, con un error legible si no existe | +12 |
 
-Más un `data/fuentes.json` sembrado por `seedBootKit`.
+Más `data/fuentes.json` (sembrado por `seedBootKit`), `COORD_HOME` en la lista de
+variables no sensibles de `scripts/desacoplar.sh`, y `scripts/test-executor.mjs`,
+que ahora imprime las fuentes, el fichero que define el ejecutor y su cwd —porque
+con varias fuentes, «qué ejecutor es éste» deja de ser obvio—.
 
-### Migración, en cuatro pasos que no rompen nada
+### Las cuatro fases, tal como se aplicaron
 
-1. **Fase 0.** `data/fuentes.json` con `["data"]` únicamente → comportamiento
-   **idéntico** al de hoy. Se puede empujar y desplegar sin tocar nada más.
-2. **Fase 1.** Añadir `~/src/*/telegram` a la lista. Nada se mueve todavía; los
-   ejecutores actuales siguen donde están y siguen funcionando.
-3. **Fase 2.** Mover `bench`, `preflight` y `barrido` a
-   `foveal-vision/telegram/executors/` (y el `barrido` a donde corresponda),
-   quitándoles el `cd` y las rutas ajenas.
-4. **Fase 3.** Mudar el bloque `files` de `services/telegram-launcher.json` a
-   `digital-ocean-dropplet-auto-launching/telegram/executors/`, con `descripcion`
-   y `ejemplos` tomados del bloque `ayuda`. `install-executors` y el ejecutor
-   `ayuda` quedan sin uso.
+1. **Fase 0.** `data/fuentes.json` ausente o vacío → `DATA_DIR` es la única fuente
+   y el cwd de todo sigue siendo la raíz del coordinador: **cero cambios
+   observables**. Es el caso que fija el último test.
+2. **Fase 1.** `~/src/*/telegram` en la lista. Nada se mueve; los ejecutores de
+   siempre siguen donde estaban.
+3. **Fase 2.** `bench` → `foveal-vision/telegram/executors/`, sin `cd` y sin la
+   ruta a `~/src/foveal-vision`. `preflight` y `barrido` **se quedan**: llaman a
+   scripts del coordinador, así que ya estaban en el repo correcto.
+4. **Fase 3.** Los siete del lanzador → `digital-ocean-dropplet-auto-launching/
+   telegram/executors/`, con `descripcion` y `ejemplos` sacados del bloque
+   `ayuda`. Fuera el bloque `files` del descriptor, y fuera los ejecutores
+   `ejecutores` y `ayuda`, que sólo servían para dar los rodeos que esto quita.
 
-Cada fase es un commit desplegable por separado, y en ninguna hay un momento en
-que falte un ejecutor.
+### Comprobado al hacerlo
 
-### Lo que hay que comprobar al hacerlo
+- Descubrimiento real de tres repos a la vez: 15 ejecutores, 0 pasos de copia
+  (`test-executor.mjs` imprime las fuentes y el fichero de cada uno).
+- `bench` de punta a punta desde `foveal-vision`: el trabajo desacoplado encontró
+  `scripts/bench_fleet.py` sin `cd`, y `COORD_HOME` cruzó `desacoplar.sh`
+  (comprobado con `--help`, que escribe en el log y no alquila nada).
+- `lanzar` desde el repo del lanzador, sin `cd` (`types --help`).
+- 40 tests (30 de antes + 10 nuevos del registry) y `npx tsc --noEmit` limpio.
+- Los casos que se fijan en tests porque romperían en silencio: orden de las
+  fuentes, un repo sin `telegram/` que se salta, colisión (gana `DATA_DIR` y la
+  pisada queda anotada), cwd heredado del repo, cwd declarado resuelto contra su
+  raíz, un JSON roto que **no** se lleva por delante a sus vecinos, uno sin
+  `name` que se ignora, y la Fase 0 como no-op.
 
-- Un repo **sin** `telegram/` no molesta (el escaneo lo salta sin ruido).
-- Un JSON roto en un repo ajeno **no tumba** la lista entera: `readJsonDir` ya
-  captura por fichero y avisa por consola; hay que conservar ese comportamiento.
-- El glob `~/src/*/telegram` no se cuelga si `~/src` no existe.
-- En Windows la ruta por defecto no aplica: `fuentes.json` es lo que manda, y el
-  `.env` puede pisarla.
-- Colisión de nombres: se avisa, gana el primero, y `/executors` lo dice.
+### Al desplegar en una máquina que ya venía funcionando
 
----
+Los ejecutores que `install-executors` copió en su día siguen en
+`data/executors/` de esa máquina, y **pisan** a los descubiertos (`DATA_DIR` manda).
+No rompen nada —son los mismos comandos con `cd`— pero conviene borrarlos: el
+arranque del bot y `/executors` dicen exactamente qué fichero manda y cuál está
+pisado, que es todo lo que hace falta para saber qué quitar.
 
 ## 5. Alternativas descartadas
 
@@ -289,13 +335,15 @@ que falte un ejecutor.
 
 ---
 
-## 6. Decisión
+## 6. Estado
 
-**No implementado.** El cambio es pequeño y de bajo riesgo, pero toca `src/` del
-coordinador —que este proyecto trata como inmutable a propósito— y la Fase 3 mueve
-ficheros del otro repo. Queda escrito con el detalle suficiente para que
-implementarlo sea mecánico.
+**Implementado el 2026-08-22**, las cuatro fases. Toca `src/` del coordinador —que
+este proyecto trata como inmutable— y el cambio se justifica precisamente por eso:
+lo que se añade es genérico (leer más de un directorio), y lo que se quita es
+lógica de despliegue que vivía en otro repo. Después de esto no hay nada en `src/`
+que sepa de benchmarks, de Vast ni de `foveal-vision`.
 
-Si se aprueba, el orden natural es Fase 0+1 en un commit (no cambia nada
-observable), y luego 2 y 3 por separado, comprobando cada una desde Telegram con
-`/executors` antes de seguir.
+Lo que queda pendiente, y es cómodo más que necesario: que `definer` acepte un
+destino (`definer --en foveal-vision …`) para que un ejecutor inventado desde el
+móvil nazca ya en el repo donde se va a commitear, en vez de en `data/`, que se
+pierde con la máquina.

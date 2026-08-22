@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { COMMAND_TIMEOUT_MS } from './config.js';
 
 export interface RunResult {
@@ -32,6 +33,9 @@ function killTree(child: ChildProcess): void {
  *   (`COMMAND_TIMEOUT_MS`). Un valor <= 0 (o no finito) desactiva el timeout y
  *   deja correr el comando hasta que termine (útil para ejecutores con tareas
  *   largas como `claude`). Es responsabilidad del ejecutor no colgarse.
+ * - `cwd` es el directorio de trabajo. Ausente = el del bot. Lo pone el
+ *   registry con la raíz del repo que declara el ejecutor, para que un ejecutor
+ *   de otro repo no tenga que empezar por `cd "$HOME/src/…"`.
  * Nunca lanza excepciones: los errores se devuelven en `output` con ok=false.
  */
 export function runCommand(
@@ -39,10 +43,21 @@ export function runCommand(
   input: string,
   extraEnv?: Record<string, string>,
   timeoutMs: number = COMMAND_TIMEOUT_MS,
+  cwd?: string,
 ): Promise<RunResult> {
   return new Promise((resolvePromise) => {
     const usesPlaceholder = template.includes('{{input}}');
     const cmd = usesPlaceholder ? template.split('{{input}}').join(input) : template;
+
+    // Un cwd que no existe da un ENOENT que no dice cuál de las dos rutas
+    // falló (la del comando o la del directorio). Mejor decirlo aquí.
+    if (cwd && !existsSync(cwd)) {
+      resolvePromise({
+        ok: false,
+        output: `No existe el directorio de trabajo "${cwd}". ¿Se movió o se borró el repo que declara este comando?`,
+      });
+      return;
+    }
 
     let child: ChildProcess;
     try {
@@ -51,6 +66,7 @@ export function runCommand(
         windowsHide: true,
         detached: process.platform !== 'win32', // grupo propio en POSIX para matarlo entero
         env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+        ...(cwd ? { cwd } : {}),
       });
     } catch (err) {
       resolvePromise({ ok: false, output: `No se pudo iniciar el comando: ${String(err)}` });

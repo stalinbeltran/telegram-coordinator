@@ -65,8 +65,76 @@ que vienen con el clon y puedes borrarlos o cambiarlos sin tocar `src/`.
 | --- | --- | --- |
 | `c` | ejecutor | conversa con `claude` con memoria por tema (ver abajo). Sin timeout (`timeoutMs: 0`) y con encargados `echo` + `claude-watch`. |
 | `creset` | ejecutor | reinicia la conversación de `c` **en este tema** (ver abajo). Sin encargados: responde él mismo. |
+| `preflight` | ejecutor | comprueba si esta máquina tiene con qué medir; `--fix` arregla lo que puede solo. |
+| `barrido` | ejecutor | barrido de velocidad en Vast.ai, desacoplado ([ver abajo](#barrido-el-patrón-entero-aplicado)). |
 | `claude-watch` | encargado | vigila el límite de uso de Claude y programa la reanudación automática (ver abajo). Es mudo: no te escribe. |
 | `directorio` | ejecutor | ejemplo mínimo (`dir`): lista el directorio del coordinador. Solo Windows. |
+
+## Cada repo trae sus ejecutores (y el bot los descubre)
+
+Un ejecutor que llama a `scripts/loquesea.py` de otro proyecto tiene que viajar
+**con** ese proyecto: si viven separados, el día que cambie un flag una de las dos
+mitades queda desfasada y el síntoma es un ejecutor que falla con un error de
+argumentos. Así que no se copian a `data/`: **se declaran en su repo y el
+coordinador los descubre ahí.**
+
+Un repo aporta comandos al bot creando:
+
+```
+<repo>/telegram/executors/*.json      sus ejecutores
+<repo>/telegram/encargados/*.json     sus encargados (si necesita alguno)
+```
+
+Y ya está: con que el repo esté clonado, sus ejecutores salen en `/executors`. No
+hay paso de instalación, ni que reiniciar el bot (el registry relee el disco en
+cada mensaje).
+
+**Dónde busca** lo dice [`data/fuentes.json`](data/fuentes.json), que es dato y
+está versionado:
+
+```json
+{ "fuentes": ["~/src/*/telegram"] }
+```
+
+Se admite un `*` dentro de un segmento, `~` se expande y lo relativo se resuelve
+contra la raíz del coordinador. `COORD_FUENTES` en `.env` (separado por comas) la
+pisa, para Windows o repos fuera de `~/src`.
+
+`data/` es la **fuente 0**: implícita, siempre primera y no hace falta declararla.
+Por eso lo local siempre puede pisar a lo descubierto, y una lista vacía o rota
+deja el comportamiento de siempre en vez de dejarte sin ejecutores.
+
+**El cwd de cada comando es la raíz del repo que lo declara**, así que un ejecutor
+de fuera se escribe como si estuvieras dentro de su repo:
+
+```json
+{
+  "name": "bench",
+  "descripcion": "Mide s/época en droplets de distinta capacidad de vCPU.",
+  "ejemplos": ["--vcpus 2,4,8", "--reap"],
+  "command": "python3 scripts/bench_fleet.py {{input}}",
+  "encargados": ["echo"],
+  "timeoutMs": 60000
+}
+```
+
+Sin `cd ~/src/loquesea &&` delante. Si necesitas otro directorio, el campo `cwd`
+se resuelve contra esa misma raíz. Y para llamar a algo del coordinador desde
+fuera (por ejemplo `notify.mjs` al terminar un trabajo largo) tienes
+**`COORD_HOME`** en el entorno, que es su raíz: nadie tiene que suponer dónde está
+clonado.
+
+`descripcion` y `ejemplos` viven en el **mismo** JSON que el ejecutor, así que no
+pueden divergir. Los imprimen `/executors` (la lista, con el repo de cada uno),
+`/executors <nombre>` (la ficha entera) y `/use <nombre>` (los ejemplos, justo
+cuando vas a escribir la entrada).
+
+**Si dos repos declaran el mismo nombre**, gana la primera fuente y se avisa: en
+el arranque del bot y en `/executors`, diciendo qué fichero manda y cuál queda
+pisado. Nunca en silencio.
+
+El detalle completo —por qué se hizo, qué había antes y qué costó— está en
+[`docs/ejecutores-federados.md`](docs/ejecutores-federados.md).
 
 ## Definir ejecutores/encargados (forma fácil: `definer`)
 
@@ -457,12 +525,15 @@ scripts/
   vast-sweep.sh        barrido de velocidad en Vast.ai (ejecutor `barrido`)
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 tests/
+  registry.test.mjs
   limit-detect.test.mjs
   claude-watch.test.mjs
   notify.test.mjs
 data/
-  executors/*.json        { name, command, encargados: [], timeoutMs? }
-  encargados/*.json       { name, command, timeoutMs? }
+  fuentes.json            dónde buscar ejecutores además de aquí (dato)
+  executors/*.json        { name, command, encargados: [], timeoutMs?,
+                            descripcion?, ejemplos?, cwd? }
+  encargados/*.json       { name, command, timeoutMs?, descripcion?, cwd? }
   sessions/*.json         (efímero, ignorado por git)
   claude-sessions/*.json  (markers de claude por sesión, ignorado por git)
   shell-cwd/*.json        (directorio actual por sesión, ignorado por git)

@@ -1,5 +1,10 @@
 {
   "name": "shell",
+  "descripcion": "Ejecuta lo que le envíes, con el `cd` persistente por tema.",
+  "ejemplos": [
+    "ls -la",
+    "cd ~/src/foveal-vision && git log --oneline -5"
+  ],
   "command": "node scripts/shell-cwd.mjs",
   "encargados": [
     "echo"

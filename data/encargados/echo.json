@@ -1,4 +1,5 @@
 {
   "name": "echo",
+  "descripcion": "Reenvía al usuario la salida del ejecutor.",
   "command": "node -e \"let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write('>>USER '+s))\""
 }

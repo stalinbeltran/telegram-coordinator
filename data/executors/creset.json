@@ -1,5 +1,9 @@
 {
   "name": "creset",
+  "descripcion": "Corta la conversación de `c` en ESTE tema y empieza otra en blanco.",
+  "ejemplos": [
+    ""
+  ],
   "command": "node scripts/claude-reset.mjs",
   "encargados": []
 }

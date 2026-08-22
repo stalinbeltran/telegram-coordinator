@@ -18,8 +18,15 @@ incluyendo conversar con `claude` con memoria por conversación.
 
 1. **El coordinador es inmutable; los ejecutores/encargados son dinámicos.**
    Añadir o cambiar ejecutores/encargados **nunca** debe requerir recompilar ni
-   reempaquetar el coordinador. Son **datos** (archivos JSON en `data/`), no
-   código. El código de `src/` es genérico y estable.
+   reempaquetar el coordinador. Son **datos** (archivos JSON), no código. El
+   código de `src/` es genérico y estable: no sabe de benchmarks, de proveedores
+   de nube ni de ningún proyecto en concreto.
+
+   **Y no viven sólo aquí: cada repo trae los suyos.** El coordinador escanea las
+   fuentes de `data/fuentes.json` (por defecto, `~/src/*/telegram`), así que un
+   repo que declare `telegram/executors/*.json` aporta sus comandos al bot con
+   sólo estar clonado. Nada que copiar, nada que aplicar, nada que reiniciar. Ver
+   [`docs/ejecutores-federados.md`](docs/ejecutores-federados.md).
 
 2. **Todo ejecutor/encargado es una plantilla de comando de shell.** No hay
    "tipos especiales" cableados en el coordinador. La lógica nueva se agrega
@@ -75,6 +82,10 @@ El coordinador pasa estas variables de entorno a TODO comando (ejecutor,
 encargado, `>>SHELL`), para habilitar ejecutores con estado sin cablear nada:
 
 - `COORD_SESSION` (`<chatId>_<threadId>`), `COORD_CHAT`, `COORD_THREAD`.
+- `COORD_HOME`: la raíz del repo del coordinador. Hace falta desde que cada
+  ejecutor corre en el directorio de **su** repo: el cwd ya no apunta aquí, y es
+  así como un ejecutor de fuera encuentra `notify.mjs` o `desacoplar.sh` sin
+  suponer que el coordinador está en `~/src`. Viaja también por `desacoplar.sh`.
 
 ## Conexión con Telegram
 
@@ -122,11 +133,17 @@ scripts/
   bench-preflight.mjs  ¿tiene esta máquina con qué medir? (--fix arregla)
   vast-sweep.sh        barrido en Vast: medir + publicar + no dejar nada vivo
 data/
-  executors/*.json     { name, command, encargados: [], timeoutMs? }
-  encargados/*.json     { name, command, timeoutMs? }
+  fuentes.json         dónde buscar ejecutores ADEMÁS de aquí (es dato)
+  executors/*.json     { name, command, encargados: [], timeoutMs?,
+                         descripcion?, ejemplos?, cwd? }
+  encargados/*.json     { name, command, timeoutMs?, descripcion?, cwd? }
   sessions/*.json       (efímero, ignorado por git)
   claude-sessions/*.json (markers de claude por sesión, ignorado por git)
   shell-cwd/*.json      (directorio actual por sesión, ignorado por git)
+
+  ...y en CUALQUIER otro repo de ~/src (ver data/fuentes.json):
+  <repo>/telegram/executors/*.json    sus ejecutores, junto al código que llaman
+  <repo>/telegram/encargados/*.json   sus encargados
 docs/
   revision-2026-08-22.md    qué se hizo en agosto y qué documentación
                             habría ahorrado las vueltas (los ocho patrones)
@@ -147,6 +164,28 @@ docs/
   excepciones en el coordinador; el resto conserva la red de seguridad del
   timeout global. Se puede fijar al crear con `definer` usando el token
   `timeout=<ms>` en el encabezado (`exec c echo claude-watch timeout=0`).
+- **Los ejecutores se DESCUBREN, no se copian, y cada uno corre en su repo.**
+  `registry.ts` lee varias fuentes en orden; `data/` es la fuente 0, implícita y
+  siempre primera, y las demás salen de `data/fuentes.json` (o de
+  `COORD_FUENTES`, separado por comas). Cuatro cosas que hay que respetar si se
+  toca esto, y las cuatro tienen test:
+  1. **`data/` manda.** Lo local siempre puede pisar a lo descubierto, y una
+     lista de fuentes vacía, ausente o rota deja el comportamiento de siempre en
+     vez de dejar al bot sin ejecutores.
+  2. **El cwd de un ejecutor es la raíz del repo que lo declara** (el padre de
+     `telegram/`), o `cwd` si lo declara, resuelto contra esa raíz. Por eso los
+     ejecutores de otros repos ya no empiezan por `cd "$HOME/src/…"` — y por eso
+     el coordinador deja de suponer dónde está clonado nada.
+  3. **Las colisiones se avisan, nunca se resuelven en silencio**: gana la
+     primera fuente, la pisada queda en `origen.pisados`, y lo dicen tanto el
+     arranque del bot como `/executors`. Un ejecutor que hace otra cosa de la que
+     crees es peor que uno que falta.
+  4. **Un JSON roto de un repo ajeno no puede tumbar la lista.** Se salta con
+     aviso, como ya se hacía por fichero.
+
+  La descripción va en el **mismo JSON** que el ejecutor (`descripcion`,
+  `ejemplos`), y la imprimen `/executors`, `/executors <nombre>` y `/use`. Antes
+  hacía falta un catálogo aparte en otro repo, con dos sitios que podían divergir.
 - **`claude -p` es sin estado** por invocación: la continuidad la da
   `claude-session.mjs` con un UUID estable derivado de `COORD_SESSION`.
 - **Ese UUID no se guarda, se DERIVA — y por eso hace falta `/use creset`.** Al
@@ -397,7 +436,10 @@ python3 ~/src/foveal-vision/scripts/bench_fleet.py --vcpus 2,4,8
 
 Tarda decenas de minutos, así que **no se corre dentro de un turno**: hay un
 ejecutor `bench` que ya lo lanza desacoplado y avisa al terminar (`/use bench`,
-luego `--vcpus 2,4,8`). El aviso es una comodidad; la fuente de verdad son
+luego `--vcpus 2,4,8`). Vive en **`foveal-vision/telegram/executors/bench.json`**,
+junto al script que llama, y llega aquí porque el coordinador descubre los
+ejecutores de cada repo clonado: si `foveal-vision` no está, `bench` no sale en
+`/executors`, y es lo correcto. El aviso es una comodidad; la fuente de verdad son
 `~/src/foveal-vision/benchmarks/vcpu_*.json` y el log en `/tmp/`, y **se miran al
 principio del turno siguiente**.
 

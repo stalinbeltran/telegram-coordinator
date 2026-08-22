@@ -1,5 +1,10 @@
 {
   "name": "preflight",
+  "descripcion": "¿Tiene esta máquina con qué medir? Sale 0 sólo si se puede ya; --fix arregla lo que puede solo.",
+  "ejemplos": [
+    "",
+    "--fix"
+  ],
   "command": "node scripts/bench-preflight.mjs {{input}}",
   "encargados": [
     "echo"

@@ -1,5 +1,6 @@
 {
   "name": "directorio",
+  "descripcion": "Lista el directorio del bot. Ejecutor de prueba, de cuando se montó esto.",
   "command": "dir",
   "encargados": [
     "echo"

@@ -19,7 +19,10 @@
 # cuenta desde disco:
 #   - claude-resumer.mjs  ya lee BOT_TOKEN de .env si no lo hereda.
 #   - el ejecutor `bench`  hace `. ~/.config/dev-secrets.env` dentro del comando.
-# El cwd SI se conserva, que es lo que hace que encuentren esos ficheros.
+# El cwd SI se conserva, que es lo que hace que encuentren esos ficheros. Y
+# COORD_HOME viaja porque desde que cada ejecutor corre en el directorio de SU
+# repo, el cwd ya no apunta al coordinador: es como se sigue encontrando
+# notify.mjs para avisar al terminar.
 #
 # Si no se puede -sin sudo, sin systemd, otro SO- cae a `setsid`: se pierde la
 # proteccion contra el restart, pero se conserva la del tree-kill del runner,
@@ -27,7 +30,7 @@
 #
 #   scripts/desacoplar.sh <comando> [args...]
 
-VARS=COORD_SESSION,COORD_CHAT,COORD_THREAD,HOME,PATH,DATA_DIR,BENCH_VOLUME
+VARS=COORD_SESSION,COORD_CHAT,COORD_THREAD,COORD_HOME,HOME,PATH,DATA_DIR,BENCH_VOLUME
 
 if command -v systemd-run >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
   exec sudo -n --preserve-env="$VARS" systemd-run --scope --quiet --collect \
