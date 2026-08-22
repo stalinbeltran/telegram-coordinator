@@ -127,6 +127,11 @@ data/
   sessions/*.json       (efímero, ignorado por git)
   claude-sessions/*.json (markers de claude por sesión, ignorado por git)
   shell-cwd/*.json      (directorio actual por sesión, ignorado por git)
+docs/
+  revision-2026-08-22.md    qué se hizo en agosto y qué documentación
+                            habría ahorrado las vueltas (los ocho patrones)
+  ejecutores-federados.md   propuesta: que cada repo traiga sus ejecutores
+                            y el coordinador los descubra (NO implementada)
 ```
 
 ## Detalles técnicos que importan
@@ -277,6 +282,56 @@ estaba escrito, y se gastó una corrida de benchmark sobre la fuente equivocada.
 
 Vale igual para lo que no es código: un reporte o una medición que merezca conservarse
 se commitea. Lo que queda en `/tmp` o en un directorio ignorado, se pierde.
+
+## Cómo se escribe aquí (y por qué estas cinco reglas y no otras)
+
+Salen de repasar los commits de agosto de 2026 en este repo y en el del lanzador:
+cada una es una vuelta que se dio **más de una vez**, con lo que costó anotado. El
+repaso entero está en [`docs/revision-2026-08-22.md`](docs/revision-2026-08-22.md);
+aquí queda sólo lo que hay que respetar al escribir.
+
+1. **«Sobrevive» siempre lleva complemento.** Nunca escribas que algo sobrevive sin
+   decir **a qué** y **por qué mecanismo**. «`setsid` le da grupo propio y sobrevive»
+   era verdad —al tree-kill del runner— y se leyó como garantía general; contra
+   `systemctl restart` no sobrevive, porque el cgroup se hereda. Costó seis commits
+   en seis días y un aviso que no llegó nunca (2026-08-19). Si no sabes a qué **no**
+   sobrevive, escribe «no comprobado contra X».
+
+2. **Todo número lleva su procedencia**: medido (con fecha y el comando) o estimado
+   (marcado como tal). Un número sin procedencia se lee siempre como medido. Vale
+   igual para lo que se afirme de una API ajena: `medido 2026-08-20 con: …` o
+   `leído del OpenAPI, NO comprobado`. Escribir de memoria es deuda que se descubre
+   tarde (el OpenAPI de Vast documenta campos que no devuelve, y la primera versión
+   imprimía «0 modelos» sin fallar: silencioso y creíble).
+
+3. **Todo cerrojo o marcador en disco lleva su regla de caducidad escrita al lado.**
+   El proceso que lo puso puede morir por SIGKILL sin correr su `cleanup`: un
+   `existsSync` a secas convierte un fallo de una tarde en una función muerta en
+   silencio para siempre (pasó con `.resume.lock`). Sin dueño vivo, no hay cerrojo.
+   Y entre un fallo ruidoso y uno silencioso, siempre el ruidoso.
+
+4. **Terminado = el comando existe Y se puede invocar desde Telegram.** Si un
+   comando nuevo puede **empezar o parar un gasto**, su ejecutor va en el **mismo
+   commit**: el freno nunca llega después del acelerador. El 2026-08-20 hubo 1 h 08
+   min con capacidad de alquilar máquinas por segundo y sin forma de apagarlas desde
+   el móvil, que es desde donde se opera cuando no hay portátil delante.
+
+5. **Un preflight comprueba estado utilizable, no presencia**, y **crece con cada
+   fallo**: cada vez que algo se descubra a mitad, la comprobación se añade a
+   `bench-preflight.mjs` en el mismo commit que el arreglo. «El repo está» ≠ «el repo
+   puede correr» — faltaban los venvs, y eso se supo media hora después de escribir
+   el preflight.
+
+Y dos sobre **dónde** se escribe, porque documentar no basta si no llega:
+
+- Una lección que **cruza repos** se escribe en el repo donde se **dispara** (el que
+  tiene el comando) y desde el otro se **enlaza**; nunca se copia, que es como nacen
+  las dos mitades desfasadas. «El token deja crear droplets, pero no entrar en ellos»
+  se escribió aquí el 19 de agosto y se volvió a aprender en el lanzador el 20.
+- Una trampa se indexa por **la acción que la dispara**, no por su primera víctima.
+  «Nos pasó con `DO_TOKEN`» se lee como historia y se lee una vez; «al añadir un token
+  nuevo hay que mandarlo a sus **dos** destinos» se lee cada vez que toca hacerlo.
+  Escrita como historia, volvió a morder con el token de Vast.
 
 ## Encargo en curso: medir velocidad de entrenamiento por vCPU
 

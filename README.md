@@ -466,6 +466,13 @@ data/
   sessions/*.json         (efímero, ignorado por git)
   claude-sessions/*.json  (markers de claude por sesión, ignorado por git)
   shell-cwd/*.json        (directorio actual por sesión, ignorado por git)
+docs/
+  revision-2026-08-22.md  repaso de los commits de agosto de 2026 (este repo y
+                          el del lanzador): qué cambió, qué vueltas se dieron
+                          dos y tres veces, y qué documentación las evita
+  ejecutores-federados.md propuesta: que cada repo declare sus ejecutores en
+                          `telegram/executors/` y el coordinador los descubra,
+                          en vez de que se los copien (NO implementada)
 ```
 
 ## Notas
