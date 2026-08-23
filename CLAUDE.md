@@ -186,6 +186,16 @@ docs/
   La descripción va en el **mismo JSON** que el ejecutor (`descripcion`,
   `ejemplos`), y la imprimen `/executors`, `/executors <nombre>` y `/use`. Antes
   hacía falta un catálogo aparte en otro repo, con dos sitios que podían divergir.
+
+  **Hueco conocido: la federación ata un comando a un REPO, y `c` depende de un
+  BINARIO.** `c` y `creset` viven en `data/executors/` de este repo, que en una
+  máquina con el bot **siempre** está —es el propio servicio—, así que salen en
+  `/executors` aunque `claude` no esté instalado. Pasa hoy en el mini
+  (`cloud-init.mini.yaml` no lleva Claude Code: no cabe en 512 MB), donde `/use c`
+  falla. La salida barata sería un campo `requiere: ["claude"]` en el JSON y que
+  `/executors` lo marque como no disponible en vez de ofrecerlo; **no está
+  implementado**. Qué va en cada máquina está en
+  [`digital-ocean-dropplet-auto-launching/docs/reparto-mini-dev.md`](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/reparto-mini-dev.md).
 - **El shell de un comando es `/bin/sh`, y en Ubuntu eso es `dash`, no bash.**
   `runner.ts` y `shell-cwd.mjs` lanzan con `spawn(cmd, { shell: true })`, que en
   POSIX usa `/bin/sh`. Así que **no** hay expansión de llaves (`{a,b}.json` llega
