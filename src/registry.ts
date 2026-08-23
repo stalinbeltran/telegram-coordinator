@@ -1,5 +1,6 @@
 import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
-import { join, resolve, dirname, sep } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, resolve, dirname, sep, delimiter } from 'node:path';
 import { homedir } from 'node:os';
 import { DATA_DIR, COORD_HOME } from './config.js';
 
@@ -28,8 +29,18 @@ export interface Executor {
    * absoluto). Ya cargado, siempre absoluto: lo resuelve el registry.
    */
   cwd?: string;
+  /**
+   * Binarios que este comando necesita en el PATH. La federación hace que un
+   * ejecutor llegue con su repo, pero hay comandos que además dependen de algo
+   * INSTALADO: `c` no sirve de nada sin `claude`, y su repo —el del propio
+   * coordinador— está en TODAS las máquinas con bot, así que sin esto el mini
+   * ofrecía un comando que sólo podía fallar. Ausente = no se comprueba.
+   */
+  requiere?: string[];
   /** Relleno al cargar; NO se escribe en el JSON. */
   origen?: Origen;
+  /** Relleno al cargar: cuáles de `requiere` NO están. NO se escribe en el JSON. */
+  falta?: string[];
 }
 
 export interface Encargado {
@@ -39,7 +50,9 @@ export interface Encargado {
   timeoutMs?: number;
   descripcion?: string;
   cwd?: string;
+  requiere?: string[];
   origen?: Origen;
+  falta?: string[];
 }
 
 /** Directorio de una fuente y la raíz desde la que corren sus comandos. */
@@ -146,6 +159,44 @@ export async function fuentes(): Promise<Fuente[]> {
 }
 
 /**
+ * ¿Está este binario en el PATH? Con caché de 30 s.
+ *
+ * La caducidad va escrita aquí al lado porque sin ella habría que elegir entre
+ * dos males: mirar el disco en CADA mensaje (esto se llama desde `listExecutors`,
+ * que se ejecuta por mensaje), o cachear para siempre y obligar a reiniciar el
+ * bot después de instalar algo. 30 s es corto para lo segundo y largo para lo
+ * primero: instalas `claude`, y medio minuto después `/executors` ya lo ve.
+ */
+const TTL_PATH_MS = 30_000;
+const cachePath = new Map<string, { visto: number; hay: boolean }>();
+
+function enPath(bin: string): boolean {
+  const cacheado = cachePath.get(bin);
+  const ahora = Date.now();
+  if (cacheado && ahora - cacheado.visto < TTL_PATH_MS) return cacheado.hay;
+
+  let hay = false;
+  if (bin.includes('/') || bin.includes('\\')) {
+    // Con separador ya es una ruta, no un nombre que buscar en el PATH.
+    hay = existsSync(resolve(COORD_HOME, expandirTilde(bin)));
+  } else {
+    // En Windows un ejecutable es `nombre` + una de las extensiones de PATHEXT.
+    const exts =
+      process.platform === 'win32'
+        ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)
+        : [''];
+    for (const dir of (process.env.PATH ?? '').split(delimiter).filter(Boolean)) {
+      if (exts.some((ext) => existsSync(join(dir, bin + ext)))) {
+        hay = true;
+        break;
+      }
+    }
+  }
+  cachePath.set(bin, { visto: ahora, hay });
+  return hay;
+}
+
+/**
  * Carga `<fuente>/<sub>/*.json` de todas las fuentes, en orden.
  *
  * Ante dos definiciones con el mismo `name` gana la primera fuente, y la
@@ -155,9 +206,9 @@ export async function fuentes(): Promise<Fuente[]> {
  * Un JSON roto se salta con aviso y NO tumba la lista: un repo ajeno no puede
  * dejar al bot sin ejecutores.
  */
-async function cargar<T extends { name: string; cwd?: string; origen?: Origen }>(
-  sub: string,
-): Promise<T[]> {
+async function cargar<
+  T extends { name: string; cwd?: string; requiere?: string[]; falta?: string[]; origen?: Origen },
+>(sub: string): Promise<T[]> {
   const porNombre = new Map<string, T>();
   for (const { dir, raiz } of await fuentes()) {
     const carpeta = join(dir, sub);
@@ -186,6 +237,7 @@ async function cargar<T extends { name: string; cwd?: string; origen?: Origen }>
         continue;
       }
       def.cwd = def.cwd ? resolve(raiz, expandirTilde(def.cwd)) : raiz;
+      def.falta = (def.requiere ?? []).filter((bin) => !enPath(bin));
       def.origen = { fichero, raiz, pisados: [] };
       porNombre.set(def.name, def);
     }
@@ -229,10 +281,16 @@ export async function reportarFuentes(): Promise<void> {
   console.log(`   ${execs.length} ejecutores, ${encs.length} encargados.`);
 
   for (const def of [...execs, ...encs]) {
-    if (!def.origen?.pisados.length) continue;
-    console.error(`⚠️  "${def.name}" está definido más de una vez.`);
-    console.error(`      manda : ${def.origen.fichero}`);
-    for (const p of def.origen.pisados) console.error(`      pisado: ${p}`);
+    if (def.origen?.pisados.length) {
+      console.error(`⚠️  "${def.name}" está definido más de una vez.`);
+      console.error(`      manda : ${def.origen.fichero}`);
+      for (const p of def.origen.pisados) console.error(`      pisado: ${p}`);
+    }
+    if (def.falta?.length) {
+      console.error(
+        `⚠️  "${def.name}" no se puede usar en esta máquina: falta ${def.falta.join(', ')} en el PATH.`,
+      );
+    }
   }
 }
 

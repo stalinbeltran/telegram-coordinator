@@ -133,6 +133,22 @@ cuando vas a escribir la entrada).
 el arranque del bot y en `/executors`, diciendo qué fichero manda y cuál queda
 pisado. Nunca en silencio.
 
+### Cuando el comando además necesita algo instalado
+
+Tener el repo no siempre basta: `c` no sirve sin el binario `claude`, y su repo
+—el del propio coordinador— está en **todas** las máquinas con bot. Para eso está
+`requiere`:
+
+```json
+{ "name": "c", "requiere": ["claude"], "command": "node scripts/claude-session.mjs" }
+```
+
+El bot comprueba el PATH y **marca** lo que falte (`⛔ falta claude`) en
+`/executors` y al abrir sesión. **Marca, no esconde**: un comando escondido no se
+distingue de un repo sin clonar, y así sabes si lo que toca es instalar o clonar.
+`/use` avisa pero deja continuar, para que un falso negativo no te bloquee una
+sesión que sí funciona.
+
 El detalle completo —por qué se hizo, qué había antes y qué costó— está en
 [`docs/ejecutores-federados.md`](docs/ejecutores-federados.md).
 
@@ -534,7 +550,7 @@ tests/
 data/
   fuentes.json            dónde buscar ejecutores además de aquí (dato)
   executors/*.json        { name, command, encargados: [], timeoutMs?,
-                            descripcion?, ejemplos?, cwd? }
+                            descripcion?, ejemplos?, cwd?, requiere? }
   encargados/*.json       { name, command, timeoutMs?, descripcion?, cwd? }
   sessions/*.json         (efímero, ignorado por git)
   claude-sessions/*.json  (markers de claude por sesión, ignorado por git)

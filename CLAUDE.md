@@ -136,8 +136,9 @@ scripts/
 data/
   fuentes.json         dónde buscar ejecutores ADEMÁS de aquí (es dato)
   executors/*.json     { name, command, encargados: [], timeoutMs?,
-                         descripcion?, ejemplos?, cwd? }
-  encargados/*.json     { name, command, timeoutMs?, descripcion?, cwd? }
+                         descripcion?, ejemplos?, cwd?, requiere? }
+  encargados/*.json     { name, command, timeoutMs?, descripcion?, cwd?,
+                         requiere? }
   sessions/*.json       (efímero, ignorado por git)
   claude-sessions/*.json (markers de claude por sesión, ignorado por git)
   shell-cwd/*.json      (directorio actual por sesión, ignorado por git)
@@ -188,14 +189,26 @@ docs/
   `ejemplos`), y la imprimen `/executors`, `/executors <nombre>` y `/use`. Antes
   hacía falta un catálogo aparte en otro repo, con dos sitios que podían divergir.
 
-  **Hueco conocido: la federación ata un comando a un REPO, y `c` depende de un
-  BINARIO.** `c` y `creset` viven en `data/executors/` de este repo, que en una
-  máquina con el bot **siempre** está —es el propio servicio—, así que salen en
-  `/executors` aunque `claude` no esté instalado. Pasa hoy en el mini
-  (`cloud-init.mini.yaml` no lleva Claude Code: no cabe en 512 MB), donde `/use c`
-  falla. La salida barata sería un campo `requiere: ["claude"]` en el JSON y que
-  `/executors` lo marque como no disponible en vez de ofrecerlo; **no está
-  implementado**. Qué va en cada máquina está en
+  **La federación ata un comando a un REPO; `requiere` cubre lo que depende de un
+  BINARIO.** `c` vive en `data/executors/` de este repo, que en una máquina con el
+  bot **siempre** está —es el propio servicio—, así que salía en `/executors`
+  aunque `claude` no estuviera instalado: pasa en el mini, donde
+  `cloud-init.mini.yaml` no lleva Claude Code porque no cabe en 512 MB. Un JSON
+  puede declarar `requiere: ["claude"]` y el registry rellena `falta` con los que
+  no estén en el PATH.
+
+  Tres decisiones que hay que respetar si se toca:
+  1. **Se MARCA, no se esconde** (`⛔ falta claude` en `/executors`). Un comando
+     escondido no se distingue de un repo sin clonar, y entonces no sabes si
+     instalar algo o clonar algo.
+  2. **`/use` avisa pero NO bloquea.** La comprobación mira el PATH de *este*
+     proceso; un falso negativo que impidiera abrir una sesión que sí funciona
+     sería peor que el aviso. Si de verdad falta, el ejecutor falla con su error.
+  3. **La caché del PATH caduca a los 30 s**, y la regla va escrita junto a ella:
+     esto se llama por mensaje, así que sin caché se mira el disco cada vez, y con
+     caché eterna habría que reiniciar el bot tras instalar algo.
+
+  Qué va en cada máquina está en
   [`digital-ocean-dropplet-auto-launching/docs/reparto-mini-dev.md`](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/reparto-mini-dev.md).
 - **El shell de un comando es `/bin/sh`, y en Ubuntu eso es `dash`, no bash.**
   `runner.ts` y `shell-cwd.mjs` lanzan con `spawn(cmd, { shell: true })`, que en

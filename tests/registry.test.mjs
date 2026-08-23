@@ -68,6 +68,21 @@ before(async () => {
     command: 'cat',
   });
 
+  // `requiere`: uno que pide un binario imposible y otro que pide `node`,
+  // que por definición está (lo estamos ejecutando).
+  await escribir(join(process.env.DATA_DIR, 'executors'), 'necesita-algo.json', {
+    name: 'necesita-algo',
+    command: 'noexiste-jamas-9f3a',
+    encargados: [],
+    requiere: ['noexiste-jamas-9f3a', 'node'],
+  });
+  await escribir(join(process.env.DATA_DIR, 'executors'), 'necesita-node.json', {
+    name: 'necesita-node',
+    command: 'node -v',
+    encargados: [],
+    requiere: ['node'],
+  });
+
   // Un repo sin telegram/ no debe estorbar.
   await mkdir(join(repos, 'repo-sin-telegram', 'scripts'), { recursive: true });
 
@@ -99,7 +114,7 @@ test('un repo sin telegram/ no aparece como fuente', async () => {
 test('se descubren los ejecutores de todos los repos', async () => {
   const { listExecutors } = await reg();
   const nombres = (await listExecutors()).map((e) => e.name).sort();
-  assert.deepEqual(nombres, ['a', 'b', 'comun', 'shell']);
+  assert.deepEqual(nombres, ['a', 'b', 'comun', 'necesita-algo', 'necesita-node', 'shell']);
 });
 
 test('ante una colisión gana DATA_DIR, y la pisada queda anotada', async () => {
@@ -150,8 +165,26 @@ test('sin fuentes extra, el comportamiento es el de siempre: sólo DATA_DIR', as
   try {
     const { fuentes, listExecutors } = await reg();
     assert.deepEqual((await fuentes()).map((f) => f.dir), [process.env.DATA_DIR]);
-    assert.deepEqual((await listExecutors()).map((e) => e.name).sort(), ['comun', 'shell']);
+    assert.deepEqual((await listExecutors()).map((e) => e.name).sort(),
+      ['comun', 'necesita-algo', 'necesita-node', 'shell']);
   } finally {
     process.env.COORD_FUENTES = previo;
   }
+});
+
+test('`requiere` marca lo que falta en el PATH, sin esconder el ejecutor', async () => {
+  const { getExecutor } = await reg();
+  const roto = await getExecutor('necesita-algo');
+  assert.ok(roto, 'no se esconde: un comando ausente no se distingue de un repo que falta');
+  assert.deepEqual(roto.falta, ['noexiste-jamas-9f3a'], 'sólo el que de verdad falta');
+
+  const bueno = await getExecutor('necesita-node');
+  assert.deepEqual(bueno.falta, [], 'node está: lo estamos ejecutando');
+});
+
+test('sin `requiere` no se comprueba nada y `falta` queda vacío', async () => {
+  const { getExecutor } = await reg();
+  const shell = await getExecutor('shell');
+  assert.equal(shell.requiere, undefined);
+  assert.deepEqual(shell.falta, []);
 });

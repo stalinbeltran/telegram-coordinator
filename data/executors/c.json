@@ -4,6 +4,9 @@
   "ejemplos": [
     "¿qué cambió en este repo esta semana?"
   ],
+  "requiere": [
+    "claude"
+  ],
   "command": "node scripts/claude-session.mjs --model opus --effort max",
   "encargados": [
     "echo",

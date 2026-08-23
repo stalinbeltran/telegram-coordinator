@@ -104,6 +104,10 @@ async function main(): Promise<void> {
         `directorio: ${e.cwd}`,
         `definido  : ${e.origen?.fichero}`,
       ];
+      if (e.requiere?.length) det.push(`necesita  : ${e.requiere.join(', ')}`);
+      if (e.falta?.length) {
+        det.push('', `⛔ En esta máquina falta: ${e.falta.join(', ')}. Este ejecutor va a fallar.`);
+      }
       if (e.ejemplos?.length) det.push('', 'Ejemplos:', ...e.ejemplos.map((x) => `  ${x}`));
       if (e.origen?.pisados.length) {
         det.push('', '⚠️ Definido más de una vez; los pisados son:', ...e.origen.pisados.map((p) => `  ${p}`));
@@ -113,9 +117,13 @@ async function main(): Promise<void> {
     }
 
     const lines = execs.map((e) => {
-      const aviso = e.origen?.pisados.length ? '  ⚠️ duplicado' : '';
+      // Se MARCA, no se esconde: un comando ausente no se distingue de un repo
+      // que falta, y entonces no sabes si instalar algo o clonar algo.
+      const avisos =
+        (e.origen?.pisados.length ? '  ⚠️ duplicado' : '') +
+        (e.falta?.length ? `  ⛔ falta ${e.falta.join(', ')}` : '');
       const desc = e.descripcion ?? `encargados: ${e.encargados?.join(', ') || '(ninguno)'}`;
-      return `• ${e.name}   [${repoDe(e)}]${aviso}\n    ${desc}`;
+      return `• ${e.name}   [${repoDe(e)}]${avisos}\n    ${desc}`;
     });
     await send(
       ctx,
@@ -139,7 +147,13 @@ async function main(): Promise<void> {
     await setSession(sidOf(ctx), name);
     // Los ejemplos se muestran AQUÍ porque es cuando hacen falta: acabas de
     // abrir la sesión y lo siguiente que escribes es la entrada del ejecutor.
+    // Avisa pero NO bloquea: la comprobación mira el PATH de este proceso, y un
+    // falso negativo que impidiera abrir una sesión que sí funciona sería peor
+    // que el aviso. Si de verdad falta, el ejecutor fallará con su propio error.
     const extra = [
+      exec.falta?.length
+        ? `\n\n⛔ Ojo: falta ${exec.falta.join(', ')} en esta máquina. Es probable que falle.`
+        : '',
       exec.descripcion ? `\n${exec.descripcion}` : '',
       exec.ejemplos?.length ? '\n\nEjemplos:\n' + exec.ejemplos.map((x) => `  ${x}`).join('\n') : '',
     ].join('');
