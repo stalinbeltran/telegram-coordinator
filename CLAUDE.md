@@ -128,6 +128,7 @@ scripts/
   claude-reset.mjs     sube la época: conversación nueva sin cambiar de tema
   shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
   notify.mjs           aviso a Telegram desde un proceso desacoplado
+  cargar-secretos.mjs  los DOS ficheros de secretos, para lo desacoplado
   desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart)
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
   bench-preflight.mjs  ¿tiene esta máquina con qué medir? (--fix arregla)
@@ -265,8 +266,22 @@ docs/
      **Y no le pases secretos**: `sudo` escribe la lista entera de `--preserve-env` en claro
      en el journal, así que `BOT_TOKEN`/`DO_TOKEN` por ahí acaban en disco en cada
      lanzamiento. Solo viaja lo que no es credencial (`COORD_*`, `HOME`, `PATH`) y el
-     **cwd**, que es lo que permite a cada trabajo cargar los suyos de disco (`.env`,
-     `~/.config/dev-secrets.env`).
+     **cwd**, que es lo que permite a cada trabajo cargar los suyos de disco.
+
+     **Y son DOS ficheros, no uno.** Ésta es la parte que costó: `.env` (configuración del
+     servicio: `BOT_TOKEN`) y `~/.config/dev-secrets.env` (secretos de la máquina:
+     `CLAUDE_CODE_OAUTH_TOKEN`, `GITHUB_TOKEN`, los de las nubes). El bot no nota la
+     diferencia porque su unit arranca con `bash -lc` y `.bashrc` carga el segundo; **un
+     proceso desacoplado sí la nota**. Para eso está `scripts/cargar-secretos.mjs`: cárgalo
+     al principio de cualquier script que pueda correr desacoplado, siempre y sin
+     condiciones (`loadEnvFile` no pisa lo que ya está en el entorno, así que es gratis).
+
+     Medido el 2026-08-23: el resumer despertaba puntual, lanzaba `claude --resume` sin
+     `CLAUDE_CODE_OAUTH_TOKEN` y contestaba **«Not logged in · Please run /login»**. Llevaba
+     un `if (!process.env.BOT_TOKEN) loadEnvFile('.env')`, o sea **el guard sobre la variable
+     equivocada**: `BOT_TOKEN` sí se recuperaba, así que la carga nunca llegaba a
+     ejecutarse — y el token que faltaba estaba en el otro fichero. Un guard que pregunta
+     por A para cargar B es un fallo que sólo aparece cuando A está y B no.
   2. **El vigilante también muere — así que nadie avisa de nada.** Un watcher armado dentro
      del turno (cualquier cosa que espere a que termine el trabajo) se muere al acabar la
      respuesta, y entre un mensaje y el siguiente **no queda nada vivo que pueda mandar un

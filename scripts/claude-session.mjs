@@ -32,6 +32,15 @@ import {
   uuidFor,
   writeMarker,
 } from './claude-marker.mjs';
+import { cargarSecretos, pareceFalloDeLogin, pistaDeLogin } from './cargar-secretos.mjs';
+
+// Los secretos, de disco. Lanzado por el bot no hace falta (el unit arranca con
+// `bash -lc` y ya trae CLAUDE_CODE_OAUTH_TOKEN), pero este script se compone
+// dentro de trabajos DESACOPLADOS -- está documentado así en CLAUDE.md:
+//   desacoplar.sh sh -c '<trabajo>; echo "…" | node scripts/claude-session.mjs | node scripts/notify.mjs'
+// y ahí el entorno viene filtrado y `claude` respondería «Not logged in».
+// No pisa nada: loadEnvFile respeta lo que ya está en el entorno.
+cargarSecretos();
 
 const permissionMode = process.env.CLAUDE_PERMISSION_MODE || 'acceptEdits';
 
@@ -128,6 +137,9 @@ if (res.ok) {
   // encargado `claude-watch` puede detectar el límite y programar la reanudación.
   process.stdout.write((res.err || res.out || 'Usage limit reached.').trim());
 } else {
-  console.error((res.err || res.out || 'claude falló sin mensaje.').trim());
+  const detalle = (res.err || res.out || 'claude falló sin mensaje.').trim();
+  // «Please run /login» es un consejo inútil desde el móvil: no hay dónde
+  // escribirlo. Se le añade qué mirar y quién manda el token.
+  console.error(detalle + (pareceFalloDeLogin(detalle) ? pistaDeLogin() : ''));
   process.exit(1);
 }

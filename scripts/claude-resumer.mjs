@@ -4,8 +4,10 @@
 // del ciclo del coordinador (que mata todo comando a los 30s y no puede mandar
 // mensajes después). Por eso el resumer se manda los mensajes a Telegram él mismo
 // vía Bot API, usando lo que heredó del entorno:
-//   BOT_TOKEN              (lo cargó el coordinador desde .env; aquí lo recargamos
-//                           si hiciera falta)
+//   BOT_TOKEN              (de .env)
+//   CLAUDE_CODE_OAUTH_TOKEN (de ~/.config/dev-secrets.env)
+// Los dos se cargan de DISCO al arrancar (cargar-secretos.mjs), porque
+// `desacoplar.sh` no deja pasar credenciales y este proceso nace sin ellas.
 //   COORD_SESSION/CHAT/THREAD  (identidad de la sesión = tema de Telegram)
 //
 // Flujo:
@@ -24,15 +26,16 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRateLimited, calculateWaitMs } from './limit-detect.mjs';
+import { cargarSecretos, pareceFalloDeLogin, pistaDeLogin } from './cargar-secretos.mjs';
 
-// Recarga .env solo si el token no vino heredado (p. ej. si se lanza a mano).
-if (!process.env.BOT_TOKEN && existsSync('.env')) {
-  try {
-    process.loadEnvFile('.env');
-  } catch {
-    /* sin .env: seguimos con lo que haya en el entorno */
-  }
-}
+// SIEMPRE, y de los DOS ficheros. Antes esto era `if (!BOT_TOKEN) loadEnvFile('.env')`,
+// y el guard estaba puesto sobre la variable equivocada: `desacoplar.sh` no deja
+// pasar credenciales, pero BOT_TOKEN sí se recuperaba de `.env`, así que la carga
+// no llegaba a ejecutarse... y CLAUDE_CODE_OAUTH_TOKEN, que vive en
+// ~/.config/dev-secrets.env, no lo cargaba nadie. Resultado: el resumer despertaba
+// puntual y `claude --resume` contestaba «Not logged in · Please run /login».
+// Es seguro hacerlo incondicional: loadEnvFile no pisa lo que ya está en el entorno.
+cargarSecretos();
 
 const TOKEN = process.env.BOT_TOKEN;
 const CHAT = process.env.COORD_CHAT;
@@ -187,7 +190,9 @@ async function main() {
 
     // Reanudación lograda (o error que NO es límite).
     if (r.code !== 0 && !r.out.trim()) {
-      await tg(`❌ No pude reanudar la sesión:\n${(r.err || 'error desconocido').trim()}`);
+      const detalle = (r.err || 'error desconocido').trim();
+      const pista = pareceFalloDeLogin(detalle) ? pistaDeLogin() : '';
+      await tg(`❌ No pude reanudar la sesión:\n${detalle}${pista}`);
     } else {
       await tg(`✅ Sesión reanudada automáticamente:\n\n${r.out.trim() || '(sin salida de claude)'}`);
     }

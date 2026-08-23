@@ -521,11 +521,13 @@ scripts/
   claude-resumer.mjs   proceso desacoplado que espera, reanuda y avisa por Telegram
   shell-cwd.mjs        shell con directorio de trabajo persistente (ejecutor `shell`)
   notify.mjs           avisa al tema de Telegram desde un proceso desacoplado
+  cargar-secretos.mjs  carga .env + ~/.config/dev-secrets.env (procesos desacoplados)
   desacoplar.sh        corre un comando en su propio cgroup (sobrevive al restart)
   vast-sweep.sh        barrido de velocidad en Vast.ai (ejecutor `barrido`)
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
 tests/
   registry.test.mjs
+  cargar-secretos.test.mjs
   limit-detect.test.mjs
   claude-watch.test.mjs
   notify.test.mjs
