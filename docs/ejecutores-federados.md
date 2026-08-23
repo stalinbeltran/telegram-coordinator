@@ -319,9 +319,31 @@ con varias fuentes, «qué ejecutor es éste» deja de ser obvio—.
 
 Los ejecutores que `install-executors` copió en su día siguen en
 `data/executors/` de esa máquina, y **pisan** a los descubiertos (`DATA_DIR` manda).
-No rompen nada —son los mismos comandos con `cd`— pero conviene borrarlos: el
-arranque del bot y `/executors` dicen exactamente qué fichero manda y cuál está
-pisado, que es todo lo que hace falta para saber qué quitar.
+No rompen nada —son los mismos comandos con `cd`— pero hay que borrarlos. El
+arranque del bot y `/executors` dicen cuáles: salen marcados `⚠️ duplicado`, con
+el repo `[telegram-coordinator]` en vez del que debería.
+
+Desde Telegram, con `/use shell` y en dos mensajes (el `cd` persiste por tema):
+
+```
+cd ~/src/telegram-coordinator/data/executors
+```
+```
+rm -f lanzar.json actualizar.json ejecutores.json vast.json datos.json estado.json apagar-vast.json apagar-do.json ayuda.json
+```
+
+**Nada de llaves.** `runner.ts` lanza con `spawn(..., {shell: true})`, o sea
+`/bin/sh`, que en Ubuntu es **dash**: no expande `{a,b}.json` y `rm` se queja de
+un fichero con ese nombre literal. Los nombres van sueltos, o un `for`.
+
+No hace falta reiniciar: el registry relee el disco en cada mensaje, así que el
+descubierto toma el relevo en el acto — incluso con `actualizar`, que no llega a
+faltar en ningún momento. Y no queda nada que commitear: esas copias eran
+ficheros no versionados.
+
+`ejecutores` y `ayuda` se borran igual y **no** vuelven: son los dos rodeos que
+este cambio elimina. Ya no hay paso de aplicación, y el catálogo lo dan
+`/executors` y `/executors <nombre>`.
 
 ## 5. Alternativas descartadas
 

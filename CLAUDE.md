@@ -186,6 +186,14 @@ docs/
   La descripción va en el **mismo JSON** que el ejecutor (`descripcion`,
   `ejemplos`), y la imprimen `/executors`, `/executors <nombre>` y `/use`. Antes
   hacía falta un catálogo aparte en otro repo, con dos sitios que podían divergir.
+- **El shell de un comando es `/bin/sh`, y en Ubuntu eso es `dash`, no bash.**
+  `runner.ts` y `shell-cwd.mjs` lanzan con `spawn(cmd, { shell: true })`, que en
+  POSIX usa `/bin/sh`. Así que **no** hay expansión de llaves (`{a,b}.json` llega
+  literal y `rm` se queja de un fichero con ese nombre), ni `[[ ]]`, ni arrays, ni
+  `source`. Mordió al escribir el comando de limpieza de los ejecutores copiados
+  (2026-08-22): se veía correcto y fallaba en la máquina. Escribe los nombres
+  sueltos o un `for`, y si necesitas bash de verdad, pídelo explícito
+  (`bash -c '…'`). Es la parte concreta de la regla 5 de la filosofía.
 - **`claude -p` es sin estado** por invocación: la continuidad la da
   `claude-session.mjs` con un UUID estable derivado de `COORD_SESSION`.
 - **Ese UUID no se guarda, se DERIVA — y por eso hace falta `/use creset`.** Al
