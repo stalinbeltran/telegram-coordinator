@@ -116,6 +116,11 @@ process.on('exit', cleanup);
 
 // --- Telegram (Bot API por fetch, sin dependencias) ------------------------
 const TG_LIMIT = 4000;
+// Igual que en `notify.mjs`: sólo se define en los tests, que apuntan a un
+// servidor local. Sin ella vale la API real, así que en producción no cambia
+// nada -- y con ella se puede comprobar QUÉ mensaje manda este proceso sin
+// mandar nada a Telegram, que es la única forma de testear el aviso de corte.
+const API_BASE = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org';
 async function tg(text) {
   if (!TOKEN || !CHAT) {
     console.error('[claude-resumer] Falta BOT_TOKEN o COORD_CHAT; no puedo avisar a Telegram.');
@@ -126,7 +131,7 @@ async function tg(text) {
     const payload = { chat_id: CHAT, text: body.slice(i, i + TG_LIMIT) };
     if (THREAD) payload.message_thread_id = Number(THREAD);
     try {
-      await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+      await fetch(`${API_BASE}/bot${TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
