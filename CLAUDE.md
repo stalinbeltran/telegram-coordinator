@@ -295,6 +295,32 @@ docs/
      equivocada**: `BOT_TOKEN` sí se recuperaba, así que la carga nunca llegaba a
      ejecutarse — y el token que faltaba estaba en el otro fichero. Un guard que pregunta
      por A para cargar B es un fallo que sólo aparece cuando A está y B no.
+
+     **Y el reanudador tenía SU PROPIO reloj, más corto que el trabajo.** Medido el
+     2026-08-23: el límite saltó a las 21:22 con un estudio a medias, el resumer despertó
+     puntual a las 22:40, reinyectó el «continúa»… y a las **22:50:31 —exactamente 10
+     minutos después— mató la llamada**. Era su `CLAUDE_RETRY_RUN_TIMEOUT_MS`, 600.000 ms
+     por defecto. El trabajo duraba una hora (alquilar nueve máquinas, entrenar, recogerlas)
+     y **se completó entero**: lo único que se perdió fue la **entrega**. Desde Telegram se
+     vio como «nunca me respondiste», que es el peor síntoma posible — indistinguible de que
+     no se hubiera hecho nada.
+
+     Tres cosas que dejar escritas, porque las tres se pueden repetir:
+
+     1. **El tope del reanudador contradecía al propio proyecto.** El ejecutor `c` lleva
+        `timeoutMs: 0` precisamente porque las tareas de claude son largas; el resumer existe
+        para **continuar una de esas**, y traía 10 minutos. Un límite puesto en dos sitios con
+        criterios opuestos gana siempre el más corto, y en silencio. Ahora son 6 h — y **no 0**,
+        a propósito: el resumer tiene el cerrojo de la sesión, y uno colgado para siempre
+        bloquearía las reanudaciones siguientes.
+     2. **Matar el envoltorio no es matar el trabajo.** El `child.kill()` mataba
+        `claude-session.mjs` y dejaba a `claude` **huérfano**, gastando tokens contra una
+        tubería que ya no leía nadie. Es la misma lección que `runner.ts` aprendió en Windows,
+        y la solución es la misma: `detached` + matar el **grupo**.
+     3. **Un corte propio se anuncia como propio.** El caso caía en el «error desconocido»
+        genérico, así que ni el usuario ni el siguiente turno podían distinguir «claude falló»
+        de «lo maté yo y el trabajo quizá esté hecho». Ahora el aviso dice quién cortó, cuánto
+        esperó, y **que hay que mirar el disco antes de repetir nada**.
   2. **El vigilante también muere — así que nadie avisa de nada.** Un watcher armado dentro
      del turno (cualquier cosa que espere a que termine el trabajo) se muere al acabar la
      respuesta, y entre un mensaje y el siguiente **no queda nada vivo que pueda mandar un

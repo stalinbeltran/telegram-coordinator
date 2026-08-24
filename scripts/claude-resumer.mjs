@@ -44,7 +44,23 @@ const SESSION = process.env.COORD_SESSION || 'default';
 const DATA_DIR = process.env.DATA_DIR || 'data';
 
 const MAX = int(process.env.CLAUDE_RETRY_MAX, 5);
-const RUN_TIMEOUT_MS = int(process.env.CLAUDE_RETRY_RUN_TIMEOUT_MS, 600_000);
+// 6 h, y el 600_000 (10 min) que había antes era un fallo MEDIDO, no una
+// preferencia. El 2026-08-23 el límite saltó a las 21:22 con un estudio a medias;
+// el resumer despertó puntual a las 22:40, reinyectó el «continúa», y a las
+// 22:50:31 -EXACTAMENTE 10 minutos después- mató la llamada. El trabajo duró una
+// hora (alquilar nueve máquinas, entrenar y recogerlas), así que la respuesta no
+// llegó nunca aunque el trabajo sí se hizo entero.
+//
+// El número contradecía al propio proyecto: el ejecutor `c` lleva `timeoutMs: 0`
+// -sin límite- precisamente porque las tareas de claude son largas, y el resumer
+// existe para CONTINUAR una de esas. Ponerle 10 minutos garantiza que todo lo que
+// valga la pena reanudar se corte.
+//
+// No se pone 0 (sin límite) a propósito: este proceso tiene el cerrojo de la
+// sesión, y uno colgado para siempre bloquearía las reanudaciones siguientes sin
+// que nadie lo note. 6 h es más que cualquier tarea vista aquí y sigue siendo un
+// tope.
+const RUN_TIMEOUT_MS = int(process.env.CLAUDE_RETRY_RUN_TIMEOUT_MS, 6 * 60 * 60 * 1000);
 const CONTINUE_PROMPT =
   process.env.CLAUDE_CONTINUE_PROMPT ||
   'Continúa con la tarea anterior justo donde te detuviste por el límite de uso. ' +
@@ -121,6 +137,25 @@ async function tg(text) {
   }
 }
 
+// Mata el ÁRBOL, no el proceso. Mismo patrón que `runner.ts`: en POSIX el hijo
+// tiene grupo propio (`detached`) y se mata el grupo; en Windows `taskkill /T`.
+function matarArbol(child) {
+  if (!child.pid) return;
+  if (process.platform === 'win32') {
+    spawn('taskkill', ['/pid', String(child.pid), '/T', '/F']);
+    return;
+  }
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch {
+    try {
+      child.kill('SIGKILL');
+    } catch {
+      /* ya murió */
+    }
+  }
+}
+
 // --- Lanzar claude-session (reanuda con --resume) --------------------------
 // Corre FUERA del runner del coordinador, así que el timeout de 30s no aplica:
 // usamos uno propio y generoso para tareas largas.
@@ -129,15 +164,19 @@ function runClaudeSession(prompt) {
     const child = spawn(process.execPath, ['scripts/claude-session.mjs'], {
       windowsHide: true,
       env: process.env,
+      // Grupo propio en POSIX para poder matar el ÁRBOL, no sólo el envoltorio.
+      // `claude-session.mjs` lanza a su vez `claude`: un `child.kill()` a secas
+      // mataba el wrapper y dejaba a `claude` huérfano trabajando contra una
+      // tubería muerta -- gastando tokens sin que nadie recogiera la respuesta.
+      // Es el mismo motivo por el que `runner.ts` mata el árbol y no el proceso.
+      detached: process.platform !== 'win32',
     });
     let out = '';
     let err = '';
+    let expiro = false;
     const timer = setTimeout(() => {
-      try {
-        child.kill();
-      } catch {
-        /* ya murió */
-      }
+      expiro = true;
+      matarArbol(child);
     }, RUN_TIMEOUT_MS);
     child.stdout.on('data', (d) => (out += d.toString()));
     child.stderr.on('data', (d) => (err += d.toString()));
@@ -147,7 +186,7 @@ function runClaudeSession(prompt) {
     });
     child.on('close', (code) => {
       clearTimeout(timer);
-      res({ out, err, code: code ?? 1 });
+      res({ out, err, code: code ?? 1, expiro });
     });
     child.stdin.write(prompt);
     child.stdin.end();
@@ -189,7 +228,24 @@ async function main() {
     }
 
     // Reanudación lograda (o error que NO es límite).
-    if (r.code !== 0 && !r.out.trim()) {
+    if (r.expiro) {
+      // Se dice con todas las letras QUIÉN lo cortó. Antes esto caía en el
+      // "error desconocido" de abajo, y desde fuera era indistinguible de que
+      // claude hubiera fallado -- cuando en realidad el trabajo pudo terminar
+      // bien y lo único que se perdió fue la entrega.
+      const horas = (RUN_TIMEOUT_MS / 3600000).toFixed(1);
+      await tg(
+        [
+          `⏱️ Corté la reanudación yo: llevaba más de ${horas} h y ese es mi tope`,
+          '(CLAUDE_RETRY_RUN_TIMEOUT_MS).',
+          '',
+          '⚠️ El trabajo pudo haber terminado igual: lo que se perdió es la',
+          'entrega de la respuesta, no necesariamente lo hecho. Mira el estado en',
+          'disco (repos, logs) antes de repetir nada.',
+          r.out.trim() ? `\nLo que alcancé a capturar:\n\n${r.out.trim()}` : '',
+        ].join('\n'),
+      );
+    } else if (r.code !== 0 && !r.out.trim()) {
       const detalle = (r.err || 'error desconocido').trim();
       const pista = pareceFalloDeLogin(detalle) ? pistaDeLogin() : '';
       await tg(`❌ No pude reanudar la sesión:\n${detalle}${pista}`);
