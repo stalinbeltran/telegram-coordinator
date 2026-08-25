@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Qué era** | rehacer con 5 semillas los tres ejes que el proyecto llegó a estudiar de verdad y no estaban medidos sobre la red vigente: `batch_size`, `n_layers` y `d` |
+| **Qué era** | rehacer con 5 semillas los tres ejes que el proyecto llegó a estudiar de verdad y no estaban medidos sobre la red vigente: `batch_size`, `n_layers` y `d` (⚠ desde 2026-08-25 ese eje se declara como **`border_px`**, en px reales — ver [la pasada 2](2026-08-24-d5-L4-pasada2.md)) |
 | **Lanzado con** | `estudio_flota.py --sweep bs5-L4 --sweep nl5-L4 --sweep d5-L4 --cpu E5-26 --reparto seed --git` (ejecutor `estudio`) |
 | **Proveedor** | Vast.ai |
 | **Inicio** | **2026-08-24 17:19:19 UTC** (primera línea de `/tmp/estudio-tres-ejes-pasada1.log`) |
