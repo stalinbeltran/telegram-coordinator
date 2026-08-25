@@ -151,6 +151,11 @@ docs/
                             habría ahorrado las vueltas (los ocho patrones)
   ejecutores-federados.md   propuesta: que cada repo traiga sus ejecutores
                             y el coordinador los descubra (NO implementada)
+reportes/
+  README.md                 el INDICE: la tabla cronologica de todos los
+                            barridos, con horas, instancias y coste real
+  <año>/<mes>/<fecha>-<estudio>.md   un reporte por barrido terminado
+                            (p. ej. 2026/08-agosto/2026-08-25-bs-alto-tanteo.md)
 ```
 
 ## Detalles técnicos que importan
@@ -393,6 +398,59 @@ estaba escrito, y se gastó una corrida de benchmark sobre la fuente equivocada.
 
 Vale igual para lo que no es código: un reporte o una medición que merezca conservarse
 se commitea. Lo que queda en `/tmp` o en un directorio ignorado, se pierde.
+
+## Todo barrido o estudio que termine deja su reporte en `reportes/`
+
+**Regla, y no es opcional: cuando un barrido o un estudio termina, el encargo no está
+cerrado hasta que su reporte está escrito en `reportes/` y commiteado.** Va en el mismo
+commit o en el siguiente, el mismo día — la regla de arriba (`cambio terminado → commit
+→ push`) se aplica entera.
+
+Dónde y cómo, con el detalle completo, en [`reportes/README.md`](reportes/README.md).
+En corto:
+
+```
+reportes/<año>/<mes>/<fecha>-<nombre-del-estudio>.md
+   └─ p. ej. reportes/2026/08-agosto/2026-08-25-bs-alto-tanteo.md
+```
+
+Y **se añade su fila al final de la tabla de `reportes/README.md`**, sin tocar las
+anteriores. La tabla va en orden cronológico y es de sólo-añadir: reescribir filas viejas
+es perder el histórico que la hace útil.
+
+### Qué lleva siempre, y por qué estos campos y no otros
+
+**Inicio y fin (UTC), instancias alquiladas, coste real.** No son adorno: son las cuatro
+columnas que no se pueden reconstruir después. Y si un dato no existe, **se escribe que no
+existe** — un hueco se lee como cero, y «no registrado» se lee como lo que es.
+
+Medido al escribir los ocho primeros reportes (2026-08-25): de las ocho corridas, la de
+`bench_fleet.py` sobre droplets de DO **no dejó ni coste ni hora de fin** porque su reporte
+no guarda ninguno de los dos, y el barrido de Vast de `foveal-cpu` sólo permite dar un
+**suelo** de coste, porque las máquinas que fallan antes de medir no dejan JSON. Las dos
+son irrecuperables. Las seis corridas de `estudio_flota.py` sí traen todo, porque su
+`flota.json` guarda `cuando`, `reloj_min`, `usd` y `maquinas_alquiladas`.
+
+⚠ **«Instancias» son las ALQUILADAS, no las que trabajaron.** Sumar sólo los lotes que
+terminaron da un número más bonito y más bajo que la factura. `flota.json` ya distingue las
+dos cosas (`maquinas` contra `maquinas_alquiladas`); el reporte también tiene que hacerlo.
+
+⚠ **Y las horas del log son mejores que las derivadas.** `cuando − reloj_min` da el inicio
+con un error de ±3 s (comprobado el 2026-08-25 contra las cuatro corridas que sí dejaron log
+en `/tmp`), así que sirve — pero si el log existe, se lee del log y no se deriva. **`/tmp` no
+sobrevive a rehacer la máquina**: lo que haya que conservar de un log, va al reporte.
+
+### El reporte resume y enlaza; NO copia el veredicto
+
+El dato vive donde lo dejó quien lo produjo (`sweeps/*/flota.json`, `results/*/`) y el
+**veredicto** de un estudio vive en el documento de plan que escribió su criterio *antes* de
+mirar. Es la regla de siempre aquí: una cosa que cruza repos se escribe donde se dispara y
+desde el otro se enlaza, nunca se copia, que es como nacen las dos mitades desfasadas. Un
+reporte contesta *qué se corrió, cuándo, con cuántas máquinas, qué costó y qué salió*, y
+para el resto apunta.
+
+Y lleva un apartado de **«lo que quedó pendiente»**, que es la parte que más se pierde: un
+barrido incompleto que no dice qué le falta es indistinguible de uno terminado.
 
 ## Cómo se escribe aquí (y por qué estas cinco reglas y no otras)
 
