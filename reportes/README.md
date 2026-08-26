@@ -59,9 +59,16 @@ Se **añade al final**; las filas anteriores no se tocan.
 | 10 | `pl-t-bs`+`pl-t-nl` — afinado de la plana (fase 1) | [2026/08-agosto/2026-08-26-plana-tanteo-fase1.md](2026/08-agosto/2026-08-26-plana-tanteo-fase1.md) | 2026-08-26 01:42:54 | 2026-08-26 08:32:39 | 18 *(compartida con #9)* + 4 | **compartido con #9** + **0,0571 $** | Los dos tanteos acotados: `batch_size` 170 y `n_layers` 5, los dos interiores. ⚠ En L6 **una semilla dio f1 = 0,0000** |
 | 11 | Prioridad 2 — siete ejes nunca medidos | [2026/08-agosto/2026-08-26-prioridad2.md](2026/08-agosto/2026-08-26-prioridad2.md) | 2026-08-26 01:57:11 | 2026-08-26 06:53:57 | **101** *(para 35 lotes)* | **3,2996 $** | ⚠ Incompleto (3 de 7). `border_reduce`=1 gana con p = 0,008 **pero no es cost-neutral**; `k_center` y `monitor` dejan el vigente donde estaba |
 | 12 | Knobs de inferencia (F) re-medidos | [2026/08-agosto/2026-08-26-knobs-f.md](2026/08-agosto/2026-08-26-knobs-f.md) | 2026-08-26 ~01:30 | 2026-08-26 03:23 | **0** *(local)* | **0,00 $** | ⚠ 2 de 3 filas válidas. Los defaults dejan +0,053 a +0,071, y **el óptimo ya no es el mismo para todos los modelos** — en julio sí lo era |
+| 13 | Prioridad 2 — relanzamiento de los cuatro a medias | [2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) | 2026-08-26 08:14:12 *(derivado)* | 2026-08-26 13:16:35 *(derivado)* | ⚠ **no registrado** | ⚠ **no registrado** *(estimado 1,39 $)* | `pos_weight` y `scheduler` cerrados: el vigente gana en los dos. ⚠ **El apagado a mano de la flota se llevó el `flota.json`**: coste e instancias irrecuperables |
 
 **Gastado y registrado hasta aquí: 11,29 $** (6,89 hasta el #8, más 4,41 en los estudios de
 prioridad del 26-ago). No incluye lo que no quedó anotado —la flota de droplets de DO (#1), los
-alquileres de Vast que fallaron antes de medir (#2) y **la corrida del 25-ago 22:20 que se mató a
-mitad** (#9), cuyo `flota.json` no llegó a escribirse—, que es justamente lo que este directorio
-existe para que no vuelva a pasar.
+alquileres de Vast que fallaron antes de medir (#2), **la corrida del 25-ago 22:20 que se mató a
+mitad** (#9) y **el relanzamiento del 26-ago que se apagó a mano** (#13), cuyos `flota.json` no
+llegaron a escribirse—, que es justamente lo que este directorio existe para que no vuelva a pasar.
+
+⚠ **Y las dos veces que falta el dato, falta por lo mismo: la corrida no llegó a su final.** El
+coste, el reloj y las instancias los escribe `estudio_flota.py` **al terminar**; si la flota se mata
+o se apaga desde fuera, las máquinas mueren pero **la contabilidad no se escribe**. El libro de a
+bordo salva los *resultados* minuto a minuto, no el *cierre*. Cuando haya que apagar una flota a
+mano, el número de la factura sólo queda en el panel del proveedor: **anótalo antes de perderlo.**
