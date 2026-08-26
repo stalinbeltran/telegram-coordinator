@@ -4,6 +4,37 @@ Continuación de [`2026-08-26-prioridad2.md`](2026-08-26-prioridad2.md), que dej
 incompletos y anunció que su reporte iría aparte. Va aquí. **Dos de los cuatro se cerraron; los
 otros dos se quedaron a un paso.**
 
+> ## ⚠ Corrección (2026-08-26, 15:40 UTC) — los cuatro `interrupted` SÍ habían terminado
+>
+> **Lo que este reporte llama «4 runs cortados a mitad» son cuatro medidas válidas.** No se
+> perdió nada; lo que falló fue el camino por el que la noticia tenía que llegar. Se deja el
+> texto original tal cual y se corrige aquí, porque el error es más instructivo que el dato.
+>
+> Los cuatro (`ch-fov` semilla 5 de `channels`=32; `ov-fov` `overlap`=2 s3, `overlap`=4 s2 y
+> s5) tienen `summary.json` con **`stopped_early: true` y `cancelled: false`** —fichero que el
+> entrenador sólo escribe al terminar limpio, y que un proceso muerto por SIGKILL nunca deja— y
+> su `metrics.jsonl` llega hasta la época declarada (51, 48, 62 y 67).
+>
+> **Por qué se marcaron mal, que es lo que hay que arrastrar:** el `git push` del libro de a
+> bordo llevaba **51 vueltas seguidas fallando** (`main -> main (fetch first)`, la rama local
+> divergida de `origin`). La flota terminó esos cuatro runs y los commiteó **aquí** entre las
+> 13:15 y las 13:19 UTC, pero **origin nunca los vio**. A las ~15:18 UTC se pasó
+> `estudio_informe.py` desde **otro clon** —el commit `3636ccfa` no es ancestro de la rama de
+> esta máquina, o sea otra línea— que sólo tenía lo empujado, vio los runs como huérfanos y los
+> marcó `interrupted` con toda la razón *para los datos que él tenía*.
+>
+> Corregido en `foveal-vision@199f10d4` tras fusionar las dos ramas. Estado real de los cuatro
+> recorridos: **`sch-fov` 10/10, `pw-fov` 20/20, `ch-fov` 20/20 y `ov-fov` 19/20** — o sea
+> **tres cerrados y uno a un solo run**, no «dos y dos».
+>
+> **La lección no es sobre visión foveada:** un push roto no se nota como un error, se nota
+> como *datos que se contradicen entre máquinas*, y el que mira desde fuera concluye lo
+> razonable y equivocado. El libro de a bordo commitea cada minuto pero **nunca fusiona**: en
+> cuanto la rama diverge, empuja en vano para siempre y nadie lo lee, porque el fallo va a un
+> log que sólo se abre cuando ya hay un problema. Es la regla de siempre de este proyecto —*lo
+> que no está empujado, no existe*— con un matiz nuevo: **lo que no está empujado tampoco es
+> inocuo; puede hacer que otro escriba lo contrario de lo que pasó.**
+
 | | |
 |---|---|
 | **Qué era** | terminar los **cuatro recorridos a medias** de la flota de prioridad 2: `sch-fov`, `pw-fov`, `ch-fov`, `ov-fov` |
