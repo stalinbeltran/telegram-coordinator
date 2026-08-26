@@ -55,6 +55,13 @@ Se **añade al final**; las filas anteriores no se tocan.
 | 7 | `pl-t-lr`+`pl-t-bs` — tanteo de la red plana | [2026/08-agosto/2026-08-25-plana-tanteo.md](2026/08-agosto/2026-08-25-plana-tanteo.md) | 2026-08-25 03:01:05 | 2026-08-25 04:35:58 | 25 | **1,026 $** | ⚠ Incompleto (13/20). `lr` útil en 0,00035–0,0014; en 0,0028 **una semilla colapsó a f1 = 0** |
 | 8 | `bs-alto-fov`+`bs-alto-pl` — `batch_size` por arriba | [2026/08-agosto/2026-08-25-bs-alto-tanteo.md](2026/08-agosto/2026-08-25-bs-alto-tanteo.md) | 2026-08-25 10:35:05 | 2026-08-25 13:08:32 | 24 | **1,6846 $** | En las dos redes el f1 **baja** monótono al subir el batch: la zona plana termina en el ancla, no hay nada arriba |
 
-**Gastado y registrado hasta aquí: 6,89 $.** No incluye lo que no quedó anotado —la flota de
-droplets de DO (#1) y los alquileres de Vast que fallaron antes de medir (#2)—, que es justamente
-lo que este directorio existe para que no vuelva a pasar.
+| 9 | `borde-ancho` — ¿más contexto a coste constante? | [2026/08-agosto/2026-08-26-borde-ancho.md](2026/08-agosto/2026-08-26-borde-ancho.md) | 2026-08-26 01:42:54 | 2026-08-26 04:40:15 | 18 *(flota compartida con #10)* | **1,0536 $** *(compartido con #10)* | **El eje queda CERRADO por los dos lados**: sube hasta 8 px y baja de ahí en adelante. El vigente se queda (p = 0,063, la misma que en `d5-L4`) |
+| 10 | `pl-t-bs`+`pl-t-nl` — afinado de la plana (fase 1) | [2026/08-agosto/2026-08-26-plana-tanteo-fase1.md](2026/08-agosto/2026-08-26-plana-tanteo-fase1.md) | 2026-08-26 01:42:54 | 2026-08-26 08:32:39 | 18 *(compartida con #9)* + 4 | **compartido con #9** + **0,0571 $** | Los dos tanteos acotados: `batch_size` 170 y `n_layers` 5, los dos interiores. ⚠ En L6 **una semilla dio f1 = 0,0000** |
+| 11 | Prioridad 2 — siete ejes nunca medidos | [2026/08-agosto/2026-08-26-prioridad2.md](2026/08-agosto/2026-08-26-prioridad2.md) | 2026-08-26 01:57:11 | 2026-08-26 06:53:57 | **101** *(para 35 lotes)* | **3,2996 $** | ⚠ Incompleto (3 de 7). `border_reduce`=1 gana con p = 0,008 **pero no es cost-neutral**; `k_center` y `monitor` dejan el vigente donde estaba |
+| 12 | Knobs de inferencia (F) re-medidos | [2026/08-agosto/2026-08-26-knobs-f.md](2026/08-agosto/2026-08-26-knobs-f.md) | 2026-08-26 ~01:30 | 2026-08-26 03:23 | **0** *(local)* | **0,00 $** | ⚠ 2 de 3 filas válidas. Los defaults dejan +0,053 a +0,071, y **el óptimo ya no es el mismo para todos los modelos** — en julio sí lo era |
+
+**Gastado y registrado hasta aquí: 11,29 $** (6,89 hasta el #8, más 4,41 en los estudios de
+prioridad del 26-ago). No incluye lo que no quedó anotado —la flota de droplets de DO (#1), los
+alquileres de Vast que fallaron antes de medir (#2) y **la corrida del 25-ago 22:20 que se mató a
+mitad** (#9), cuyo `flota.json` no llegó a escribirse—, que es justamente lo que este directorio
+existe para que no vuelva a pasar.
