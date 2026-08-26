@@ -40,6 +40,126 @@ no existe**, que es información y no un hueco—:
 
 Y después: qué se midió, los hallazgos, **lo que quedó pendiente**, y de dónde salen los números.
 
+## Tabla resumen: en qué quedó cada parámetro
+
+**Para qué sirve esta sección:** los valores de aquí son los que se van a **usar en los
+entrenamientos y estudios siguientes**, así que interesa poder leer de un vistazo *qué está fijado,
+con cuánta evidencia, y qué sigue abierto* — y poder saltar al reporte que tiene el detalle.
+
+⚠ **Esto no decide nada: refleja lo decidido.** El **vigente** de cada parámetro lo fija la
+configuración del repo que entrena (`base_network_value` y `base_recipe_value` de cada
+`sweeps/*/spec.json` en `foveal-vision`), y el **veredicto** vive en el documento de plan que
+escribió su criterio antes de mirar. Aquí se resume y se enlaza; si una casilla y su fuente
+discrepan, manda la fuente.
+
+### Cómo leer la columna «estado»
+
+| estado | significa |
+|---|---|
+| **cerrado** | barrido con 5 semillas y con el óptimo **interior** al rango: hay un valor peor por arriba y otro por abajo. Es lo más firme que da el protocolo |
+| **cerrado por un lado** | acotado sólo por un extremo; por el otro el ganador está en el borde y no se sabe qué hay más allá |
+| **tanteo** | 2 semillas. **Acota, no declara ganador** — con 2 semillas el *p* mínimo alcanzable es 0,5 |
+| **sin cerrar** | medido, pero el recorrido no llegó a poder declarar (semillas incompletas, o *p* mínimo alcanzable por encima del 5 %) |
+| **sin medir** | ninguna medida con semillas |
+
+Y dos reglas del proyecto que explican por qué hay ganadores nominales que **no** mueven el vigente:
+
+- **El vigente sólo cambia si `p` < 0,05 y la diferencia supera δ.** Un ganador con `p` = 0,063 no
+  mueve nada, aunque gane dos veces seguidas (es el caso de `border_px` = 8).
+- **Todo esto es f1 de VENTANA, un proxy** que está medido que **exagera** (en `n_layers` la
+  ganancia real fue la mitad). **Ningún eje ha pasado todavía por la métrica de tarea** (R5).
+
+### Red foveada (`ws16-p2-d2-L4` · `regions: split` · ≈167.852 parámetros)
+
+Recorte real 24×24 px, tensor N = 20. Es la base de todos los estudios de la tabla cronológica salvo
+los marcados como «plana».
+
+| Parámetro | Vigente | Estado | Óptimo medido | Rango útil / qué se sabe | Reporte |
+|---|---:|---|---|---|---|
+| **`lr`** | **0,0014** | **cerrado** | 0,0014 | Plano entre 0,00035 y 0,0014; por encima degrada (0,0020 → 0,9055, 0,0028 → 0,8998). Bandas disjuntas. `p` = 0,100 es el **suelo** de 3×3, no un empate | [#3](2026/08-agosto/2026-08-23-lr-alto-L4.md) · [#4](2026/08-agosto/2026-08-23-lr-alto-L4-b.md) |
+| **`batch_size`** | **85** | **cerrado** | 85–192 (zona plana) | Plano entre 57 y 192 (0,9302–0,9351); 38 pierde (`p` = 0,024) y de 192 arriba **baja monótono** (384 · 768 · 1536). ⚠ **Utilizable ya: 192 va 1,08× más rápido por época sin pérdida medible** | [#5](2026/08-agosto/2026-08-24-tres-ejes-pasada1.md) · [#8](2026/08-agosto/2026-08-25-bs-alto-tanteo.md) |
+| **`n_layers`** | **4** | **cerrado** | 4 | 2 → 0,9066 (`p` = 0,008) · 3 → 0,9246 (`p` = 0,040) · **4 → 0,9341** · 5 → 0,9136. ⚠ **A partir de 5 no arranca de forma fiable**: `sem` 7× mayor, semillas bimodales | [#5](2026/08-agosto/2026-08-24-tres-ejes-pasada1.md) |
+| **`border_px`** | **4** | **cerrado** | **8** *(no aplicado)* | Sube hasta 8 px (0,9408) y **baja** de ahí (10 · 12 · 16, hasta caer bajo el vigente). ⚠ **`p` = 0,063 medido DOS veces** para 8 contra 4: se queda a un pelo. A coste constante (mismos 167.852 parámetros) | [#9](2026/08-agosto/2026-08-26-borde-ancho.md) · [#6](2026/08-agosto/2026-08-24-d5-L4-pasada2.md) |
+| **`border_reduce`** | **2** | **sin cerrar** *(confundido)* | 1 por f1, **pero no comparable** | Con `border_px` = 8: 4 → 0,9408 · 2 → 0,9472 · **1 → 0,9574** (`p` = 0,008, el mínimo alcanzable). ⚠ **NO es cost-neutral**: N pasa de 20 a 32, **+156 % de parámetros** y 1,77× por época. Capacidad y resolución están **confundidas** en este diseño | [#11](2026/08-agosto/2026-08-26-prioridad2.md) |
+| **`k_center`** | **3** | **cerrado** | 3 | 3 → 0,9341 · 5 → 0,9226 (`p` = 0,024) · 7 → 0,9206 (`p` = 0,008). Los dos alternativos son peores **y más caros**. ⚠ **Contradice el indicio de 1 semilla de julio**, donde 5 era el mejor por métrica de tarea: eso sigue sin resolverse, porque esto mide el proxy | [#11](2026/08-agosto/2026-08-26-prioridad2.md) |
+| **`channels`** | **[16]×4** | **cerrado** *(19/20)* | [16]×4 | Subir no aporta: 24 → 0,9303 (`p` = 0,40) y 32 → 0,9298 (`p` = 0,48), a 1,3× y 1,7× por época. **Bajar sí hace daño**: 8 → 0,9021 (`p` = 0,008) y con el `sem` más alto de la tabla. **16 es el suelo útil, no un exceso heredado** | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
+| **`pos_weight`** | **1,0** | **cerrado por arriba** | 1,0 | Monótono decreciente: 2 empata (`p` = 0,889), 4 → 0,9137 y 8 → 0,8780, los dos a `p` = 0,008. ⚠ Era **«la hipótesis más plausible de mejora grande sin probar»** y **no la hubo**: el cuello de botella de detección no se destapa desde el peso de la pérdida | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
+| **`scheduler`** | **`none`** | **cerrado** *(2 valores)* | `none` | `cosine` → 0,9329 contra 0,9341, `p` = 0,857. ⚠ **El empate es real, no un artefacto**: el tope se bajó a 100 a propósito para que `cosine` llegara a aplicar su bajada (con 150 habría medido «cosine casi sin aplicar») | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
+| **`monitor`** | **`val_loss`** | **cerrado** *(2 valores)* | `val_loss` | `val_f1` → 0,9346 (+0,0059, `p` = 0,214). ⚠ Y **el brazo `val_f1` partía con ventaja mecánica** —elige checkpoint con la misma métrica con que se le puntúa— y aun así no llega. La incoherencia declarada cuesta ~0,006 y **es indistinguible del ruido** | [#11](2026/08-agosto/2026-08-26-prioridad2.md) |
+| **`overlap_fovea_px`** | **2** | ⚠ **sin cerrar** *(16/20)* | — **no declara** | ⚠ Con 2 semillas en el punto ganador el **`p` mínimo alcanzable es 0,133**: R4 no puede declarar al 5 % aunque el efecto fuera enorme. Único indicio poblado: el **0** (ramas disjuntas) es el peor, `p` = 0,063 con 5 semillas → **el solape aporta**. La tendencia sube hacia 4, el borde del rango | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
+| `fovea_px` | 16 | **no barrible** | — | Atado por contrato al `window_size` del dataset. Cambiarlo exige **regenerar el dataset** | — |
+| `overlap_border_px`, `merge`, `pool_mode`, `pad_mode`, `k_periph`, `s_center`, `s_periph` | 0 · concat · avg · edge · 3 · 1 · 1 | **sin medir** | — | Nunca barridos con semillas. `overlap_border_px` sólo admite `{0, 2}` con el borde vigente de 4 px: es un estudio de verdad **sólo si el borde se ensancha antes** | — |
+| `optimizer`, `momentum`, `weight_decay`, `lambda_pos`, `smooth_l1_beta`, `patience`, `epochs` | adam · 0,9 · 0,0 · 1,0 · 0,08 · 10 · 100 | **sin medir** | — | Con `weight_decay` = 0, `adam` ≡ `adamw` hoy. `patience` = 10 tiene un mínimo seguro **medido indirectamente en 8**; `epochs` es **guarda**, no ajuste — hay que subirlo con batches grandes (300 en los tanteos de batch alto) | — |
+
+### Red plana de control (`plana-24-single` · `regions: single` · ≈165.430 parámetros)
+
+Existe para responder *la* pregunta del proyecto. Está afinada sólo a nivel de **tanteo**, y por eso
+la comparación todavía no se puede hacer.
+
+| Parámetro | Vigente | Estado | Óptimo del tanteo | Qué se sabe | Reporte |
+|---|---:|---|---|---|---|
+| **`lr`** | **0,0014** | **tanteo** | 0,0007 | Zona útil **0,00035–0,0014** (0,9615–0,9649, todo dentro del ruido). ⚠ En **0,0028 una semilla colapsó a f1 = 0,0000** mientras la otra dio 0,9442: ahí el entrenamiento **puede colapsar entero**. El óptimo de la foveada (0,0014) cae dentro de la zona buena pero **no es el mejor**: un óptimo **no se hereda** al cambiar de arquitectura | [#7](2026/08-agosto/2026-08-25-plana-tanteo.md) |
+| **`batch_size`** | **85** | **tanteo, acotado** | **170** *(interior)* | 24 → 0,9510 · 43 → 0,9581 · 85 → 0,9626 · **170 → 0,9658** · 340 → 0,9601. Y 170 es además **más barato por época** que el vigente (50,2 s contra 85,2) — el mismo patrón que en la foveada. Réplica exacta con `bs-alto-pl`, otra flota | [#10](2026/08-agosto/2026-08-26-plana-tanteo-fase1.md) · [#8](2026/08-agosto/2026-08-25-bs-alto-tanteo.md) |
+| **`n_layers`** | **4** | **tanteo, acotado** | **5** *(interior, pero al borde de lo fiable)* | 2 → 0,9196 · 3 → 0,9521 · 4 → 0,9615 · **5 → 0,9659** · 6 → **bimodal**. ⚠ **L6 dio 0,0000 y 0,9630 en sus dos semillas**: la media de 0,4815 es el promedio de una moneda y **no debe citarse**. El ganador 5 está justo en el borde de esa zona, y 2 semillas es **exactamente el número que no puede ver la bimodalidad** | [#10](2026/08-agosto/2026-08-26-plana-tanteo-fase1.md) |
+
+### Inferencia — se ajustan **sin reentrenar** (dominio F)
+
+Es el mejor ratio ganancia/coste del inventario, y está **deliberadamente sin aplicar**.
+
+| Parámetro | Default vigente | Óptimo medido hoy | Nota |
+|---|---:|---|---|
+| **`threshold`** | 0,5 | **0,25 – 0,40** ⚠ *ya no coincide entre modelos* | El pico está medido como **plano entre 0,2 y 0,4**, así que la discrepancia puede ser ruido |
+| **`stride`** | `n/2` (8 px) | **2 px** | Los dos runs válidos coinciden |
+| **`nms_radius`** | `n/2` | **16 px** | Los dos runs válidos coinciden |
+| `min_size` | 4,0 | sin medir | — |
+
+**Ganancia medida con los pesos que ya hay: +0,053 a +0,071** de métrica de tarea.
+
+⚠ **Dos avisos que pesan más que la ganancia**, los dos del reporte [#12](2026/08-agosto/2026-08-26-knobs-f.md):
+
+1. **El óptimo ya NO es el mismo para todos los modelos, y en julio sí lo era.** Si el `threshold`
+   óptimo depende del modelo, los knobs dejan de ser un ajuste global y pasan a ser **parte de la
+   identidad de cada run** — y eso afecta a **cómo se comparan modelos**, no sólo a cuánto valen.
+   ⚠ **Con dos runs válidos no se puede afirmar**; la re-corrida con tres estaba en marcha.
+2. **La decisión F15 está CERRADA en NO** (del usuario, 2026-07-26): aplicarlos **re-escala todos los
+   números publicados**, y hay un efecto medido de que **comprimen la separación entre modelos**.
+
+### Lo que sigue abierto, en una pantalla
+
+1. **La pregunta que da nombre al proyecto sigue sin contestar** — ¿gana la foveada a la plana? Está
+   bloqueada por la **fase 2 de la plana** (5 semillas sobre `batch_size` ∈ {85, 170, 340} y
+   `n_layers` ∈ {4, 5, 6}), **que no se ha corrido**. ⚠ Y **los 0,96 de la plana contra los 0,93 de
+   la foveada NO son esa comparación**: son f1 de ventana y las dos redes ven áreas distintas.
+2. **Ningún eje ha pasado por la métrica de tarea (R5).** En `k_center` no es opcional: es el eje
+   donde proxy y tarea se contradicen **en el signo**.
+3. **`border_px` = 8 contra 4 sigue sin resolverse al 5 %**, con `p` = 0,063 medida **dos veces**. Lo
+   que lo cerraría es **más semillas en esos dos puntos** (10 contra 10 da `p` mínimo 5,4·10⁻⁶), **no**
+   un rango más ancho.
+4. **`overlap_fovea_px` necesita 4 runs** para poder declarar algo, y `channels` 1 para cerrarse
+   formalmente. El primero **es el que más lo merece**: es el mando exclusivo de la arquitectura y
+   hoy no dice nada.
+5. **El confound de `border_reduce` sigue abierto**: capacidad contra resolución. Desconfundirlo pide
+   un diseño que suba N sin subir el área, o que compare a parámetros igualados.
+
+### Dónde está el detalle de cada cosa
+
+Esta tabla resume; el detalle está en tres sitios, y cada uno contesta algo distinto:
+
+| Si necesitas… | Mira en |
+|---|---|
+| **qué se corrió, cuándo, con cuántas máquinas y qué costó** | el reporte de la tabla cronológica de abajo |
+| **el veredicto y el criterio escrito ANTES de mirar** | el documento de plan que enlaza cada reporte, en `foveal-vision/docs/` — [`plan-prioridades-2026-08-25.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-prioridades-2026-08-25.md) (prioridades 1 y 2), [`plan-tres-ejes.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-tres-ejes.md) (`batch_size`, `n_layers`, `border_px`), [`plan-lr-alto.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-lr-alto.md) (`lr`), [`plan-cnn-plana.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-cnn-plana.md) y [`plan-plana.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-plana.md) (la plana), [`metrica-de-tarea.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/metrica-de-tarea.md) y [`decisiones.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/decisiones.md) **F15** (los knobs) |
+| **el número crudo, run a run** | `foveal-vision/sweeps/<recorrido>/informe.json` (grupos y contrastes) y `flota.json` (coste, reloj, máquinas); el libro de a bordo en `runs/` |
+| **qué significa cada parámetro, en cristiano, y por qué se estudia en ese orden** | [`foveal-vision/reportes/2026/08-agosto/parametros-y-prioridad-de-estudios.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/reportes/2026/08-agosto/parametros-y-prioridad-de-estudios.md) — el inventario completo de los cuatro dominios (C/D/F/X) con la explicación de cada mando |
+| **cómo se lee la geometría nueva** (`border_px`, `border_reduce`, `overlap_*`) y su traducción desde `N`/`c_frac`/`d` | [`foveal-vision/instructionsNewNN.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/instructionsNewNN.md) §2.1 |
+| **los primeros resultados bajo la geometría nueva** | [`foveal-vision/reportes/2026/08-agosto/2026-08-26-geometria-nueva-primeros-resultados.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/reportes/2026/08-agosto/2026-08-26-geometria-nueva-primeros-resultados.md) |
+
+⚠ **El inventario de `parametros-y-prioridad-de-estudios.md` es del 2026-08-25 y esta tabla es
+posterior.** Los siete ejes de prioridad 2 que allí figuran como «NUNCA barrido» —`pos_weight`,
+`scheduler`, `monitor`, `k_center`, `channels`, `border_reduce`, `overlap_fovea_px`— **se midieron el
+26-ago** (reportes #11 y #13), y `border_px` ya **no** está «abierto por la derecha» (#9 lo cerró).
+Para el estado de un eje manda esta tabla; para *qué es* cada parámetro, aquel documento.
+
 ## Los reportes, en orden cronológico
 
 Se **añade al final**; las filas anteriores no se tocan.
