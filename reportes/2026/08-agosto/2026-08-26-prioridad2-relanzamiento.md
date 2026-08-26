@@ -1,8 +1,12 @@
-# Prioridad 2 — el relanzamiento de los cuatro a medias, cortado por el apagado
+# Prioridad 2 — el relanzamiento de los cuatro a medias
 
 Continuación de [`2026-08-26-prioridad2.md`](2026-08-26-prioridad2.md), que dejó cuatro recorridos
-incompletos y anunció que su reporte iría aparte. Va aquí. **Dos de los cuatro se cerraron; los
-otros dos se quedaron a un paso.**
+incompletos y anunció que su reporte iría aparte. Va aquí. **Los cuatro se cerraron.**
+
+⚠ **Este reporte se redactó a mitad de la corrida y lo dio por cortado; lleva DOS correcciones
+encima** (el título original era «…, cortado por el apagado»). El cuerpo se deja tal cual porque
+los errores son más instructivos que el dato; **lo válido es lo que dicen las dos correcciones y
+la sección «Las dos tablas que cambian».**
 
 > ## ⚠ Corrección (2026-08-26, 15:40 UTC) — los cuatro `interrupted` SÍ habían terminado
 >
@@ -35,21 +39,62 @@ otros dos se quedaron a un paso.**
 > que no está empujado, no existe*— con un matiz nuevo: **lo que no está empujado tampoco es
 > inocuo; puede hacer que otro escriba lo contrario de lo que pasó.**
 
+> ## ⚠ Corrección 2 (2026-08-26, tarde) — la flota NO se apagó a mano: terminó, y dejó su `flota.json`
+>
+> **Este reporte se escribió a mitad de la corrida y la dio por muerta.** No lo estaba. La flota
+> siguió viva después de las 13:19, terminó el único run que le quedaba y **cerró normalmente a
+> las 15:58:19 UTC**, escribiendo su `flota.json` en los cuatro directorios. O sea que las dos
+> casillas que abajo dicen «no registrado» **sí existen**:
+>
+> | | |
+> |---|---|
+> | **Inicio** | **2026-08-26 11:04:49 UTC** *(derivado de `cuando` − `reloj_min`, ±3 s)* |
+> | **Fin** | **2026-08-26 15:58:19 UTC** *(`sweeps/*/flota.json`)* |
+> | **Duración** | **293,5 min** (4 h 54 min) |
+> | **Instancias** | **34 alquiladas** para 18 lotes, 18/18 ok |
+> | **Coste real** | **2,0283 $** *(peaje 92,0 min, 5,5 %)* |
+>
+> **Y el estado real es que los cuatro recorridos están COMPLETOS**: `sch-fov` 10/10, `pw-fov`
+> 20/20, `ch-fov` **20/20** y `ov-fov` **20/20**. Los 70 `runs/*/status.json` están en `done`.
+> Las tablas de `ch-fov` y `ov-fov` de más abajo se quedaron con menos semillas de las que hay;
+> las corregidas van en «Las dos tablas que cambian».
+>
+> **Por qué se escribió lo contrario, que es lo que hay que arrastrar:** los `informe.json` que
+> se leyeron para redactar esto se calcularon a las **15:13:42 UTC**, y el último run
+> (`ov-fov` `overlap`=4 semilla 3) terminó a las **15:57:59** — **44 minutos después**. Un
+> `informe.json` es una **foto**, no una vista: no se recalcula solo, y en disco no lleva nada
+> que lo distinga de uno al día. Se leyó un estado intermedio como si fuera el final.
+>
+> **Es la segunda vez en dos días, y el síntoma es idéntico al de la Corrección 1**: un lector
+> mira una fuente que parece completa, concluye lo razonable y escribe lo contrario de lo que
+> pasó. Allí la fuente rancia era `origin` por un push roto; aquí es `informe.json` por un
+> informe prematuro. **Regla que sale de las dos: antes de declarar el estado de un recorrido,
+> comprobar que la fuente que estás mirando es posterior al último run** — `status.json` es el
+> que manda, y `flota.json` sólo existe si la flota llegó a su final.
+>
+> ⚠ **Lo que NO cambia: la lección de «un apagado a mano se lleva la contabilidad» sigue siendo
+> cierta** — sólo que este relanzamiento no fue uno de esos casos. El aviso de no leer los
+> `flota.json` de estos directorios se escribió cuando los únicos que había eran los de la
+> corrida de las 06:53; ahora hay unos propios, con `recorridos` distinto, y **no hay riesgo de
+> doble contabilidad**: 06:53 → 101 máquinas / 3,2996 $ (los siete ejes), 15:58 → 34 máquinas /
+> 2,0283 $ (sólo estos cuatro).
+
 | | |
 |---|---|
 | **Qué era** | terminar los **cuatro recorridos a medias** de la flota de prioridad 2: `sch-fov`, `pw-fov`, `ch-fov`, `ov-fov` |
 | **Lanzado con** | relanzamiento de `estudio_flota.py` sobre los puntos pendientes (el mecanismo que sólo rehace lo que falta) |
 | **Proveedor** | Vast.ai |
-| **Inicio** | **2026-08-26 08:14:12 UTC** *(derivado: primer `updated_at` de run posterior al fin de la flota anterior; no hay log conservado)* |
-| **Fin** | **2026-08-26 13:16:35 UTC** *(derivado: último `updated_at` de run)*. El libro de a bordo commiteó por última vez a las **13:18:39 UTC** |
-| **Duración** | **≈302 min** (5 h 02 min) *(derivada de las dos anteriores)* |
-| **Instancias** | ⚠ **no registrado.** La flota se apagó a mano antes de cerrar, así que **no llegó a escribir su `flota.json`** |
-| **Coste real** | ⚠ **no registrado**, por lo mismo. La estimación previa al lanzamiento era **1,39 $** para 34 runs — es una estimación, no la factura |
+| **Inicio** | ~~2026-08-26 08:14:12 UTC *(derivado)*~~ → **11:04:49 UTC** (Corrección 2) |
+| **Fin** | ~~2026-08-26 13:16:35 UTC *(derivado)*~~ → **15:58:19 UTC** (Corrección 2) |
+| **Duración** | ~~≈302 min~~ → **293,5 min** (4 h 54 min) |
+| **Instancias** | ~~⚠ no registrado~~ → **34 alquiladas** para 18 lotes (Corrección 2) |
+| **Coste real** | ~~⚠ no registrado *(estimado 1,39 $)*~~ → **2,0283 $** (Corrección 2) |
 | **Dataset** | `dirty1000-80px-16px-r20260824` |
-| **Estado** | ⚠ **parcial**: 2 de 4 recorridos terminados (`sch-fov`, `pw-fov`), 2 a un run del final (`ch-fov` 19/20, `ov-fov` 16/20) |
+| **Estado** | ~~⚠ parcial: 2 de 4~~ → ✅ **los cuatro completos** (10/10, 20/20, 20/20, 20/20) |
 
-⚠ **Las dos casillas vacías de arriba son el hallazgo operativo de este reporte**, no un descuido al
-escribirlo. Ver «lo que se aprendió» al final.
+⚠ **Las casillas tachadas son lo que este reporte afirmó a mitad de la corrida, y todas eran
+falsas.** Se dejan visibles a propósito: el fallo —leer un `informe.json` de hace 44 minutos como
+si fuera el estado final— es lo que hay que arrastrar. Ver Corrección 2 arriba.
 
 ## Estado por recorrido
 
@@ -57,13 +102,18 @@ escribirlo. Ver «lo que se aprendió» al final.
 |---|---|---|---:|---|
 | E7 | `sch-fov` | `scheduler` | 10/10 | ✅ terminado |
 | E5 | `pw-fov` | `pos_weight` | 20/20 | ✅ terminado |
-| E8 | `ch-fov` | `channels` | 19/20 | ⚠ 1 run cortado a mitad (época 49) |
-| E10 | `ov-fov` | `overlap_fovea_px` | 16/20 | ⚠ 3 cortados a mitad + **1 que nunca arrancó** |
+| E8 | `ch-fov` | `channels` | ~~19/20~~ **20/20** | ✅ terminado (Corrección 2) |
+| E10 | `ov-fov` | `overlap_fovea_px` | ~~16/20~~ **20/20** | ✅ terminado (Corrección 2) |
 
-Los cuatro runs cortados pararon **por la muerte de la máquina, no por `patience`**, así que por R1
-no son medidas y `estudio_informe.py` los **excluye** (los marca `interrupted`, con el motivo
-escrito). Tienen un f1 y tiene buena pinta — y por eso mismo la exclusión importa: un run cortado a
-mitad entra en la tabla como si fuera una medida si nadie lo detiene.
+~~Los cuatro runs cortados pararon **por la muerte de la máquina, no por `patience`**, así que por R1
+no son medidas y `estudio_informe.py` los **excluye**~~ — **falso las dos veces.** La Corrección 1
+mostró que esos cuatro `interrupted` eran medidas válidas mal marcadas por un push roto; la
+Corrección 2, que el único que de verdad faltaba (`ov-fov` `overlap`=4 semilla 3) se corrió después
+y terminó por `patience` a las 15:57:59. **Los 70 runs de los cuatro recorridos están en `done`.**
+
+Lo que sí sigue en pie del párrafo original, y por eso se conserva: **un run cortado a mitad entra
+en la tabla como si fuera una medida si nadie lo detiene.** El mecanismo de exclusión es correcto;
+lo que falló las dos veces fue el *diagnóstico* de qué estaba cortado.
 
 ---
 
@@ -116,7 +166,58 @@ del pozo de Vast, no una medida de coste comparable.
 
 ---
 
-## E8 `ch-fov` — 19/20, y la lectura ya no va a cambiar
+## Las dos tablas que cambian (Corrección 2 — éstas son las válidas)
+
+Recalculadas con los 20 runs de cada recorrido, mismo criterio que `estudio_informe.py`: **f1 en la
+época que guardó `best.pt`** (no la última), y permutación exacta de dos colas sobre la diferencia
+de medias. El método se validó reproduciendo los tres contrastes de `pw-fov` al quinto decimal
+contra su propio `informe.json`.
+
+### `ch-fov` con 20/20 — no cambia nada
+
+| `channels` | n | f1 | sem | s/época | diferencia | p contra el vigente |
+|---|---:|---:|---:|---:|---:|---:|
+| **[16]×4** *(vigente)* | 5 | **0,9335** | 0,0017 | 42,2 | — | — |
+| [32]×4 | **5** | 0,9307 | 0,0038 | 71,4 | −0,0028 | 0,532 |
+| [24]×4 | 5 | 0,9303 | 0,0030 | 55,2 | −0,0031 | 0,397 |
+| [8]×4 | 5 | 0,9021 | 0,0147 | 33,2 | −0,0313 | **0,008** |
+
+La 5.ª semilla de `[32]×4` llegó y **el veredicto es el mismo** (−0,0037 → −0,0028; p 0,476 →
+0,532). El reporte apostó a que no cambiaría la lectura y acertó. **El vigente se queda y el eje
+queda acotado por los dos lados.**
+
+### `ov-fov` con 20/20 — **esto sí cambia: el punto 0 pasa a ser significativo**
+
+| `overlap_fovea_px` | n | f1 | sem | s/época | diferencia | p contra el vigente |
+|---:|---:|---:|---:|---:|---:|---:|
+| 4 | **5** | 0,9372 | 0,0032 | 55,8 | +0,0065 | 0,270 |
+| **2** *(vigente)* | **5** | **0,9308** | 0,0035 | 78,9 | — | — |
+| 1 | 5 | 0,9273 | 0,0026 | 48,1 | −0,0035 | 0,444 |
+| 0 | 5 | 0,9186 | 0,0030 | 46,7 | −0,0122 | **0,032** |
+
+**El recorrido pasa de no poder declarar nada a declarar lo que el plan quería.** Con 2 semillas en
+el punto ganador el p mínimo alcanzable era 0,133 y la sección de abajo concluyó, con razón para lo
+que tenía, que R4 no podía contestar. Con 5 en todos los puntos hay 252 arreglos y **el punto 0
+—las dos ramas disjuntas— es significativamente peor que el vigente, p = 0,032.**
+
+Eso es exactamente el contraste que
+[`plan-prioridades-2026-08-25.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-prioridades-2026-08-25.md)
+§2 señaló **antes de medir** como «el punto que más dice»: el 0 es el **control** de la elección de
+solape contributivo de `instructionsNewNN.md` §7, y hasta la reparametrización del 2026-08-25 no se
+podía ni escribir porque el suelo era 1 px. **El solape aporta, y ahora está medido, no intuido.**
+
+⚠ **Pero el vigente se queda igual**, y por la otra mitad de la tabla: `overlap`=4 sube +0,0065 y
+**no alcanza significación** (p = 0,270). Sigue siendo el valor mayor del rango y sigue apuntando
+hacia arriba, así que **el eje no queda acotado por arriba** — la reserva que la sección de abajo
+apuntó sigue viva, sólo que ya no por falta de semillas sino porque el efecto, si existe, es
+pequeño frente al ruido.
+
+⚠ La columna s/época **no compara nada**: son máquinas distintas del pozo de Vast. Que el vigente
+salga como el más lento (78,9) es del reparto, no del parámetro.
+
+---
+
+## E8 `ch-fov` — ~~19/20~~ *(texto original, superado por la Corrección 2)*
 
 *¿Aporta anchura? El indicio de 1 semilla decía que no.*
 
@@ -147,7 +248,7 @@ está a 0,0037 del vigente con p = 0,476. Para que la 5.ª cambiara el veredicto
 f1 fuera de todo lo observado en el recorrido. **Aun así, el reporte lo declara como 19/20**, y la
 línea de `[32]×4` lleva su `n=4` escrito: se lee, no se cierra.
 
-## E10 `ov-fov` — el que se quedó sin poder declarar nada
+## E10 `ov-fov` — el que se quedó sin poder declarar nada *(texto original, superado por la Corrección 2)*
 
 *El mando exclusivo de esta arquitectura, nunca medido. El plan decía que el punto 0 es el que más dice.*
 
@@ -179,6 +280,19 @@ disciplina que se aplicó en `borde-ancho`: decidir **antes** hasta dónde tiene
 
 ## Lo que se aprendió: un apagado a mano se lleva por delante la contabilidad
 
+> ⚠ **Esta sección describe un apagado que NO ocurrió.** La flota terminó sola a las 15:58 y
+> escribió su `flota.json`; ver Corrección 2. **El mecanismo que describe es real y la advertencia
+> sigue valiendo** —una flota matada a mano sí pierde su cierre contable, y le pasó de verdad al
+> estudio #9 del índice— pero **este relanzamiento no fue un caso de eso**, y por tanto el «único
+> antídoto es no volver a mirar ahí» del párrafo siguiente es exactamente el consejo equivocado
+> aquí: hay que mirar ahí, porque el fichero existe.
+>
+> **Y el error de fondo es el mismo que el de la Corrección 1, en su tercera forma:** dar por
+> muerto lo que sólo estaba tardando. Primero fueron cuatro runs («murió la máquina» → habían
+> terminado), luego la contabilidad («se apagó a mano» → cerró sola 2 h 40 después). En los dos
+> casos se dedujo un final a partir de una fuente que aún no lo era. **La pregunta que ahorra las
+> dos: ¿es esta fuente posterior al último run, o sólo la última que miré?**
+
 **Ésta es la parte que hay que arrastrar a la próxima vez, y no es sobre visión foveada.**
 
 El coste, el reloj y el número de instancias los escribe `estudio_flota.py` en `sweeps/*/flota.json`
@@ -190,38 +304,50 @@ atribuirle 101 instancias y 3,2996 $ que ya están contados en el reporte anteri
 antídoto es no volver a mirar ahí para este relanzamiento**, que es para lo que existe esta nota.
 
 Lo que **sí** sobrevivió, y explica que este reporte se pueda escribir: el **libro de a bordo**, que
-commitea `metrics.jsonl` y `status.json` de cada máquina cada minuto. Gracias a él los 31 runs
-terminados están en git aunque las máquinas ya no existan, y las horas de arriba se pueden derivar
-de sus `updated_at`. **El libro de a bordo hizo su trabajo; el cierre contable es lo que no tiene
-equivalente incremental.**
+commitea `metrics.jsonl` y `status.json` de cada máquina cada minuto. Gracias a él los ~~31~~ **70**
+runs terminados están en git aunque las máquinas ya no existan, y las horas se pueden derivar de sus
+`updated_at`. **El libro de a bordo hizo su trabajo**, y de hecho es lo que permitió detectar los dos
+errores de este reporte: es la única fuente que se actualiza sola.
 
-Y una tercera cosa funcionó sola: al pasar `estudio_informe.py` después del apagado, los cuatro runs
-huérfanos se detectaron y se marcaron `interrupted` con el motivo escrito («el proceso que lo
-entrenaba ya no existe»), en vez de quedarse como `running` para siempre o —peor— colarse en la
-tabla como medidas. Es exactamente el arreglo que el reporte anterior menciona haber hecho.
+~~Y una tercera cosa funcionó sola: al pasar `estudio_informe.py` después del apagado, los cuatro runs
+huérfanos se detectaron y se marcaron `interrupted`…~~ — **esto se contó dos veces como acierto y
+las dos era un fallo.** Los cuatro no eran huérfanos (Corrección 1: un push roto los escondió) y no
+hubo apagado (Corrección 2). El marcado `interrupted` hizo lo correcto *con los datos que tenía*;
+lo que no existe todavía es lo que habría evitado las dos vueltas: **algo que avise de que la
+fuente que estás leyendo es más vieja que los datos.**
 
 ## Lo que quedó pendiente
 
-- **`ov-fov` necesita 4 runs** (`overlap_fovea_px`=4 semillas 2, 3 y 5 — la 3 **nunca llegó a
-  arrancar** — y `overlap_fovea_px`=2 semilla 3) para poder declarar algo. **Es el que más lo
-  merece**: es el mando exclusivo de la arquitectura y hoy no dice nada.
-- **`ch-fov` necesita 1 run** (`channels`=32 semilla 5) para cerrarse formalmente. La lectura no
-  depende de él.
-- **El coste y las instancias de este relanzamiento son irrecuperables.** Si hacía falta el número
-  de la factura, sale del panel de Vast por ventana horaria, no del repo.
-- **R5 (métrica de tarea) sigue sin aplicarse a ninguno de los siete ejes de prioridad 2.** Aquí no
-  se activa por ganador nuevo —no hubo ninguno— pero en `kc-fov` no era opcional, y eso sigue igual
-  que en el reporte anterior.
-- **Los cuatro `interrupted` conservan su `metrics.jsonl` hasta la época en que murieron.** No son
-  medidas y no deben entrar en ninguna tabla; si algún día se quisieran aprovechar, sería como
-  reanudación, no como resultado.
+- ~~**`ov-fov` necesita 4 runs**~~ ✅ **cerrado, 20/20**, y con ellos el punto 0 llega a p = 0,032.
+  Ver «Las dos tablas que cambian».
+- ~~**`ch-fov` necesita 1 run**~~ ✅ **cerrado, 20/20**, sin cambio de lectura.
+- ~~**El coste y las instancias de este relanzamiento son irrecuperables.**~~ ✅ **Sí existen**:
+  **2,0283 $** y **34 máquinas**, en el `flota.json` que la flota escribió a las 15:58:19 UTC.
+- **`overlap_fovea_px` no queda acotado por arriba.** El 4 es el mayor del rango, gana +0,0065 sin
+  significación (p = 0,270) y la tendencia sigue subiendo. Si se quiere cerrar el eje hace falta un
+  punto más allá de 4 — con la disciplina de `borde-ancho`: decidir **antes** hasta dónde tiene
+  sentido llegar, y contra qué coste (el solape sube N, no es gratis).
+- **R5 (métrica de tarea) sigue sin aplicarse a ninguno de los siete ejes de prioridad 2.** No se
+  activa por ganador nuevo —no hubo ninguno en los cuatro de aquí— pero en `kc-fov` no era opcional,
+  y eso sigue igual que en el reporte anterior.
+- ⚠ **Los `informe.json` de los cuatro recorridos siguen siendo los de las 15:13 UTC, o sea
+  rancios.** Las tablas de arriba se recalcularon a mano desde `runs/*/metrics.jsonl` porque la
+  máquina donde se escribió esto no tiene `torch` y no puede pasar `estudio_informe.py`. **Hay que
+  volver a pasarlo en una máquina con el entorno** para que el disco diga lo mismo que este reporte;
+  mientras tanto, `sweeps/ov-fov/informe.json` afirma 2 semillas en el punto 4 y un `pendiente`, y
+  las dos cosas son falsas.
 
 ## De dónde salen los números
 
-- Tablas, R1, R2 y R4: `scripts/estudio_informe.py --sweep <r> --vigente <v>`, corrido el
-  **2026-08-26 tras el apagado**, con copia en `sweeps/<r>/informe.json`.
-- Horas de inicio y fin: **derivadas** de los `updated_at` de `runs/*/status.json`, porque no hay log
-  ni `flota.json` de esta corrida. Marcadas como derivadas en la cabecera.
-- Instancias y coste: **no existen para esta corrida**. Ver «lo que se aprendió».
+- **Tablas de «Las dos tablas que cambian» (las válidas)**: recalculadas el **2026-08-26** desde
+  `runs/*/summary.json` + `runs/*/metrics.jsonl`, tomando f1 en `best_epoch` y permutación exacta de
+  dos colas. Método validado contra `sweeps/pw-fov/informe.json` (los tres contrastes coinciden al
+  quinto decimal). **No hay copia en `sweeps/<r>/informe.json`** — ver el pendiente de arriba.
+- **Tablas de las secciones E8 y E10 originales**: `sweeps/<r>/informe.json` calculado a las
+  **15:13:42 UTC**, o sea **antes de que terminara el último run**. Superadas; se conservan como
+  registro del error.
+- Instancias, coste y reloj: `sweeps/{sch,pw,ch,ov}-fov/flota.json`, `cuando` = 2026-08-26T15:58:19Z.
+  **Es un fichero distinto del de la corrida de las 06:53** (`recorridos` de 4 contra 7): no
+  confundirlos, y no sumarlos dos veces.
 - El criterio se escribió **antes de medir** en
   [`docs/plan-prioridades-2026-08-25.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-prioridades-2026-08-25.md) §2.

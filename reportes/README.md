@@ -82,11 +82,11 @@ los marcados como «plana».
 | **`border_px`** | **4** | **cerrado** | **8** *(no aplicado)* | Sube hasta 8 px (0,9408) y **baja** de ahí (10 · 12 · 16, hasta caer bajo el vigente). ⚠ **`p` = 0,063 medido DOS veces** para 8 contra 4: se queda a un pelo. A coste constante (mismos 167.852 parámetros) | [#9](2026/08-agosto/2026-08-26-borde-ancho.md) · [#6](2026/08-agosto/2026-08-24-d5-L4-pasada2.md) |
 | **`border_reduce`** | **2** | **sin cerrar** *(confundido)* | 1 por f1, **pero no comparable** | Con `border_px` = 8: 4 → 0,9408 · 2 → 0,9472 · **1 → 0,9574** (`p` = 0,008, el mínimo alcanzable). ⚠ **NO es cost-neutral**: N pasa de 20 a 32, **+156 % de parámetros** y 1,77× por época. Capacidad y resolución están **confundidas** en este diseño | [#11](2026/08-agosto/2026-08-26-prioridad2.md) |
 | **`k_center`** | **3** | **cerrado** | 3 | 3 → 0,9341 · 5 → 0,9226 (`p` = 0,024) · 7 → 0,9206 (`p` = 0,008). Los dos alternativos son peores **y más caros**. ⚠ **Contradice el indicio de 1 semilla de julio**, donde 5 era el mejor por métrica de tarea: eso sigue sin resolverse, porque esto mide el proxy | [#11](2026/08-agosto/2026-08-26-prioridad2.md) |
-| **`channels`** | **[16]×4** | **cerrado** *(20/20)* ⚠ | [16]×4 | Subir no aporta: 24 → 0,9303 (`p` = 0,40) y 32 → 0,9298 (`p` = 0,48), a 1,3× y 1,7× por época. **Bajar sí hace daño**: 8 → 0,9021 (`p` = 0,008) y con el `sem` más alto de la tabla. **16 es el suelo útil, no un exceso heredado**. ⚠ Los números son los de `informe.json` **con 4 semillas en [32]×4**: la 5.ª se recuperó con la corrección del #13 y **el informe no se ha vuelto a pasar**, así que la fila de 32 aún se lee con `n` = 4 | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
+| **`channels`** | **[16]×4** | **cerrado** *(20/20)* | [16]×4 | Subir no aporta: 24 → 0,9303 (`p` = 0,40) y 32 → 0,9307 (`p` = 0,53), a 1,3× y 1,7× por época. **Bajar sí hace daño**: 8 → 0,9021 (`p` = 0,008) y con el `sem` más alto de la tabla. **16 es el suelo útil, no un exceso heredado**. Recalculado con **las 5 semillas de [32]×4**: el veredicto no cambió | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
 | **`pos_weight`** | **1,0** | **cerrado por arriba** | 1,0 | Monótono decreciente: 2 empata (`p` = 0,889), 4 → 0,9137 y 8 → 0,8780, los dos a `p` = 0,008. ⚠ Era **«la hipótesis más plausible de mejora grande sin probar»** y **no la hubo**: el cuello de botella de detección no se destapa desde el peso de la pérdida | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
 | **`scheduler`** | **`none`** | **cerrado** *(2 valores)* | `none` | `cosine` → 0,9329 contra 0,9341, `p` = 0,857. ⚠ **El empate es real, no un artefacto**: el tope se bajó a 100 a propósito para que `cosine` llegara a aplicar su bajada (con 150 habría medido «cosine casi sin aplicar») | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
 | **`monitor`** | **`val_loss`** | **cerrado** *(2 valores)* | `val_loss` | `val_f1` → 0,9346 (+0,0059, `p` = 0,214). ⚠ Y **el brazo `val_f1` partía con ventaja mecánica** —elige checkpoint con la misma métrica con que se le puntúa— y aun así no llega. La incoherencia declarada cuesta ~0,006 y **es indistinguible del ruido** | [#11](2026/08-agosto/2026-08-26-prioridad2.md) |
-| **`overlap_fovea_px`** | **2** | ⚠ **sin cerrar** *(19/20)* | — **no declara todavía** | ⚠ Los números publicados (4 → 0,9379 · **2 → 0,9311** · 1 → 0,9273 · 0 → 0,9186) salen del informe con sólo **2 semillas en el punto 4 y 4 en el vigente**, donde el **`p` mínimo alcanzable es 0,133** y R4 no puede declarar al 5 % aunque el efecto fuera enorme. **Tres de esos runs se recuperaron** con la corrección del #13 y **el informe no se ha vuelto a pasar**: con 5 y 5 el suelo bajaría a 0,008 y el eje podría declarar. Único indicio hoy: el **0** (ramas disjuntas) es el peor, `p` = 0,063 con 5 semillas → **el solape aporta**. La tendencia sube hacia 4, el borde del rango | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
+| **`overlap_fovea_px`** | **2** | **cerrado por abajo** *(20/20)* | 4 *(no aplicado)* | Con las 5 semillas en los cuatro puntos: 4 → 0,9372 (`p` = 0,270) · **2 → 0,9308** · 1 → 0,9273 (`p` = 0,444) · 0 → 0,9186 (**`p` = 0,032**). **El punto 0 —las dos ramas disjuntas— es significativamente peor: el solape APORTA, y es el control que el plan señaló como «el que más dice»**. ⚠ Por arriba **no queda acotado**: 4 es el borde del rango, gana +0,0065 y no llega a significación. El vigente se queda | [#13](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) |
 | `fovea_px` | 16 | **no barrible** | — | Atado por contrato al `window_size` del dataset. Cambiarlo exige **regenerar el dataset** | — |
 | `overlap_border_px`, `merge`, `pool_mode`, `pad_mode`, `k_periph`, `s_center`, `s_periph` | 0 · concat · avg · edge · 3 · 1 · 1 | **sin medir** | — | Nunca barridos con semillas. `overlap_border_px` sólo admite `{0, 2}` con el borde vigente de 4 px: es un estudio de verdad **sólo si el borde se ensancha antes** | — |
 | `optimizer`, `momentum`, `weight_decay`, `lambda_pos`, `smooth_l1_beta`, `patience`, `epochs` | adam · 0,9 · 0,0 · 1,0 · 0,08 · 10 · 100 | **sin medir** | — | Con `weight_decay` = 0, `adam` ≡ `adamw` hoy. `patience` = 10 tiene un mínimo seguro **medido indirectamente en 8**; `epochs` es **guarda**, no ajuste — hay que subirlo con batches grandes (300 en los tanteos de batch alto) | — |
@@ -135,14 +135,15 @@ Es el mejor ratio ganancia/coste del inventario, y está **deliberadamente sin a
 3. **`border_px` = 8 contra 4 sigue sin resolverse al 5 %**, con `p` = 0,063 medida **dos veces**. Lo
    que lo cerraría es **más semillas en esos dos puntos** (10 contra 10 da `p` mínimo 5,4·10⁻⁶), **no**
    un rango más ancho.
-4. ⚠ **Lo que le falta a `overlap_fovea_px` ya no son máquinas: es volver a pasar el informe.** La
-   corrección del #13 (2026-08-26 15:40 UTC) demostró que tres de sus runs **sí habían terminado** y
-   estaban mal marcados `interrupted` por un `git push` roto, así que el recorrido está en **19/20** y
-   no en 16/20 — y `channels` en **20/20**. Pero `estudio_informe.py` **no se ha vuelto a pasar** con
-   ellos, así que las tablas de arriba siguen siendo las del recuento viejo. **Es lo más barato que
-   queda pendiente en todo el inventario: cero alquileres.** Y es el que más lo merece: es el mando
-   exclusivo de la arquitectura y hoy todavía no declara. Sólo le falta **1 run de verdad**
-   (`overlap_fovea_px`=4, semilla 3, que nunca llegó a arrancar).
+4. ✅ **`overlap_fovea_px` ya declara, y dice que el solape aporta** (`p` = 0,032 para el punto 0).
+   El run que faltaba —`overlap`=4 semilla 3— lo corrió la propia flota antes de cerrar a las
+   15:58:19 UTC, así que el recorrido está en **20/20**, igual que `channels`. ⚠ **Lo que sigue
+   pendiente y es gratis: volver a pasar `estudio_informe.py`.** Las tablas de arriba se
+   recalcularon a mano desde `runs/*/metrics.jsonl`; los `sweeps/*/informe.json` en disco son de
+   las **15:13 UTC**, o sea de antes del último run, y aún dicen que `ov-fov` tiene 2 semillas en su
+   punto ganador. **Cero alquileres, y quita la última fuente rancia de este inventario.**
+   ⚠ Por arriba el eje **no queda cerrado**: 4 es el borde del rango. Cerrarlo pide un punto más
+   allá, decidido **antes** —como en `borde-ancho`— y contra su coste, porque el solape sube N.
 5. **El confound de `border_reduce` sigue abierto**: capacidad contra resolución. Desconfundirlo pide
    un diseño que suba N sin subir el área, o que compare a parámetros igualados.
 
@@ -182,18 +183,24 @@ Se **añade al final**; las filas anteriores no se tocan.
 
 | 9 | `borde-ancho` — ¿más contexto a coste constante? | [2026/08-agosto/2026-08-26-borde-ancho.md](2026/08-agosto/2026-08-26-borde-ancho.md) | 2026-08-26 01:42:54 | 2026-08-26 04:40:15 | 18 *(flota compartida con #10)* | **1,0536 $** *(compartido con #10)* | **El eje queda CERRADO por los dos lados**: sube hasta 8 px y baja de ahí en adelante. El vigente se queda (p = 0,063, la misma que en `d5-L4`) |
 | 10 | `pl-t-bs`+`pl-t-nl` — afinado de la plana (fase 1) | [2026/08-agosto/2026-08-26-plana-tanteo-fase1.md](2026/08-agosto/2026-08-26-plana-tanteo-fase1.md) | 2026-08-26 01:42:54 | 2026-08-26 08:32:39 | 18 *(compartida con #9)* + 4 | **compartido con #9** + **0,0571 $** | Los dos tanteos acotados: `batch_size` 170 y `n_layers` 5, los dos interiores. ⚠ En L6 **una semilla dio f1 = 0,0000** |
-| 11 | Prioridad 2 — siete ejes nunca medidos | [2026/08-agosto/2026-08-26-prioridad2.md](2026/08-agosto/2026-08-26-prioridad2.md) | 2026-08-26 01:57:11 | 2026-08-26 06:53:57 | **101** *(para 35 lotes)* | **3,2996 $** | ⚠ Incompleto (3 de 7). `border_reduce`=1 gana con p = 0,008 **pero no es cost-neutral**; `k_center` y `monitor` dejan el vigente donde estaba |
+| 11 | Prioridad 2 — siete ejes nunca medidos | [2026/08-agosto/2026-08-26-prioridad2.md](2026/08-agosto/2026-08-26-prioridad2.md) | 2026-08-26 01:57:11 | 2026-08-26 06:53:57 | **101** *(para 35 lotes)* | **3,2996 $** | ⚠ Incompleto (3 de 7; los otros 4 se cierran en el **#13**). `border_reduce`=1 gana con p = 0,008 **pero no es cost-neutral**; `k_center` y `monitor` dejan el vigente donde estaba |
 | 12 | Knobs de inferencia (F) re-medidos | [2026/08-agosto/2026-08-26-knobs-f.md](2026/08-agosto/2026-08-26-knobs-f.md) | 2026-08-26 ~01:30 | 2026-08-26 03:23 | **0** *(local)* | **0,00 $** | ⚠ 2 de 3 filas válidas. Los defaults dejan +0,053 a +0,071, y **el óptimo ya no es el mismo para todos los modelos** — en julio sí lo era |
-| 13 | Prioridad 2 — relanzamiento de los cuatro a medias | [2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) | 2026-08-26 08:14:12 *(derivado)* | 2026-08-26 13:16:35 *(derivado)* | ⚠ **no registrado** | ⚠ **no registrado** *(estimado 1,39 $)* | `pos_weight` y `scheduler` cerrados: el vigente gana en los dos. ⚠ **El apagado a mano de la flota se llevó el `flota.json`**: coste e instancias irrecuperables |
+| 13 | Prioridad 2 — relanzamiento de los cuatro a medias | [2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md](2026/08-agosto/2026-08-26-prioridad2-relanzamiento.md) | 2026-08-26 11:04:49 | 2026-08-26 15:58:19 | **34** *(18 lotes)* | **2,0283 $** | **Los cuatro cerrados, 20/20.** El vigente gana en los cuatro ejes; en `ov-fov` el punto **0** (ramas disjuntas) es **peor con p = 0,032**: el solape aporta. ⚠ `overlap` no queda acotado por arriba |
 
-**Gastado y registrado hasta aquí: 11,29 $** (6,89 hasta el #8, más 4,41 en los estudios de
+**Gastado y registrado hasta aquí: 13,33 $** (6,89 hasta el #8, más 6,44 en los estudios de
 prioridad del 26-ago). No incluye lo que no quedó anotado —la flota de droplets de DO (#1), los
-alquileres de Vast que fallaron antes de medir (#2), **la corrida del 25-ago 22:20 que se mató a
-mitad** (#9) y **el relanzamiento del 26-ago que se apagó a mano** (#13), cuyos `flota.json` no
-llegaron a escribirse—, que es justamente lo que este directorio existe para que no vuelva a pasar.
+alquileres de Vast que fallaron antes de medir (#2) y **la corrida del 25-ago 22:20 que se mató a
+mitad** (#9), cuyo `flota.json` no llegó a escribirse—, que es justamente lo que este directorio
+existe para que no vuelva a pasar.
 
-⚠ **Y las dos veces que falta el dato, falta por lo mismo: la corrida no llegó a su final.** El
-coste, el reloj y las instancias los escribe `estudio_flota.py` **al terminar**; si la flota se mata
-o se apaga desde fuera, las máquinas mueren pero **la contabilidad no se escribe**. El libro de a
-bordo salva los *resultados* minuto a minuto, no el *cierre*. Cuando haya que apagar una flota a
-mano, el número de la factura sólo queda en el panel del proveedor: **anótalo antes de perderlo.**
+⚠ **Cuando falta el dato, falta por una razón: la corrida no llegó a su final.** El coste, el reloj
+y las instancias los escribe `estudio_flota.py` **al terminar**; si la flota se mata o se apaga desde
+fuera, las máquinas mueren pero **la contabilidad no se escribe**. El libro de a bordo salva los
+*resultados* minuto a minuto, no el *cierre*. Cuando haya que apagar una flota a mano, el número de
+la factura sólo queda en el panel del proveedor: **anótalo antes de perderlo.**
+
+⚠ **Y el recíproco, que costó dos correcciones en el #13: que falte el dato AHORA no quiere decir
+que vaya a faltar siempre.** Ese reporte declaró su coste irrecuperable mientras la flota seguía
+viva; cerró sola 2 h 40 más tarde y escribió los 2,0283 $ que ahora están en la tabla. **Un
+`flota.json` ausente sólo prueba que la flota no ha terminado —no que haya muerto.** Antes de dar
+una corrida por perdida, comprobar que de verdad no queda nada corriendo.
