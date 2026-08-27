@@ -130,6 +130,7 @@ scripts/
   notify.mjs           aviso a Telegram desde un proceso desacoplado
   cargar-secretos.mjs  los DOS ficheros de secretos, para lo desacoplado
   desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart)
+  workspace.mjs        ¿en qué copia estoy y está sana? (varias sesiones a la vez)
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
   bench-preflight.mjs  ¿tiene esta máquina con qué medir? (--fix arregla)
   vast-sweep.sh        barrido en Vast: medir + publicar + no dejar nada vivo
@@ -147,6 +148,7 @@ data/
   <repo>/telegram/executors/*.json    sus ejecutores, junto al código que llaman
   <repo>/telegram/encargados/*.json   sus encargados
 docs/
+  WORKSPACE.ejemplo.json    plantilla de identidad de un workspace
   revision-2026-08-22.md    qué se hizo en agosto y qué documentación
                             habría ahorrado las vueltas (los ocho patrones)
   ejecutores-federados.md   propuesta: que cada repo traiga sus ejecutores
@@ -607,6 +609,166 @@ se corta a mitad:
 ```bash
 python3 ~/src/foveal-vision/scripts/bench_fleet.py --reap
 ```
+
+## Varias sesiones a la vez: **un WORKSPACE por línea de trabajo**
+
+Desde 2026-08-27 hay **más de una sesión de Claude trabajando a la vez**, cada una en su
+copia de los repos. Esta sección es la que evita que se pisen. Léela **antes** de tocar
+nada si no estás seguro de en qué copia estás.
+
+### Regla 0, la que manda sobre todas: **no toques lo que no es de tu workspace**
+
+Otra sesión está editando ficheros, corriendo flotas y haciendo commits **ahora mismo**.
+Un cambio tuyo en su copia no es un conflicto de git: es trabajo destruido en caliente, y
+sin ningún síntoma hasta que a alguien le fallan los números.
+
+- **No edites** ficheros fuera de tu workspace, ni siquiera «para arreglar algo obvio».
+- **No mates procesos** que no hayas lanzado tú (`pkill -f estudio_flota` mata los de
+  todos: es una cadena de comando, no una ruta).
+- **No destruyas máquinas** cuya etiqueta no sea la tuya (ver «el prefijo» abajo).
+- Si ves algo roto en otro workspace, **dilo, no lo arregles**.
+
+### Por qué un WORKSPACE y no «una copia del repo que toque»
+
+Porque **los repos se buscan entre ellos por el directorio padre**, y una copia parcial
+cambia en silencio a qué repo llega cada script. Medido el 2026-08-27:
+
+```
+foveal-vision/scripts/bench_dataset.py:46   GENERADOR = ROOT.parent / "image-text-sample-generator"
+foveal-vision/scripts/estudio_flota.py:179  LANZADOR  = ROOT.parent / "digital-ocean-dropplet-auto-launching"
+foveal-vision/scripts/vigilante_avance.py:106  LANZADOR = ROOT.parent / "digital-ocean-dropplet-auto-launching"
+```
+
+`~/dev/` tenía ese día `foveal-vision`, `telegram-coordinator` y el lanzador, pero **no**
+`image-text-sample-generator`. O sea que `~/dev/foveal-vision` no puede reconstruir el
+dataset: su `ROOT.parent` no tiene el generador. No falla al empezar — falla a mitad, que
+es peor.
+
+**Conclusión: los repos hermanos viajan juntos o no viajan.** La unidad que se copia es el
+workspace entero, no un repo suelto.
+
+### La estructura que cumplen todos
+
+```
+~/ws/<linea-de-trabajo>/          ← la unidad. UNA sesión de Claude, UNA línea de trabajo
+    WORKSPACE.json                ← la identidad. Sin esto, el workspace no existe
+    foveal-vision/
+    telegram-coordinator/
+    digital-ocean-dropplet-auto-launching/
+    image-text-sample-generator/
+```
+
+El nombre del directorio es **la línea de trabajo**, no el repo ni la fecha: `~/ws/cierre/`,
+`~/ws/stride/`, `~/ws/plana/`. Así el prompt del shell y cualquier ruta de un log dicen a qué
+sesión pertenece sin tener que preguntar.
+
+⚠ **Los cuatro repos, aunque no los uses.** Cuesta poco y quita la clase entera de fallos de
+arriba. Un workspace incompleto es un workspace que funciona hasta que deja de hacerlo.
+
+### `WORKSPACE.json`: la identidad, en un sitio y no en la cabeza de nadie
+
+```json
+{
+  "nombre": "cierre",
+  "prefijo": "ci-",
+  "rama": "cierre-parametros",
+  "creado": "2026-08-27",
+  "que": "cerrar overlap_fovea_px y medir los ejes nunca barridos",
+  "sesion": "claude-code #1"
+}
+```
+
+Plantilla commiteada en [`docs/WORKSPACE.ejemplo.json`](docs/WORKSPACE.ejemplo.json) — cópiala
+y rellénala. Va **en la raíz del workspace**, no dentro de un repo: describe el conjunto, y si
+viviera dentro de uno se copiaría con él y mentiría (además de no ser commiteable, que es
+correcto: es estado de la máquina, no del repo). Es lo primero que hay que leer al abrir sesión
+y lo primero que hay que escribir al crear un workspace.
+
+### Los cuatro recursos que **sí** son compartidos, y cómo se reparten
+
+Copiar carpetas separa el disco. **No separa nada más.** Éstos son globales de la máquina o
+de la cuenta, y cada uno necesita su regla:
+
+| Recurso | Por qué es compartido | La regla |
+|---|---|---|
+| **La cuenta de Vast/DO** | Un token, una factura | **`--prefijo <pfx>` obligatorio** en toda flota. Es lo que hace que `vigilante_avance.py` diga *«ajena: no la toco»* en vez de destruir máquinas de otro |
+| **El remoto de git** | Los cuatro repos empujan al mismo GitHub | **Rama propia por workspace.** A `main` sólo empuja el workspace que lo tenga declarado. **Nunca `--force`** sobre una rama compartida |
+| **Los procesos de la máquina** | `pgrep`/`pkill` casan por cadena de comando, no por ruta | Filtra **siempre** por la ruta de tu workspace antes de matar nada |
+| **El descubrimiento del coordinador** | `data/fuentes.json` es un patrón con comodín | Que apunte **a tu workspace y sólo a él** (ver abajo) |
+
+#### El prefijo, que es lo que ya funcionó
+
+Medido el 2026-08-27: la sesión de `stride-h01` lanzó su flota con `--prefijo st-`, y el
+vigilante de la sesión de `cierre` clasificó sus máquinas como **ajenas** y no las tocó
+—*«no sé de qué recorrido es 'stride-h01'; no la toco»*—. Sin prefijos distintos, un
+vigilante habría destruido las máquinas del otro **creyendo que eran huérfanas suyas**.
+
+El prefijo del workspace es el del `WORKSPACE.json`, y se usa **siempre**, aunque creas que
+eres la única sesión viva. Es la comprobación de un dato, no una cortesía.
+
+#### `fuentes.json` apunta a UN workspace
+
+`data/fuentes.json` trae `["~/src/*/telegram"]`, un **comodín**. Con un solo árbol es lo que
+hace la federación cómoda; con varios workspaces bajo el mismo padre es lo que hace que
+`/executors` mezcle los ejecutores de todos, con colisiones de nombre — `bench.json`,
+`estudio.json` y `vigilante.json` se llaman igual en todas las copias.
+
+El coordinador **avisa** de la colisión (`origen.pisados`) y gana la primera fuente, así que
+no es silencioso; pero *«gana la primera»* no es un criterio que quieras cuando la segunda es
+otra línea de trabajo. **Cada coordinador apunta al suyo:**
+
+```json
+{ "fuentes": ["~/ws/cierre/*/telegram"] }
+```
+
+⚠ Y por lo mismo: **no metas workspaces bajo `~/src/`**, que es donde apunta el patrón por
+defecto. `~/ws/` existe justo para no heredar ese comodín.
+
+### Al abrir una sesión, cuatro preguntas antes de nada
+
+Las contesta las cuatro de una vez **`node scripts/workspace.mjs`**, que sale con código 0
+sólo si el workspace es coherente y para cada fallo imprime el comando que lo arregla:
+
+1. ¿en qué workspace estoy y cuál es mi prefijo? (`WORKSPACE.json`)
+2. ¿está cada repo hermano, y en la rama de este workspace?
+3. ¿`fuentes.json` apunta aquí y sólo aquí?
+4. ¿qué hay corriendo, y qué de eso **no es mío**? — por `/proc/<pid>/cwd`, no por `ps`
+
+Como todo preflight de aquí, **comprueba estado utilizable, no presencia**, y **crece con
+cada fallo**: si algo se descubre a mitad, la comprobación se añade ahí en el mismo commit
+que el arreglo.
+
+### Trampas conocidas, indexadas por la acción que las dispara
+
+**Al relanzar una flota parada** — `vigilante_avance.py` decide si hay flota viva con
+`pgrep -f "estudio_flota.py"` (línea 362), **sin filtrar por ruta**. Con dos workspaces, el
+vigilante de uno ve la flota del otro y aplica su regla 4 (*«hay una flota viva: no se
+relanza»*): **los puntos que le faltan no se relanzan nunca, y no lo dice nadie**. El arreglo
+es mirar el **cwd** de cada PID, no su línea de comando:
+
+```python
+salida = subprocess.run(["pgrep", "-f", "estudio_flota.py"], ...).stdout
+for pid in salida.split():
+    cwd = os.readlink(f"/proc/{pid}/cwd")      # de quién es lo dice el CWD
+    if Path(cwd).is_relative_to(ROOT): ...     # ...sólo entonces es mío
+```
+
+⚠ **Y no vale filtrar por la línea de comando, que es la solución que parece obvia.**
+Comprobado el 2026-08-27: la flota se lanza como `.venv/bin/python scripts/estudio_flota.py`,
+o sea **con ruta relativa**, así que la línea de `ps` **no contiene el workspace por ningún
+lado**. Un filtro por ruta sobre `pgrep -af` no clasifica de más: clasifica **tus propios
+procesos como ajenos**. (Pasó al escribir `scripts/workspace.mjs`, en la primera versión.)
+
+**Al matar algo** — `pkill -f estudio_flota` mata las flotas de **todos** los workspaces.
+Saca el PID mirando `/proc/<pid>/cwd` y mata **ese PID**.
+
+**Al copiar un workspace nuevo** — se copian también `data/sessions/`, `data/claude-sessions/`
+y `data/shell-cwd/`, que son estado efímero **por tema de Telegram**. Dos coordinadores con
+el mismo estado creen los dos que mandan sobre la misma conversación. Bórralos al copiar.
+
+**Al arrancar un segundo coordinador** — sólo puede haber **una** instancia haciendo polling
+por token (error 409, ya documentado arriba). Un workspace nuevo **no** arranca su bot salvo
+que tenga token propio: se copia para trabajar en el código, no para servir.
 
 ## Cómo trabajar en este repo
 

@@ -1,0 +1,9 @@
+{
+  "nombre": "<linea-de-trabajo>",
+  "prefijo": "<pfx>-",
+  "rama": "<rama-propia>",
+  "creado": "<YYYY-MM-DD>",
+  "que": "<una linea: que se esta haciendo aqui>",
+  "sesion": "<quien>",
+  "nota": "Identidad del WORKSPACE, no de un repo: vive en la RAIZ (el padre de los repos), porque describe el conjunto. Dentro de un repo se copiaria con el y mentiria. El prefijo es lo unico que separa TUS maquinas de pago de las de otra sesion en una cuenta que es una sola: no lo repitas entre workspaces y no lo cambies con una flota viva."
+}
