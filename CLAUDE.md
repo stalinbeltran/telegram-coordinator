@@ -604,7 +604,20 @@ nada. Los droplets creados antes de registrarla no la aceptarán nunca.
 
 ### Cómo se lanza este servidor para que no falte nada
 
-Desde la máquina lanzadora (no desde aquí):
+**Lo normal es `lanzar launch dev` desde el Lanzador, y ya**: `types/dev.json` del
+lanzador declara los repos (incluido `foveal-vision-data`), el servicio,
+`make_launcher` y el `register-key` de Vast, así que el lanzamiento cabe en un
+mensaje y no hay nada que recordar. Es a propósito: **si para que algo esté hay que
+acordarse de un `--repo`, tarde o temprano no está**. El detalle está donde se
+dispara, en
+[`docs/reparto-mini-dev.md`](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/reparto-mini-dev.md).
+
+⚠ Un tipo que cambia sólo llega a las máquinas creadas **después**, y sólo si el mini
+tiene el repo del lanzador al día: es él quien lee `types/dev.json` al lanzar. Tras
+tocar un tipo, `actualizar` en el Lanzador.
+
+La versión larga y explícita, si hace falta lanzar sin tipo (desde la máquina
+lanzadora, no desde aquí):
 
 ```bash
 python scripts/do_droplet.py volume create bench-data --size-gb 10   # una vez en la vida
