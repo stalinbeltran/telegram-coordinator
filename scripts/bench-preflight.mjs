@@ -175,9 +175,18 @@ async function main() {
   }
 
   // 5. Los repos del trabajo.
+  //
+  //    `foveal-vision-data` no es "uno más": es DONDE SE GUARDA lo medido.
+  //    `fv.settings.data_root()` lo busca como hermano de `foveal-vision` y, si
+  //    no está, cae al propio repo de código -- donde `runs/`, `sweeps/` y
+  //    `studies/` están en .gitignore desde que se vació el legado. O sea que
+  //    sin él un estudio corre entero, escribe sus resultados y no los commitea
+  //    en ninguna parte: se van con el droplet, sin un solo error por el camino.
+  //    Medido el 2026-08-27 en una máquina recién rehecha. Por eso bloquea.
   for (const [repo, dir] of [
     ['stalinbeltran/foveal-vision', 'foveal-vision'],
     ['stalinbeltran/image-text-sample-generator', 'image-text-sample-generator'],
+    ['stalinbeltran/foveal-vision-data', 'foveal-vision-data'],
   ]) {
     const ruta = join(SRC, dir);
     if (existsSync(join(ruta, '.git'))) {

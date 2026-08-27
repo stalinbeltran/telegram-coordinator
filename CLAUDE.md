@@ -580,8 +580,22 @@ la única que no: el token, que lo tiene que enviar la máquina lanzadora.
 | 2 | Repo `~/src/digital-ocean-dropplet-auto-launching` | `--make-launcher`, o `--fix` | no hay con qué hablar con la API |
 | 3 | Par de claves `~/.ssh/do_droplet` **registrado en la cuenta** | `--make-launcher`, o `--fix` | se crean droplets en los que no se puede entrar: existen, facturan y no sirven |
 | 4 | Repos `~/src/foveal-vision` y `~/src/image-text-sample-generator` | `--repo` al lanzar, o `--fix` | no hay benchmark ni generador |
-| 5 | Volumen `bench-data` montado en `/mnt/bench-data` con el dataset | `--volume bench-data` al lanzar | hay que regenerar el dato: ~15-20 min de renders. **Se puede**, no es un bloqueo |
-| 6 | `python3`, `ssh`, `scp`, `git` | cloud-init | los trae el arranque; si falta alguno, `apt-get install` |
+| 5 | Repo `~/src/foveal-vision-data` | `--repo` al lanzar, o `--fix` | **lo medido no se guarda en ninguna parte.** Ver abajo |
+| 6 | Volumen `bench-data` montado en `/mnt/bench-data` con el dataset | `--volume bench-data` al lanzar | hay que regenerar el dato: ~15-20 min de renders. **Se puede**, no es un bloqueo |
+| 7 | `python3`, `ssh`, `scp`, `git` | cloud-init | los trae el arranque; si falta alguno, `apt-get install` |
+
+El punto 5 es el más nuevo y el más silencioso. Desde el 2026-08-27 los resultados de un
+estudio (runs, recorridos, estudios) se guardan en el repo hermano
+[`foveal-vision-data`](https://github.com/stalinbeltran/foveal-vision-data), no en
+`foveal-vision`. La indirección es `fv.settings.data_root()`, que **cae al repo de código
+cuando el de datos no está clonado** — un fallback deliberado, para que nada se rompa. Pero ahí
+`runs/`, `sweeps/` y `studies/` están en `.gitignore`: el estudio corre entero, escribe sus
+resultados y **no los commitea en ningún sitio**. Se van con el droplet, y por el camino no hay
+un solo error. Medido el 2026-08-27 en esta misma máquina, recién rehecha.
+
+Por eso el preflight lo trata como bloqueante, y por eso `estudio_flota.py --git` **aborta antes
+de alquilar** si no encuentra dónde commitear. El detalle está donde se dispara, en
+[`foveal-vision/CLAUDE.md` § «Dónde caen los datos de un estudio»](https://github.com/stalinbeltran/foveal-vision/blob/main/CLAUDE.md#dónde-caen-los-datos-de-un-estudio-en-foveal-vision-data).
 
 El punto 3 es el que se olvida siempre: **el token deja CREAR droplets, pero no
 ENTRAR en ellos**. Un droplet acepta las claves registradas en la cuenta en el
@@ -599,6 +613,7 @@ python scripts/do_droplet.py launch trabajo \
   --make-launcher \
   --volume bench-data \
   --repo stalinbeltran/foveal-vision \
+  --repo stalinbeltran/foveal-vision-data \
   --repo stalinbeltran/image-text-sample-generator
 ```
 
