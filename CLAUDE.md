@@ -555,6 +555,59 @@ Y dos sobre **dónde** se escribe, porque documentar no basta si no llega:
   nuevo hay que mandarlo a sus **dos** destinos» se lee cada vez que toca hacerlo.
   Escrita como historia, volvió a morder con el token de Vast.
 
+## ⚠ VERIFICACIÓN PENDIENTE (dejada el 2026-08-27): ¿llegó el dataset solo?
+
+**Si estás en un server recién lanzado, esto es lo primero.** El server anterior se destruyó
+**a propósito** para comprobar una cosa: que el dataset de ventanas llega ahora **solo, por
+git**, sin renderizar nada. Hasta que se compruebe, el encargo no está cerrado.
+
+Va aquí y no en la memoria de Claude a propósito: `~/.claude/` se destruye con la máquina, así
+que una nota allí no sobrevive justo al evento que tiene que verificar. Es la regla de siempre —
+**lo que no está empujado, no existe**.
+
+```bash
+node scripts/bench-preflight.mjs        # la línea «datasets de estudio»
+ls -la ~/src/foveal-vision-data/window-datasets/*/windows.npz
+```
+
+| Qué tiene que salir | Qué significa |
+|---|---|
+| `[  ok  ] datasets de estudio   N con windows.npz commiteado` | ✅ **funcionó**: el dato viajó por git a una máquina que nunca renderizó nada |
+| `[ aviso] … NINGUNO con windows.npz (sólo manifest/split)` | ❌ el `.npz` no llegó al remoto — mirar si el commit del dato se empujó |
+
+Y las tres comprobaciones que lo cierran del todo:
+
+```bash
+cd ~/src/foveal-vision
+.venv/bin/python -c "import sys;sys.path.insert(0,'src');from fv import settings;print(settings.window_datasets_root())"
+#   -> ~/src/foveal-vision-data/window-datasets   (NO el repo de código)
+
+.venv/bin/python -m pytest -q tests/test_stride.py -k "repo_de_datos or payload or guardado"
+#   -> la indirección, el contrato con la máquina alquilada y el freno de "sin commitear"
+```
+
+### Los tres caminos por los que un server creado desde aquí recibe el dato
+
+Los tres tienen que seguir en pie; si alguno se rompe, se rompe en silencio.
+
+| Server | Cómo recibe el dato |
+|---|---|
+| **Vast** (`estudio_flota.py`) | dentro del **payload tar**, leído del repo de datos |
+| **Droplet de medición** (`bench_fleet.py`) | `preparar_dataset()` **publica desde git** a una etapa temporal. El volumen quedó de respaldo |
+| **Droplet nuevo** (`lanzar launch dev`) | `types/dev.json` **clona `foveal-vision-data`** |
+
+⚠ **Y lo que NO hay que "simplificar":** sin repo de datos, `window_datasets_root()` cae a
+`<código>/data/window-datasets` — que es **exactamente** donde el tar y el `scp` dejan el dato en
+las máquinas alquiladas, que no tienen ese repo y no deben tenerlo. Origen y destino son distintos
+**a propósito**; igualarlos rompe el lado remoto y se descubre con la flota facturando. Tiene test.
+
+⚠ **Renderizar uno nuevo necesita Google Chrome, no el Chromium de Playwright.**
+`cdn.playwright.dev` devuelve **403 «not available in your location»** desde `nyc1` (medido
+2026-08-27, tres reintentos). Se instala el `.deb` de `dl.google.com` y se rinde con
+`ITF_CHROMIUM_PATH=/usr/bin/google-chrome`; ~0,7 img/s, los mil renders ≈ 25-60 min según carga.
+**Pero si el `.npz` está en git, una máquina nueva no necesita nada de esto** — que es justo el
+punto de todo esto.
+
 ## Encargo en curso: medir velocidad de entrenamiento por vCPU
 
 **Si estás leyendo esto en un servidor recién lanzado, empieza por aquí.** Este
