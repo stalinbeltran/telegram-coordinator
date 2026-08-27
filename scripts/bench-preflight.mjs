@@ -242,6 +242,54 @@ async function main() {
       '    y luego generarlo:  cd ~/src/foveal-vision && python3 scripts/bench_dataset.py');
   }
 
+  // 7. Los datasets de ESTUDIO, que no son los del benchmark de vCPU y no
+  //    viven en el volumen: viven en git, dentro del repo de datos.
+  //
+  //    Se comprueba que estén COMMITEADOS, no que estén en disco, y la
+  //    diferencia es justo la que costó el `r20260824`: estaba en disco, se
+  //    midió con él, y desapareció al rehacer la máquina porque no estaba en
+  //    ningún git. Reconstruirlo no lo devuelve -- está medido que da OTRO dato
+  //    (`repro-chk`, 2026-08-26), así que lo medido antes deja de ser
+  //    comparable. Ver foveal-vision/CLAUDE.md § «El dataset de ventanas».
+  //
+  //    AVISA, no bloquea: se puede medir sin ellos (el benchmark de vCPU usa el
+  //    suyo), y un preflight que se niega por algo que no impide medir es un
+  //    preflight que se aprende a ignorar.
+  {
+    const datos = join(SRC, 'foveal-vision-data');
+    const wd = join(datos, 'window-datasets');
+    if (!existsSync(join(datos, '.git'))) {
+      // ya lo dijo el bloque 5; aquí no se repite
+    } else if (!existsSync(wd)) {
+      anota('AVISO', 'datasets de estudio', 'no hay window-datasets/ en el repo de datos',
+        'Si vas a continuar un estudio, el dataset tiene que estar en git:\n' +
+        `      cd ${datos} && git add window-datasets && git commit -m 'data: dataset' && git push`);
+    } else {
+      const r = intenta('git ls-files -- window-datasets', { cwd: datos });
+      const guardados = new Set(
+        (r.ok ? r.salida.split('\n') : []).filter((f) => f.endsWith('/windows.npz'))
+          .map((f) => f.split('/')[1]));
+      const enDisco = intenta(`ls ${wd}`).salida.split('\n').filter(Boolean);
+      const sinGuardar = enDisco.filter((d) => !guardados.has(d)
+        && existsSync(join(wd, d, 'windows.npz')));
+      if (guardados.size && !sinGuardar.length) {
+        anota('OK', 'datasets de estudio',
+          `${guardados.size} con windows.npz commiteado (de ${enDisco.length} descritos)`);
+      } else if (sinGuardar.length) {
+        anota('AVISO', 'datasets de estudio',
+          `${sinGuardar.length} con windows.npz SIN commitear: ${sinGuardar.join(', ')}`,
+          'Está en disco pero no en git: se pierde al rehacer la máquina, y\n' +
+          '    reconstruirlo da OTRO dato. Guárdalo:\n' +
+          `      cd ${datos} && git add window-datasets && git commit -m 'data: dataset' && git push`);
+      } else {
+        anota('AVISO', 'datasets de estudio',
+          `${enDisco.length} descritos, NINGUNO con windows.npz (sólo manifest/split)`,
+          'Sólo está la descripción, no el dato. Para continuar un estudio hay que\n' +
+          '    generarlo y commitearlo -- y será un dataset NUEVO, no el de antes.');
+      }
+    }
+  }
+
   // 7. Herramientas que usa la orquestación.
   for (const [bin, para] of [
     ['python3', 'el lanzador'],
@@ -271,7 +319,22 @@ async function main() {
       console.log('');
     }
     if (!FIX) console.log('Varias se arreglan solas con:  node scripts/bench-preflight.mjs --fix');
-  } else {
+  }
+
+  // Los avisos no bloquean, pero SU REMEDIO también se imprime: un aviso que
+  // dice qué pasa y se calla cómo arreglarlo obliga a ir a buscarlo, que es
+  // exactamente lo que este script existe para evitar.
+  const avisos = resultados.filter((r) => r.estado === 'AVISO' && r.remedio);
+  if (avisos.length) {
+    console.log(`\n${avisos.length === 1 ? 'Un aviso' : `${avisos.length} avisos`} (no impide${avisos.length === 1 ? '' : 'n'} medir):\n`);
+    for (const r of avisos) {
+      console.log(`  ${r.que}: ${r.detalle}`);
+      console.log(`    → ${r.remedio}`);
+      console.log('');
+    }
+  }
+
+  if (!faltan.length) {
     console.log('\nTodo listo: se puede medir. El siguiente paso es');
     console.log('  cd ~/src/foveal-vision && python3 scripts/bench_fleet.py --sizes 2,4,8');
   }

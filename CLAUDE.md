@@ -658,13 +658,33 @@ El detalle completo —qué mide, de dónde sale el dato, qué se espera encontr
 qué cuesta— está en
 [`foveal-vision/docs/benchmark-vcpu.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/benchmark-vcpu.md).
 
-### El dataset se genera, y está comprobado que se puede
+### El dataset **se guarda**, porque regenerarlo NO da el mismo dato
 
-Esto es lo que más veces se ha dado por imposible. **No lo es.** Los specs del
-generador están congelados en git (`specs.jsonl`, seed 1) y la extracción de
-ventanas tiene su propia semilla, así que el dato se reconstruye igual en
-cualquier máquina. Comprobado el 2026-08-19 en este mismo droplet: renderizando
-dos veces el mismo spec, los `sha256` de los PNG salen **idénticos byte a byte**.
+⚠ **Esta sección decía lo contrario hasta el 2026-08-27, y lo que decía era la
+mitad verdadera de una frase falsa.** Léela entera antes de dar por hecho que un
+dataset se puede rehacer.
+
+**Lo que sí reproduce:** los renders del generador. Los specs están congelados en
+git (`specs.jsonl`, seed 1), y comprobado el 2026-08-19 en este mismo droplet,
+renderizando dos veces el mismo spec los `sha256` de los **PNG** salen idénticos
+byte a byte. Eso sigue siendo cierto.
+
+**Lo que NO reproduce:** el `windows.npz`, que es sobre lo que se entrena.
+Medido el 2026-08-26 con `repro-chk` —mismo punto, misma semilla, misma familia
+de CPU, donde el entrenamiento sale idéntico bit a bit— y las curvas salieron
+**distintas**. Veredicto escrito antes de mirar: *es otro dataset*. Por eso el de
+hoy se llama `r20260826` y no `r20260824`.
+
+**Lo que costó:** al rehacer la máquina, el `r20260824` desapareció —no estaba en
+ningún git— y con él la comparabilidad de **20 runs ya pagados**, que hubo que
+volver a medir enteros (barrido [#14](reportes/README.md)).
+
+**La solución, desde el 2026-08-27: el `windows.npz` se commitea** en
+`foveal-vision-data/window-datasets/`, ~3-6 MB por dataset. El detalle está donde
+se dispara, en [`foveal-vision/CLAUDE.md` § «El dataset de ventanas también va
+allí»](https://github.com/stalinbeltran/foveal-vision/blob/main/CLAUDE.md#el-dataset-de-ventanas-también-va-allí--y-su-windowsnpz-se-commitea).
+`estudio_flota.py` avisa si el dataset no está commiteado y **con `--git` aborta
+antes de alquilar**: estar en disco no es estar guardado.
 
 ```bash
 cd ~/src/foveal-vision
@@ -672,8 +692,10 @@ python3 scripts/bench_dataset.py build                      # ~15-20 min
 python3 scripts/bench_dataset.py publish --to /mnt/bench-data
 ```
 
-Vive en un **volumen** justo para no repetir esos 20 minutos en cada máquina
+Ese `build` es para el dataset del **benchmark de vCPU** (`bench-dirty1000-16`),
+que además vive en un **volumen** para no repetir los 20 minutos en cada máquina
 nueva: un volumen es lo único de la cuenta que sobrevive a su droplet. Los
+datasets de **estudio** ya no dependen de eso: están en git. Los
 droplets de medición **no** lo montan (un volumen va en una máquina a la vez, y
 además hay que medir el disco local, no la red): se les copia el dato y se
 verifica la huella SHA-256 **en el destino**, porque un dataset a medias daría un
