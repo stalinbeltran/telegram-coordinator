@@ -131,6 +131,7 @@ scripts/
   cargar-secretos.mjs  los DOS ficheros de secretos, para lo desacoplado
   desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart)
   workspace.mjs        ¿en qué copia estoy y está sana? (varias sesiones a la vez)
+  cerrable.mjs         ¿se puede APAGAR este server, o se pierde algo?
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
   bench-preflight.mjs  ¿tiene esta máquina con qué medir? (--fix arregla)
   vast-sweep.sh        barrido en Vast: medir + publicar + no dejar nada vivo
@@ -400,6 +401,56 @@ estaba escrito, y se gastó una corrida de benchmark sobre la fuente equivocada.
 
 Vale igual para lo que no es código: un reporte o una medición que merezca conservarse
 se commitea. Lo que queda en `/tmp` o en un directorio ignorado, se pierde.
+
+## ¿Se puede apagar este server? — dilo al FINAL DE CADA MENSAJE
+
+**Regla de comportamiento, no opcional: cada respuesta al usuario termina con una línea que
+dice si este server se puede cerrar o no.** El usuario opera desde el móvil y destruye
+droplets a mano; sin esa línea, apagar en el momento equivocado es cuestión de tiempo.
+
+```bash
+node scripts/cerrable.mjs --breve     # la línea que se pega al final
+node scripts/cerrable.mjs             # el informe entero, con qué se perdería
+```
+
+Sale así, y se pega **tal cual**:
+
+```
+🔴 **NO CERRAR** — 20 máquinas Vast (1,3864 $/h) · 2 proceso(s) vivo(s) · 29 cambio(s) sin empujar
+🟢 **CERRABLE** — nada alquilado, nada corriendo, todo empujado
+🟡 **NO SÉ** — `vast_instance.py list` falló (¿token? ¿red?): NO sé qué hay alquilado
+```
+
+Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.json`).
+
+### Qué mira, y por qué esas tres cosas
+
+| Qué | Por qué se pierde al apagar |
+|---|---|
+| **Máquinas de Vast vivas** | **El daño que crece solo.** El proceso que las recoge muere con el server; **las máquinas no**. Siguen facturando, sin nadie que las destruya y sin nadie que se entere |
+| **Procesos de trabajo** | Flotas, vigilantes, datasets, mediciones: mueren con la máquina y hay que repetirlos |
+| **Lo no commiteado / no empujado** | «Lo que no está empujado, no existe»: un clon limpio saca `main` del remoto y punto |
+
+### Las tres decisiones que hay que respetar si se toca
+
+1. **Ante la duda dice `NO SÉ` y sale con 2, nunca «cerrable».** Si falta el token o la API no
+   contesta, no se puede saber qué hay alquilado — y un fallo silencioso que se lee como
+   permiso es justo el que cuesta dinero. Es la misma regla que el cerrojo sin dueño vivo:
+   entre un fallo ruidoso y uno silencioso, el ruidoso.
+
+2. **Distingue TUS máquinas de las de otra sesión por el `prefijo` del `WORKSPACE.json`.** Con
+   varios workspaces la cuenta es una sola (ver § «Varias sesiones a la vez»). Y por eso la
+   pista para recogerlas destruye **por etiqueta** y avisa en voz alta de **no usar
+   `destroy --all`**, que se llevaría por delante las de la otra sesión.
+
+3. **De quién es un proceso lo dice su CWD, no su línea de comando.** La flota se lanza con
+   ruta relativa, así que filtrar por la salida de `ps` da por ajenos los procesos propios
+   (medido el 2026-08-27). Se resuelve con `/proc/<pid>/cwd`.
+
+⚠ **El ejecutor lo llama con `--exit0`** porque el coordinador lee cualquier código ≠ 0 como
+«el ejecutor falló» y entonces no corre los encargados: la respuesta no llegaría a Telegram.
+El veredicto va en el **texto**, que es donde se lee. Fuera de Telegram el código de salida
+(0 cerrable · 1 no cerrar · 2 no sé) sigue sirviendo para encadenar.
 
 ## Todo barrido o estudio que termine deja su reporte en `reportes/`
 

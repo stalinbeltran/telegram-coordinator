@@ -1,0 +1,13 @@
+{
+  "name": "cerrable",
+  "command": "node scripts/cerrable.mjs --exit0 {{input}}",
+  "encargados": [
+    "echo"
+  ],
+  "timeoutMs": 120000,
+  "descripcion": "¿Se puede APAGAR este server ahora, o se pierde algo? Mira lo que se paga (máquinas de Vast vivas, que siguen facturando aunque el server muera), lo que se está ejecutando y lo que no está empujado. Si algo no se puede comprobar dice NO SÉ: nunca da permiso por no haber podido mirar.",
+  "ejemplos": [
+    "(sin texto) — el informe entero",
+    "--breve — una sola línea"
+  ]
+}
