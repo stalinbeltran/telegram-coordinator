@@ -685,6 +685,35 @@ workspace y parece que `/ws` no hizo nada. Medido el 2026-08-28.
 ⚠ **`/ws` sólo lista árboles que tengan `WORKSPACE.json`**, así que el del coordinador no sale si no
 tiene identidad. No falta nada: está escrito así en `src/workspaces.ts:155`.
 
+## ⚠ LO PRIMERO AL VOLVER (2026-08-28): verificar el AUTOMONTAJE, y ojo con el primer mensaje
+
+**Implementado y sin verificar en vivo** (`231d9ac`, tests en `4c33d72`). Desde ese commit, el
+**primer mensaje de un tema decide en qué árbol trabaja**: el primer tema que escriba se queda
+con `~/src` y no monta nada; los demás montan su `~/ws/tema-<id>` (~6 s) y quedan atados.
+
+⚠ **Y por eso esto va antes que nada: el primer mensaje que llegue tras reiniciar el bot se
+lleva el árbol del coordinador.** No hay configuración —se elige escribiendo ahí primero—, así
+que **mándalo en el tema que quieras como principal**. Si se equivoca de tema: `/ws off` en el
+que lo pilló.
+
+La lista está en **[`docs/verificar-auto-ws.md`](docs/verificar-auto-ws.md)** y son siete pasos.
+El que importa es el 5, que es el que cuesta dinero:
+
+```bash
+node scripts/cerrable.mjs     # con workspaces automáticos vacíos: tiene que salir 🟢
+```
+
+Porque el otro lado de este cambio es que **`cerrable` dejó de contar como pérdida una rama sin
+commits propios** (`scripts/git-pendiente.mjs`). Sin eso, cada tema metía 6 líneas de alarma por
+un árbol donde no se había hecho nada, y el veredicto que se lee desde el móvil se quedaba en 🔴
+para siempre. **Pero aflojarlo de más es el fallo caro**, así que el paso 5 comprueba las dos
+mitades: que un workspace vacío no avise, **y que uno con trabajo de verdad siga avisando**.
+
+⚠ **El bot necesita reinicio para tener este código** (corre con `tsx`, sin build), y **no se
+puede reiniciar desde un mensaje de Telegram**: el servicio es `KillMode=control-group` y el
+`claude` que atiende el mensaje vive en ese cgroup, así que se mataría a sí mismo a media
+respuesta. Hazlo desde otro tema con `shell`, o desde la máquina.
+
 ## ⚠ PENDIENTE AHORA MISMO (dejado el 2026-08-28): lanzar `do-v`, el estudio de `dropout`
 
 **Si estás en un server recién lanzado, esto es lo primero.** El server anterior se descartó con

@@ -212,15 +212,31 @@ node scripts/claude-session.mjs
 
 ## Un workspace por tema (`/ws`): dos temas, dos copias de los repos
 
-Por defecto **todos los temas trabajan en el árbol donde vive el coordinador**
-(`~/src`), y eso basta casi siempre. Si lo que quieres es que cada tema trabaje
-en un **repo distinto**, tampoco hace falta nada: cada ejecutor ya corre en la
-raíz del repo que lo declara, y `shell` recuerda su `cd` por tema.
+Un **workspace** es una copia de los **cinco** repos hermanos juntos, con rama y
+prefijo propios, bajo `~/ws/<línea-de-trabajo>`. Sirve para que **dos líneas de
+trabajo que tocan los mismos ficheros a la vez** —dos estudios, dos ramas— no se
+pisen.
 
-Esto hace falta sólo cuando **dos líneas de trabajo tocan los mismos ficheros a
-la vez** —dos estudios, dos ramas, dos experimentos— y no deben pisarse. Un
-**workspace** es una copia de los **cinco** repos hermanos juntos, con rama y
-prefijo propios, bajo `~/ws/<línea-de-trabajo>`.
+### Se hace solo: el primer mensaje de un tema decide su árbol
+
+No hay que montar nada a mano. Al llegar el **primer** mensaje de un tema:
+
+| Si es… | Qué pasa |
+|---|---|
+| **el primer tema que escribe** en esta máquina | se queda con el árbol del coordinador (`~/src`) y **no monta nada** |
+| **cualquier otro tema** | le monta su propio `~/ws/tema-<id>` (~6 s, los cinco repos) y lo ata |
+
+⚠ **El tema por defecto lo eliges tú escribiendo ahí primero.** No hay
+configuración: tras reiniciar el bot, el primer mensaje que llegue se lleva
+`~/src`. Si te equivocas de tema, `/ws off` en el que lo pilló.
+
+Un tema que nunca escribe **no cuesta nada**: no se montan workspaces por
+adelantado. Y si prefieres nombres con significado en vez de `tema-7`, montas el
+tuyo (`--nuevo dropout`) y lo atas con `/ws dropout`, como siempre.
+
+⚠ **Y si lo que quieres es un repo distinto por tema, no necesitas nada de
+esto**: cada ejecutor ya corre en la raíz del repo que lo declara, y `shell`
+recuerda su `cd` por tema.
 
 ⚠ **Los cinco, aunque uses uno.** Los scripts se buscan entre ellos por el
 directorio padre (`bench_dataset.py` busca el generador en `ROOT.parent`), así
@@ -277,6 +293,10 @@ existen, pone rama propia en los cinco repos, escribe `WORKSPACE.json` y deja el
   `/ws` dice **en qué árbol** corre. Cambiar uno no toca el otro.
 - **La atadura sobrevive a `/end`**: vive en `data/ws/`, que `/end` no borra.
   Cerrar la sesión suelta el ejecutor, no te muda de árbol.
+- **`/ws off` es una decisión, no una ausencia.** Un tema soltado a propósito
+  **no** se re-monta en el mensaje siguiente: por eso soltar deja rastro en
+  `data/ws/` en vez de borrar el fichero. Es la salida de emergencia, y no
+  puede depender de un estado que se borra.
 - **El estado por tema NO se muda con el workspace.** Tu `cd` de `shell` y tu
   conversación con `c` siguen donde estaban: son del tema, no del árbol.
 - **Si el repo no está en el workspace, el ejecutor se niega antes de correr**, y
