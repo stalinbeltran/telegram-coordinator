@@ -1,10 +1,9 @@
 # Verificar «el primer mensaje de un tema decide su workspace» — EN VIVO
 
 **Estado: 6 de 7 pasos VERDES el 2026-08-28.** Los temas 2 y 438 escribieron su primer
-mensaje a las 21:30 y 21:31 y montaron los suyos, así que el ciclo entero está visto en vivo.
-Falta sólo el **paso 6** (`/ws off`), y del **4** falta la última milla: el re-enraizado está
-comprobado con las ataduras reales leídas del disco, pero no con un ejecutor corriendo por
-Telegram. Lo que salió, abajo en cada paso.
+mensaje a las 21:30 y 21:31 y montaron los suyos, y a las 22:23 un ejecutor del tema 438
+confirmó que corre **en la copia**: el ciclo entero está visto en vivo. Falta sólo el
+**paso 6** (`/ws off`), que lo dispara un mensaje. Lo que salió, abajo en cada paso.
 
 Los tests (`tests/auto-workspace.test.mjs`, `tests/git-pendiente.test.mjs`) prueban la
 decisión y la política de git sin Telegram de por medio. Lo que **no** pueden probar es el
@@ -72,7 +71,25 @@ cd ~/src/telegram-coordinator && npm test
 
 Esperado: `# fail 0`, con los ficheros nuevos incluidos.
 
-**Salió:** `# tests 111 · # pass 111 · # fail 0`.
+**Salió:** `# tests 111 · # pass 111 · # fail 0`. Repetido el 2026-08-28 **dentro de un
+workspace automático** (`~/ws/tema-438`): los mismos 111.
+
+⚠ **Desde el arreglo del freno son 117**, con los seis de `tests/cerrable-casa.test.mjs`. Las
+dos medidas de arriba son de antes de ese commit, y se dejan con su número: un número medido no
+se reescribe, se fecha.
+
+⚠ **Pero ahí hay que instalar antes, y `--nuevo` no lo dice.** Un workspace recién montado no
+tiene `node_modules` —`workspace.mjs --nuevo` clona y nada más—, así que `npm test` en la copia
+falla con `Cannot find package 'tsx'`, que **parece** un fallo del código y es una dependencia
+que falta. Medido el 2026-08-28 en `~/ws/tema-438`: 13/13 ficheros de test rojos antes de
+instalar, 111/111 verdes después.
+
+```bash
+cd ~/ws/tema-<id>/telegram-coordinator && npm install && npm test
+```
+
+Es el mismo hueco que el venv de `foveal-vision`, con la diferencia de que aquél **sí** sale en
+lo que `--nuevo` imprime al terminar («lo que falta, y por qué no lo hago yo») y éste no.
 
 ### 2. El tema principal se queda con el defecto, y NO monta ✅ 2026-08-28
 
@@ -136,13 +153,39 @@ si tarda mucho más, mirar la red antes que el código.
 ```bash
 ls ~/ws/                                  # → tema-<id>
 cat ~/ws/tema-<id>/WORKSPACE.json         # → nombre, prefijo t<id>-, rama
-cat ~/src/telegram-coordinator/data/ws/*_<id>.json   # → "modo": "auto", ws apuntando ahí
+cat ~/src/telegram-coordinator/data/ws/*_<id>.json   # → "modo": "atado", ws apuntando ahí
 ```
 
-### 4. Y de verdad corre allí 🟡 la lógica sí; falta verlo por Telegram
+⚠ **`modo` NO distingue el montaje automático del `/ws` a mano**, y este documento decía
+`"auto"`, que **no existe**: `setWorkspace()` escribe `"atado"` por los dos caminos
+(`src/workspaces.ts:144-149`) y los únicos modos son `atado`, `suelto` y `defecto`. Lo que sí
+los distingue son el `que` del `WORKSPACE.json` —`tema <sid> de Telegram`, que sólo escribe
+`src/index.ts:80`— y el aviso en el log del bot. Corregido el 2026-08-28: el mismo paso 3 ya
+decía `"atado"` cuatro líneas más arriba, o sea que el documento se contradecía a sí mismo.
 
-`cwdEnWorkspace()`, alimentado con las ataduras **reales** cargadas del disco, manda cada tema a
-su árbol y no se equivoca de ninguno:
+### 4. Y de verdad corre allí ✅ 2026-08-28
+
+**Salió, por Telegram y por el camino automático.** A las 22:23 se abrió sesión con `/use c` en
+el tema 438 —que tenía workspace automático desde las 21:31— y el ejecutor recibió del
+coordinador:
+
+```
+COORD_WS      = /home/deploy/ws/tema-438
+COORD_SESSION = -1004383895505_438
+cwd           = /home/deploy/ws/tema-438/telegram-coordinator
+```
+
+Y desde ahí `node scripts/workspace.mjs` imprime `Workspace: /home/deploy/ws/tema-438` con los
+cinco repos en la rama `tema-438` y código 0. O sea: un ejecutor de verdad, atado por el
+**automontaje** y no por un `/ws` a mano, corriendo **en la copia**.
+
+⚠ **Y la decisión 4 se sostiene también aquí**:
+`DATA_DIR = /home/deploy/src/telegram-coordinator/data`, absoluto y apuntando al árbol del
+coordinador. El estado por tema —el `cd` de `shell`, la conversación de `claude`— **no** se
+mudó con el workspace, que es lo que impide que atar un tema parezca borrarle las dos cosas.
+
+Antes de esto ya estaba cubierta la lógica: `cwdEnWorkspace()`, alimentado con las ataduras
+**reales** cargadas del disco, manda cada tema a su árbol y no se equivoca de ninguno:
 
 ```
 -1004383895505_main   ws=(ninguno)   foveal-vision -> /home/deploy/src/foveal-vision
@@ -150,18 +193,9 @@ su árbol y no se equivoca de ninguno:
 -1004383895505_438    ws=~/ws/tema-438  foveal-vision -> /home/deploy/ws/tema-438/foveal-vision
 ```
 
-Tres temas, tres árboles, incluido el del propio coordinador. Con eso y el paso 4 del `/ws`
-manual ([`verificar-ws-2026-08-28.md`](verificar-ws-2026-08-28.md), que sí fue por el bot) el
-mecanismo está cubierto — lo que falta es verlo **por el bot en el camino automático**:
+Tres temas, tres árboles, incluido el del propio coordinador.
 
-```
-/use workspace     en el tema 2  →  la primera línea debe decir /home/deploy/ws/tema-2
-```
-
-⚠ Y vale la trampa de siempre: **no lo compruebes con `shell` + `pwd`** si ese tema ya tenía un
-`cd` guardado, porque el `cd` gana sobre el workspace y parece que no hizo nada.
-
-En ese tema:
+Para repetirlo en otro tema:
 
 ```
 /use workspace
@@ -170,6 +204,9 @@ En ese tema:
 
 La primera línea tiene que decir `Workspace: /home/deploy/ws/tema-<id>`. Si dice
 `/home/deploy/src`, el re-enraizado no está funcionando y ahí se para todo.
+
+⚠ Y vale la trampa de siempre: **no lo compruebes con `shell` + `pwd`** si ese tema ya tenía un
+`cd` guardado, porque el `cd` gana sobre el workspace y parece que no hizo nada.
 
 ### 5. ⚠ EL FRENO — la parte que cuesta dinero ✅ 2026-08-28
 
@@ -219,7 +256,10 @@ Ya se puede correr: el tema 2 y el 438 tienen workspace automático. Cubierto po
 tanto (`/ws off` es una DECISIÓN: el tema soltado no se re-monta solo · soltar deja rastro en
 disco, no borra el fichero), pero el test no prueba que el bot lo respete de mensaje a mensaje.
 
-⚠ **Hazlo en el 438 y no en el 2**, para no gastar el único tema atado que queda para el paso 4.
+⚠ **Da igual en cuál de los dos**: con el paso 4 ya cerrado, soltar uno no deja nada sin
+comprobar. Lo que sí conviene es **volver a atarlo después** (`/ws <nombre>`), o ese tema se
+queda trabajando en el árbol del coordinador — el automontaje no lo remonta, que es justo lo
+que este paso comprueba.
 
 En un tema con workspace automático:
 
@@ -255,16 +295,15 @@ cd ~/src/telegram-coordinator && npm test          # si pasa, el código está b
 journalctl -u telegram-coordinator -n 50 --no-pager
 ```
 
-## Lo que falta para cerrarlo: dos mensajes, en dos temas distintos
+## Lo que falta para cerrarlo: un mensaje
 
 ```
-en el tema 2     /use workspace  +  cualquier mensaje   → paso 4
-en el tema 438   /ws off  +  otro mensaje  +  /ws       → paso 6
+en el tema 2 o en el 438     /ws off  +  otro mensaje  +  /ws     → paso 6
 ```
 
-Van en temas distintos a propósito: `/ws off` suelta el tema, así que hacerlo en el 2 dejaría el
-paso 4 sin dónde correrse.
+El paso 4 se cerró solo, con el ejecutor que ya estaba corriendo en el tema 438, así que ya no
+hay que reservarle un tema atado a nada.
 
-Cuando esos dos queden verdes, marcar este documento entero como verificado —igual que
+Cuando ese quede verde, marcar este documento entero como verificado —igual que
 [`verificar-ws-2026-08-28.md`](verificar-ws-2026-08-28.md)—, y seguir con lo que estaba
 pendiente: **lanzar `do-v`** (§ «PENDIENTE AHORA MISMO» de [`../CLAUDE.md`](../CLAUDE.md)).
