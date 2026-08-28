@@ -1,8 +1,10 @@
 # Verificar «el primer mensaje de un tema decide su workspace» — EN VIVO
 
-**Estado: 4 de 7 pasos VERDES el 2026-08-28. Faltan los 3 que necesitan un tema NUEVO**
-(los pasos 3, 4 y 6: sólo los puede disparar un mensaje de Telegram, y este documento no
-puede mandarse uno a sí mismo). Lo verificado y lo que salió, abajo en cada paso.
+**Estado: 6 de 7 pasos VERDES el 2026-08-28.** Los temas 2 y 438 escribieron su primer
+mensaje a las 21:30 y 21:31 y montaron los suyos, así que el ciclo entero está visto en vivo.
+Falta sólo el **paso 6** (`/ws off`), y del **4** falta la última milla: el re-enraizado está
+comprobado con las ataduras reales leídas del disco, pero no con un ejecutor corriendo por
+Telegram. Lo que salió, abajo en cada paso.
 
 Los tests (`tests/auto-workspace.test.mjs`, `tests/git-pendiente.test.mjs`) prueban la
 decisión y la política de git sin Telegram de por medio. Lo que **no** pueden probar es el
@@ -98,12 +100,32 @@ cat ~/src/telegram-coordinator/data/ws/*_main.json     # → "modo": "defecto", 
 ls ~/ws 2>/dev/null                                    # → no debería haber nada nuevo
 ```
 
-### 3. Un tema NUEVO monta el suyo, y lo dice ⏳ PENDIENTE
+### 3. Un tema NUEVO monta el suyo, y lo dice ✅ 2026-08-28
 
-Necesita que alguien escriba en un tema nuevo desde Telegram. Lo que **sí** está medido es la
-parte cara, corriendo a mano el mismo comando que el automontaje lanza
-(`--nuevo tema-99999 --prefijo t99999- --que "…"`): **5,5 s** para los cinco clones y
-**78 MB** en disco — o sea que el «~6 s / ~78 MB» del paso 7 queda confirmado.
+**Salió, dos veces y por Telegram.** Del log del bot, con el reloj:
+
+| tema | primer mensaje | atado | tardó |
+|---|---|---|---|
+| 2 | 21:30:38 | 21:30:44 | **6 s** |
+| 438 | 21:31:07 | 21:31:13 | **6 s** |
+
+Los dos avisaron antes (`🧰 Primer mensaje de este tema: le monto su propio workspace…`) y
+después (`🧰 Workspace propio montado y atado: /home/deploy/ws/tema-N`).
+
+Y el montaje es correcto en las cinco cosas que `--nuevo` promete:
+
+- `WORKSPACE.json` con `nombre`, `rama` y **prefijo derivado del tema** — `t2-` y `t438-`,
+  distintos por construcción, que es lo único que separa las máquinas de pago de dos temas;
+- los **cinco** repos clonados, y los cinco en la rama del workspace;
+- `data/fuentes.json` apuntando **sólo** a su propio árbol;
+- el estado efímero por tema (`sessions`, `claude-sessions`, `shell-cwd`, `ws`) **borrado** en
+  la copia — sin eso, dos coordinadores creerían los dos que mandan sobre la misma conversación;
+- `data/ws/<tema>.json` en `"modo": "atado"`.
+
+⚠ **El campo `sesion` queda en `<quien>`, y aquí es lo correcto**: quien monta es el bot, que no
+es una sesión de Claude. Revisando esto salió que **tampoco se rellenaba cuando sí lo era**
+(`workspace.mjs` leía `CLAUDE_SESSION_ID`, que está vacía; la que existe es
+`CLAUDE_CODE_SESSION_ID`). Arreglado en el mismo commit que esta nota.
 
 Abre un tema nuevo y manda cualquier cosa (p. ej. `hola`).
 
@@ -117,12 +139,27 @@ cat ~/ws/tema-<id>/WORKSPACE.json         # → nombre, prefijo t<id>-, rama
 cat ~/src/telegram-coordinator/data/ws/*_<id>.json   # → "modo": "auto", ws apuntando ahí
 ```
 
-### 4. Y de verdad corre allí ⏳ PENDIENTE
+### 4. Y de verdad corre allí 🟡 la lógica sí; falta verlo por Telegram
 
-Depende del 3. El re-enraizado en sí ya salió verde para el `/ws` manual
-([`verificar-ws-2026-08-28.md`](verificar-ws-2026-08-28.md) paso 4) y la atadura la escribe el
-mismo `setWorkspace()` en los dos casos, así que lo que falta por ver es el camino automático,
-no el mecanismo.
+`cwdEnWorkspace()`, alimentado con las ataduras **reales** cargadas del disco, manda cada tema a
+su árbol y no se equivoca de ninguno:
+
+```
+-1004383895505_main   ws=(ninguno)   foveal-vision -> /home/deploy/src/foveal-vision
+-1004383895505_2      ws=~/ws/tema-2    foveal-vision -> /home/deploy/ws/tema-2/foveal-vision
+-1004383895505_438    ws=~/ws/tema-438  foveal-vision -> /home/deploy/ws/tema-438/foveal-vision
+```
+
+Tres temas, tres árboles, incluido el del propio coordinador. Con eso y el paso 4 del `/ws`
+manual ([`verificar-ws-2026-08-28.md`](verificar-ws-2026-08-28.md), que sí fue por el bot) el
+mecanismo está cubierto — lo que falta es verlo **por el bot en el camino automático**:
+
+```
+/use workspace     en el tema 2  →  la primera línea debe decir /home/deploy/ws/tema-2
+```
+
+⚠ Y vale la trampa de siempre: **no lo compruebes con `shell` + `pwd`** si ese tema ya tenía un
+`cd` guardado, porque el `cd` gana sobre el workspace y parece que no hizo nada.
 
 En ese tema:
 
@@ -136,7 +173,11 @@ La primera línea tiene que decir `Workspace: /home/deploy/ws/tema-<id>`. Si dic
 
 ### 5. ⚠ EL FRENO — la parte que cuesta dinero ✅ 2026-08-28
 
-**Salieron las dos mitades**, con un workspace montado con el comando del automontaje:
+**Repetido con el escenario de verdad**, ya con los **dos** workspaces automáticos montados —10
+repos en 10 ramas locales y dos `fuentes.json` reescritos—: `🟢 CERRABLE`, código 0. Que es el
+punto entero del arreglo: sin él serían diez avisos por dos árboles donde no se ha hecho nada.
+
+Y antes, las dos mitades sobre un workspace montado con el comando del automontaje:
 
 | Estado del workspace | Veredicto | |
 |---|---|---|
@@ -172,10 +213,13 @@ rm ~/ws/tema-<id>/foveal-vision/borrame.txt
 Esperado: `foveal-vision [tema-<id>]: 1 fichero(s) sin commitear`. **Si no avisa, el arreglo se
 pasó de frenada y el freno esconde trabajo real** — que es el fallo caro de los dos.
 
-### 6. `/ws off` no se deshace solo ⏳ PENDIENTE
+### 6. `/ws off` no se deshace solo ⏳ PENDIENTE — es lo único que queda
 
-Depende del 3. Cubierto por test mientras tanto (`/ws off` es una DECISIÓN: el tema soltado no
-se re-monta solo · soltar deja rastro en disco, no borra el fichero).
+Ya se puede correr: el tema 2 y el 438 tienen workspace automático. Cubierto por test mientras
+tanto (`/ws off` es una DECISIÓN: el tema soltado no se re-monta solo · soltar deja rastro en
+disco, no borra el fichero), pero el test no prueba que el bot lo respete de mensaje a mensaje.
+
+⚠ **Hazlo en el 438 y no en el 2**, para no gastar el único tema atado que queda para el paso 4.
 
 En un tema con workspace automático:
 
@@ -190,8 +234,9 @@ emergencia.
 
 ### 7. Un tema que no escribe no cuesta nada ✅ 2026-08-28
 
-**Salió:** con un solo tema escribiendo (el principal, que se queda con el defecto), `~/ws`
-**no existe**. Y el tamaño de un workspace, medido a mano: **78 MB**.
+**Salió, y ahora con temas de verdad:** en `~/ws` hay **exactamente** `tema-2` y `tema-438`, los
+dos que escribieron, y ni uno más — el grupo tiene más temas y ninguno ha costado un fichero.
+Antes de que escribieran, `~/ws` no existía siquiera. **78 MB** cada uno (medido).
 
 ```bash
 ls ~/ws/          # sólo los temas que HAN escrito, ni uno más
@@ -210,15 +255,16 @@ cd ~/src/telegram-coordinator && npm test          # si pasa, el código está b
 journalctl -u telegram-coordinator -n 50 --no-pager
 ```
 
-## Lo que falta para cerrarlo, y es un mensaje
+## Lo que falta para cerrarlo: dos mensajes, en dos temas distintos
 
-Los tres pasos que quedan (3, 4 y 6) los dispara **una sola acción**: escribir cualquier cosa
-en un **tema nuevo** del grupo. Ahí se ven los tres seguidos — monta y lo dice (3), `/use
-workspace` confirma el árbol (4), y `/ws off` no se deshace solo (6).
+```
+en el tema 2     /use workspace  +  cualquier mensaje   → paso 4
+en el tema 438   /ws off  +  otro mensaje  +  /ws       → paso 6
+```
 
-⚠ **El principal ya está pillado**, así que esto ya no puede robártelo: `-1004383895505_main`
-tiene el `defecto` desde las 21:21 del 2026-08-28. Cualquier tema nuevo monta el suyo.
+Van en temas distintos a propósito: `/ws off` suelta el tema, así que hacerlo en el 2 dejaría el
+paso 4 sin dónde correrse.
 
-Cuando esos tres queden verdes, marcar este documento entero como verificado —igual que
+Cuando esos dos queden verdes, marcar este documento entero como verificado —igual que
 [`verificar-ws-2026-08-28.md`](verificar-ws-2026-08-28.md)—, y seguir con lo que estaba
 pendiente: **lanzar `do-v`** (§ «PENDIENTE AHORA MISMO» de [`../CLAUDE.md`](../CLAUDE.md)).

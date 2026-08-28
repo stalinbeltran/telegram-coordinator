@@ -685,13 +685,19 @@ workspace y parece que `/ws` no hizo nada. Medido el 2026-08-28.
 ⚠ **`/ws` sólo lista árboles que tengan `WORKSPACE.json`**, así que el del coordinador no sale si no
 tiene identidad. No falta nada: está escrito así en `src/workspaces.ts:155`.
 
-## ⚠ AUTOMONTAJE: 4 de 7 pasos verdes (2026-08-28). Faltan los que piden un TEMA NUEVO
+## ⚠ AUTOMONTAJE: 6 de 7 pasos verdes (2026-08-28). Falta `/ws off` y una comprobación
 
-**Implementado (`231d9ac`, tests en `4c33d72`) y verificado a medias el 2026-08-28.** Verdes:
-los tests (111/111), que el tema principal se queda con el defecto **sin montar nada** (visto
-en el log del bot en vivo), **el freno** (§ 5, las dos mitades) y que un tema que no escribe no
-cuesta nada. Faltan los pasos **3, 4 y 6**, que sólo los dispara un mensaje en un **tema
-nuevo**; están anotados en el documento y se cierran de una vez.
+**Implementado (`231d9ac`, tests en `4c33d72`) y verificado por Telegram el 2026-08-28.** El
+ciclo entero está visto en vivo: los temas 2 y 438 escribieron su primer mensaje y montaron su
+`~/ws/tema-N` en **6 s** cada uno, con prefijos `t2-`/`t438-`, los cinco repos en su rama y el
+estado efímero borrado en la copia. El tema principal se quedó con el defecto **sin montar
+nada**, y **el freno sigue en `🟢` con los dos workspaces montados** — que era el punto del
+arreglo de `git-pendiente.mjs`. Tests 111/111.
+
+Falta el paso **6** (`/ws off` de mensaje a mensaje, cubierto por test pero no visto por el
+bot) y, del **4**, verlo por Telegram: `cwdEnWorkspace()` manda cada tema a su árbol con las
+ataduras reales, pero falta un ejecutor corriendo allí. Los dos pasos son un mensaje cada uno y
+están escritos en el documento.
 
 ⚠ **Y hay un hallazgo ABIERTO**: un montaje cortado a mitad deja el tema reintentando en cada
 mensaje **sin poder funcionar nunca** (`--nuevo` dice «ya existe», `resolverWorkspace` dice «no

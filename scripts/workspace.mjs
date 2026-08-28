@@ -115,7 +115,13 @@ function nuevo(linea, argv) {
     nombre: linea, prefijo, rama,
     creado: new Date().toISOString().slice(0, 10),
     que: opt('--que', '<una linea: que se esta haciendo aqui>'),
-    sesion: process.env.CLAUDE_SESSION_ID ?? '<quien>',
+    // ⚠ Los DOS nombres, y en este orden, igual que `sesiones.mjs`. La variable
+    // que Claude Code pone de verdad es `CLAUDE_CODE_SESSION_ID` (comprobado el
+    // 2026-08-28: `CLAUDE_SESSION_ID` está vacía), así que leer sólo la segunda
+    // dejaba este campo en `<quien>` SIEMPRE — también cuando lo montaba una
+    // sesión que sí sabía quién era. Un campo de identidad que nunca se rellena
+    // no se distingue de uno que no hace falta.
+    sesion: process.env.CLAUDE_CODE_SESSION_ID ?? process.env.CLAUDE_SESSION_ID ?? '<quien>',
   }, null, 2) + '\n');
 
   const coordNuevo = join(dest, 'telegram-coordinator');
