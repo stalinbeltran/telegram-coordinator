@@ -84,8 +84,22 @@ era la implementación, es que la brecha no es el cuello de botella.
 
 | qué | dónde |
 |---|---|
-| coste, reloj, instancias | `foveal-vision-data/sweeps/do-t/flota.json` |
-| tabla, δ, contrastes | `foveal-vision-data/sweeps/do-t/informe.json` (`estudio_informe.py --sweep do-t --vigente 0.0`) |
-| brecha val/train, `train_loss` | `foveal-vision-data/runs/do-t-*/metrics.jsonl`, época `best_epoch` de cada `summary.json` |
+| coste, reloj, instancias | `foveal-vision-data/2026/08-agosto/sweeps/do-t/flota.json` |
+| tabla, δ, contrastes | `…/sweeps/do-t/informe.json` (`estudio_informe.py --sweep do-t --vigente 0.0`) |
+| brecha val/train, `train_loss` | `…/sweeps/do-t/runs/do-t-*/metrics.jsonl`, época `best_epoch` de cada `summary.json` |
 | el criterio, escrito antes | `foveal-vision/docs/plan-dropout-2026-08-28.md` §5 y §8 |
 | log de la flota | `/tmp/estudio-dropout-tanteo.log` ⚠ **no sobrevive a rehacer la máquina**; lo que hacía falta está copiado aquí |
+
+⚠ **Las rutas de arriba cambiaron el 2026-08-28**, después de escribir este reporte: `do-t` estaba
+en la raíz plana del repo de datos y se movió a `2026/08-agosto/` (un run vive dentro de su
+recorrido). **Los números no se tocaron** — git registró los 38 ficheros como renombrados y
+`estudio_informe.py` sale idéntico antes y después.
+
+**Y por eso la forma fiable de llegar a un run es su NOMBRE, no su ruta**: `fv.artefactos`
+resuelve `do-t-0003-dropout0p1_seed2` esté donde esté, y es lo que hacen `estudio_informe.py` y
+`estudio_progreso.py`. Una ruta escrita a mano en un documento envejece; el nombre no.
+
+```bash
+cd ~/src/foveal-vision && .venv/bin/python -c "import sys;sys.path.insert(0,'src')
+from fv.training.registry import RunStore;print(RunStore().path('do-t-0000-dropout0p0_seed1'))"
+```
