@@ -7,6 +7,38 @@ no en la memoria de Claude.
 
 Commit que se verifica: **`d93a3c9` — «workspaces: un workspace por TEMA»**.
 
+---
+
+## ✅ RESULTADO: los ocho pasos, verdes (2026-08-28, 18:31→19:12 UTC)
+
+Corrido sobre el server nacido a las 18:07 UTC con `2b5b059`, **sin `~/ws`**. El detalle y lo que se
+aprendió está en [`../CLAUDE.md`](../CLAUDE.md) § «✅ VERIFICADO el 2026-08-28».
+
+| Paso | Resultado |
+|---|---|
+| 0 · `/ws` responde | ✅ el bot arrancó con el código nuevo |
+| 1 · `npm test` | ✅ `# pass 93` · `# fail 0` |
+| 2 · `--nuevo prueba` en máquina sin `~/ws` | ✅ 5 repos en rama `prueba`, prefijo `pr-`, `fuentes.json` apuntando ahí, estado efímero limpio |
+| 3 · `/ws prueba` | ✅ y la atadura quedó en `data/ws/`, no en `data/sessions/` |
+| **4 · el ejecutor corre AHÍ** | ✅ **la que justificaba relanzar**: repos en rama `prueba` y `fuentes.json` de la copia |
+| 5 · `/ws /tmp` se niega | ✅ y la atadura **sobrevivió intacta** a la negativa (`updated` sin tocar) |
+| 6 · el freno R11 | ✅ `foveal-vision [prueba]: 1 fichero(s) sin commitear` |
+| 7 · `/ws off` + `rm -rf ~/ws/prueba` | ✅ `data/ws/` vacío y la máquina de vuelta en `🟢 CERRABLE` |
+
+Dos comprobaciones **extra**, que no estaban en la lista y ahora están medidas: **dos temas del mismo
+bot en dos árboles a la vez**, y la **decisión 4** en vivo (`echo $DATA_DIR` desde el tema atado sigue
+dando el árbol del coordinador).
+
+⚠ **Y un hallazgo abierto**, sin arreglar: un `--tomar` no sobrevive a `--cerrar` + `--registrar`
+—el traspaso explícito se pierde y cae al workspace deducido del cwd, en silencio—. Está en
+`CLAUDE.md`, misma sección, con lo que se reprodujo y lo que no.
+
+⚠ **Lo que costó tiempo aquí y no era un fallo:** el paso 4 salió `/home/deploy/src` porque **se
+saltó el paso 3**. Sin atadura, correr en el árbol del coordinador es lo correcto — y es idéntico al
+síntoma del fallo que este paso busca. Mira `data/ws/` antes de dar nada por roto.
+
+---
+
 ## Qué SÍ quedó verificado antes de destruir (no hace falta repetirlo)
 
 Medido el 2026-08-28 en la máquina anterior:

@@ -612,32 +612,78 @@ Y dos sobre **dónde** se escribe, porque documentar no basta si no llega:
   nuevo hay que mandarlo a sus **dos** destinos» se lee cada vez que toca hacerlo.
   Escrita como historia, volvió a morder con el token de Vast.
 
-## ⚠ LO PRIMERO AL VOLVER (2026-08-28): verificar `/ws` — este server se destruyó PARA ESTO
+## ✅ VERIFICADO el 2026-08-28: `/ws` funciona en una máquina limpia
 
-**Si el server acaba de nacer, esto va antes que nada.** El anterior se destruyó a propósito para
-probar en una máquina limpia el commit `d93a3c9` («un workspace por TEMA»), que es lo único que no
-se podía comprobar sin un bot arrancado de cero.
+**El motivo por el que se destruyó el server anterior queda cerrado.** Se corrieron los ocho pasos de
+[`docs/verificar-ws-2026-08-28.md`](docs/verificar-ws-2026-08-28.md) sobre este server —nacido a las
+18:07 UTC con `2b5b059` y **sin `~/ws`**, que es como nace un dev— y salieron los ocho.
 
-La lista está en **[`docs/verificar-ws-2026-08-28.md`](docs/verificar-ws-2026-08-28.md)** y son ocho
-pasos, unos diez minutos. En corto, y por orden:
+Lo que de verdad se buscaba es el paso 4: con el tema atado a `~/ws/prueba`, el ejecutor corrió **en
+la copia** —los cinco repos en rama `prueba`, no `main`, y el `fuentes.json` del workspace—. El
+re-enraizado funciona a través del bot real, no sólo del arnés.
 
-```
-/ws                     ← si hay SILENCIO, el bot no tiene el código nuevo. Ahí se para todo
-npm test                ← 93/93
-/use workspace          ← --nuevo prueba --que "verificar /ws tras relanzar"
-/ws prueba
-/use workspace          ← la 1ª línea DEBE decir /home/deploy/ws/prueba, no /home/deploy/src
-```
+Y dos cosas que la lista no pedía y ahora están medidas:
 
-⚠ **Y comprueba el freno, que es el que cuesta dinero** (paso 6 del documento): `cerrable.mjs` tiene
-que nombrar el trabajo sin empujar de **otro** workspace. Si no lo nombra, diría `🟢 CERRABLE` con la
-flota de otro tema facturando.
+- **Dos temas del mismo bot en dos árboles a la vez.** El tema principal (sin atar) corrió en
+  `~/src` mientras el tema 2 corría en `~/ws/prueba`. Es justo lo que un solo coordinador no podía
+  hacer antes, y con un tema solo no se ve.
+- **La decisión 4, en vivo:** desde el tema atado, `echo $DATA_DIR` dio
+  `/home/deploy/src/telegram-coordinator/data`. El estado por tema **no** se muda con el workspace,
+  así que atar un tema no le borra el `cd` ni la conversación.
+
+⚠ **Y el freno (paso 6) nombró el trabajo del otro workspace**, que es lo que cuesta dinero si falla:
+`foveal-vision [prueba]: 1 fichero(s) sin commitear`.
+
+### Lo que hay que saber la próxima vez que se monte un workspace
+
+- **Un workspace montado fija el `🔴 NO CERRAR` mientras exista**, aunque no haya nada a medias: su
+  rama no está en el remoto y `--nuevo` deja `data/fuentes.json` modificado en la copia. Es la regla
+  aplicada bien —nombra qué se perdería—, pero conviene saberlo: un workspace de trabajo **nunca**
+  deja la máquina en verde.
+- **El aviso del documento («si dice `/home/deploy/src`, el re-enraizado no funciona») sólo vale
+  DESPUÉS de atar.** Sin `/ws <nombre>`, correr en el árbol del coordinador es lo correcto — y se
+  parece exactamente a un fallo. Pasó en esta verificación: se saltó el paso 3 y el 4 se leyó como
+  roto. `data/ws/` y el log del bot (`journalctl -u telegram-coordinator`) distinguen las dos cosas
+  en un segundo: sin fichero de atadura, no hay nada que re-enraizar.
+
+### ⚠ Hallazgo ABIERTO: un `--tomar` no sobrevive a cerrar y reabrir la sesión
+
+`scripts/sesiones.mjs:119-131` conserva el traspaso explícito cuando la sesión se **reanuda**, y eso
+funciona. Pero `--cerrar` **borra** el marcador, así que el `registrar` siguiente no tiene de quién
+heredar y cae al workspace deducido del cwd, **en silencio**.
+
+Reproducido el 2026-08-28 con una sesión de prueba:
+
+| Secuencia | Resultado |
+|---|---|
+| `--registrar` sin cierre previo (reanudar) | `workspace=~/ws/prueba` · `tomado=true` ✅ |
+| `--cerrar` y luego `--registrar` | `workspace=null` · `tomado=false` ❌ |
+
+**Dónde muerde:** cualquier cierre limpio de la sesión, y en una sesión de Telegram —que es un
+proceso `claude` por mensaje— eso puede ocurrir sin que nadie lo pida. Visto en vivo el 2026-08-28: el
+marcador de esta sesión decía `prueba` a las 18:47 y a las 18:58 se había **recreado** con
+`workspace: null` y un `desde` nuevo, o sea borrado y vuelto a crear.
+
+⚠ **Lo que NO está establecido es cada cuánto pasa.** El traspaso sobrevivió de 18:31 a 18:47, o sea
+varios mensajes, así que **no** es «uno por mensaje» y qué disparó ese `--cerrar` concreto no se
+aisló. Lo reproducido es el mecanismo, no su frecuencia.
+
+**Alcance:** sólo importa cuando el workspace tomado **no coincide** con el que se deduce del cwd, o
+sea el caso «me mudé a mitad de sesión». Un tema atado con `/ws` no lo sufre: su ejecutor ya corre
+dentro del workspace y la deducción acierta.
+
+**Sin arreglar, a propósito.** La salida más limpia sería que `--cerrar` no borre cuando
+`tomado: true` sino que marque el marcador como cerrado —el listado lo ignora, así que un cierre
+limpio sigue liberando ya— y que `registrar` pueda recuperar la decisión explícita si vuelve la misma
+sesión. Toca el mecanismo que evita que dos sesiones se pisen, así que pide su test (R17).
+
+### Las dos trampas de la verificación, que siguen valiendo
 
 ⚠ **No verifiques con `shell` + `pwd`** si el tema ya tenía un `cd`: el `cd` guardado gana sobre el
 workspace y parece que `/ws` no hizo nada. Medido el 2026-08-28.
 
-Va aquí y no en la memoria de Claude por lo de siempre: `~/.claude/` se destruye con la máquina, y
-lo que no está empujado no existe.
+⚠ **`/ws` sólo lista árboles que tengan `WORKSPACE.json`**, así que el del coordinador no sale si no
+tiene identidad. No falta nada: está escrito así en `src/workspaces.ts:155`.
 
 ## ⚠ PENDIENTE AHORA MISMO (dejado el 2026-08-28): lanzar `do-v`, el estudio de `dropout`
 
