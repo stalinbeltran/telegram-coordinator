@@ -121,7 +121,12 @@ function nuevo(linea, argv) {
     rmSync(join(coordNuevo, 'data', d), { recursive: true, force: true });
   }
 
+  // ...y esta sesión pasa a ser su dueña, sin que haya que acordarse: quien
+  // acaba de crear un workspace es exactamente quien va a trabajar en él.
+  const traspaso = sh(`node ${join(COORD, 'scripts', 'sesiones.mjs')} --tomar ${dest}`, dest);
+
   console.log(`\nListo: ${dest}`);
+  if (traspaso) console.log(`  (esta sesión ya consta como su dueña)`);
   console.log('\nLo que falta, y por qué no lo hago yo:');
   console.log(`  · el venv de foveal-vision (tarda minutos, y el preflight ya sabe):`);
   console.log(`      cd ${coordNuevo} && node scripts/bench-preflight.mjs --fix`);

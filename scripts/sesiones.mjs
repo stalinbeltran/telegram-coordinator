@@ -95,6 +95,18 @@ export function sesiones({ ahora = Date.now(), limpiar = true } = {}) {
   return out.sort((a, b) => (b.latido ?? 0) - (a.latido ?? 0));
 }
 
+/** El transcript de una sesión, buscándolo por su id. Para cuando no hay
+ *  marcador previo: el hook lo recibe por stdin, pero `--tomar` no. */
+export function transcriptDe(sesion) {
+  const raiz = join(HOME, '.claude', 'projects');
+  if (!existsSync(raiz)) return '';
+  for (const d of readdirSync(raiz)) {
+    const p = join(raiz, d, `${sesion}.jsonl`);
+    if (existsSync(p)) return p;
+  }
+  return '';
+}
+
 export function registrar({ sesion, cwd, transcript }) {
   const ws = workspaceDe(cwd) ?? workspaceDe(COORD);
   mkdirSync(REGISTRO, { recursive: true });
@@ -183,6 +195,38 @@ async function main() {
       return 0;
     }
     console.log(texto);
+    return 0;
+  }
+
+  const iTomar = args.indexOf('--tomar');
+  if (iTomar >= 0) {
+    // Mudarse de workspace SIN abrir sesión nueva. Hace falta porque el cwd de
+    // una sesión es donde arrancó, no donde acaba trabajando: ésta empezó en
+    // `~/src/telegram-coordinator` y a los diez minutos su trabajo estaba en
+    // `~/ws/fechado`. Sin esto el registro se queda apuntando al workspace que
+    // la sesión ya no toca -- y entonces avisa de un choque que no existe y
+    // calla el que sí.
+    const destino = args[iTomar + 1];
+    const sesion = process.env.CLAUDE_CODE_SESSION_ID ?? process.env.CLAUDE_SESSION_ID;
+    if (!destino || destino.startsWith('--')) {
+      console.error('Uso: node scripts/sesiones.mjs --tomar <ruta-del-workspace>');
+      return 1;
+    }
+    if (!sesion) {
+      console.error('No sé qué sesión soy: falta CLAUDE_CODE_SESSION_ID en el entorno.');
+      return 1;
+    }
+    const ws = workspaceDe(destino);
+    if (!ws) {
+      console.error(`${destino} no es un workspace: no hay WORKSPACE.json ahí ni encima.`);
+      return 1;
+    }
+    const previo = sesiones({ limpiar: false }).find((x) => x.sesion === sesion);
+    const marca = registrar({
+      sesion, cwd: ws, transcript: previo?.transcript || transcriptDe(sesion),
+    });
+    console.log(`Esta sesión pasa a ser la dueña de ${ws} (${identidad(ws)?.nombre ?? '?'}).`);
+    console.log(veredicto(marca, sesiones()));
     return 0;
   }
 

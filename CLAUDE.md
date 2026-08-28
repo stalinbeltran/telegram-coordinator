@@ -1094,6 +1094,19 @@ y en silencio**. Directorio bajo `~/ws` (no bajo `~/src`, que es donde apunta el
 los workspaces que ya existen**, `WORKSPACE.json`, `fuentes.json` apuntando aquí, y borrado del
 estado efímero por tema. No crea el venv ni arranca el bot, y dice por qué.
 
+⚠ **Y si te mudas a mitad de sesión, dilo — o hazlo con `--nuevo`, que ya lo dice por ti.**
+El cwd de una sesión es donde **arrancó**, no donde acaba trabajando: ésta empezó en
+`~/src/telegram-coordinator` y a los diez minutos su trabajo estaba en `~/ws/fechado`. Un registro
+que apunta al workspace que ya no tocas **avisa de un choque que no existe y calla el que sí**.
+
+```bash
+node scripts/sesiones.mjs --tomar ~/ws/<linea>     # esta sesión pasa a ser su dueña
+```
+
+`--nuevo` lo hace solo al terminar: quien acaba de crear un workspace es exactamente quien va a
+trabajar en él. Se identifica por `CLAUDE_CODE_SESSION_ID`, y **si no sabe qué sesión es, se
+niega** en vez de pisar el marcador de otra.
+
 Desde Telegram: `/use sesiones` y `/use workspace`.
 
 ### Las cuatro preguntas que contesta `workspace.mjs`

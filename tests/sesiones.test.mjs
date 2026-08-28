@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -174,4 +174,63 @@ test('el registro se escribe donde dice, y una vez por sesión', () => {
   registrar(m, { sesion: 'aaaa-1', cwd: ws, transcript: tr });   // reanudada
   assert.ok(existsSync(join(m.registro, 'aaaa-1.json')));
   assert.equal(readdirSync(m.registro).length, 1);
+});
+
+test('--tomar muda la sesión de workspace sin abrir otra', () => {
+  // El cwd de una sesión es donde ARRANCÓ, no donde acaba trabajando: ésta
+  // empezó en ~/src y a los diez minutos su trabajo estaba en ~/ws/fechado. Sin
+  // mudanza, el registro avisa de un choque que ya no existe y calla el que sí.
+  const m = mundo();
+  const viejo = workspace(m, 'origen', 'or-');
+  const nuevo = workspace(m, 'destino', 'de-');
+  const tr = transcript(m, 'aaaa', 0);
+  registrar(m, { sesion: 'aaaa-1', cwd: viejo, transcript: tr });
+
+  const out = execFileSync('node', [SESIONES, '--tomar', nuevo], {
+    encoding: 'utf8',
+    env: {
+      ...process.env, COORD_SESIONES_DIR: m.registro,
+      CLAUDE_CODE_SESSION_ID: 'aaaa-1',
+    },
+  });
+  assert.match(out, /dueña de .*destino/);
+
+  // el marcador apunta al nuevo, conserva su transcript, y no se duplica
+  const marca = JSON.parse(readFileSync(join(m.registro, 'aaaa-1.json'), 'utf8'));
+  assert.equal(marca.workspace, nuevo);
+  assert.equal(marca.transcript, tr);
+  assert.equal(readdirSync(m.registro).length, 1);
+
+  // ...y el workspace de origen queda libre para otra sesión
+  const otra = registrar(m, { sesion: 'bbbb-2', cwd: viejo, transcript: transcript(m, 'bbbb', 0) });
+  assert.match(otra, /Nadie más trabaja aquí/);
+});
+
+test('--tomar se niega a lo que no es un workspace, y a no saber quién es', () => {
+  const m = mundo();
+  const suelto = join(m.base, 'no-es-workspace');
+  mkdirSync(suelto, { recursive: true });
+  const correr = (env, arg) => {
+    try {
+      execFileSync('node', [SESIONES, '--tomar', arg], {
+        encoding: 'utf8', stdio: 'pipe',
+        env: { ...process.env, COORD_SESIONES_DIR: m.registro, ...env },
+      });
+      return null;
+    } catch (e) { return (e.stderr || '') + (e.stdout || ''); }
+  };
+  assert.match(correr({ CLAUDE_CODE_SESSION_ID: 'aaaa-1' }, suelto), /no es un workspace/);
+  // sin id de sesión no se inventa uno: pisaría el marcador de otra
+  const sinId = { ...process.env };
+  delete sinId.CLAUDE_CODE_SESSION_ID; delete sinId.CLAUDE_SESSION_ID;
+  const ws = workspace(m, 'algo', 'al-');
+  try {
+    execFileSync('node', [SESIONES, '--tomar', ws], {
+      encoding: 'utf8', stdio: 'pipe',
+      env: { ...sinId, COORD_SESIONES_DIR: m.registro, CLAUDE_CODE_SESSION_ID: '', CLAUDE_SESSION_ID: '' },
+    });
+    assert.fail('debería haberse negado');
+  } catch (e) {
+    assert.match((e.stderr || '') + (e.stdout || ''), /No sé qué sesión soy/);
+  }
 });
