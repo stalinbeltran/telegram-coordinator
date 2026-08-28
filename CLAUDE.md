@@ -1165,6 +1165,14 @@ se refresca, porque eso es un dato. Tiene test.
 Hay un segundo hook que borra el marcador al cerrar la sesión, para que un cierre limpio libere el
 workspace **ya** en vez de dentro de 30 minutos.
 
+⚠ **Y borra SÓLO la sesión que venga en el payload del hook, nunca la de
+`CLAUDE_CODE_SESSION_ID`.** Medido el 2026-08-28: un `claude` anidado —que es lo que lanza el
+ejecutor `c` del bot en cada mensaje— **hereda esa variable del padre**, así que con el fallback
+puesto el `SessionEnd` del hijo **borraba el marcador del padre** y liberaba un workspace que
+seguía ocupado, en silencio. Es exactamente el falso «no hay nadie» que este registro existe para
+no dar. Borrar el marcador equivocado es peor que no borrar ninguno: lo que no se borre caduca
+solo. Tiene test, y el mismo criterio vale para `--registrar --hook`.
+
 ⚠ **No es de lo que depende la caducidad, y no puede serlo.** Una sesión que muere por SIGKILL, al
 cerrar la terminal o al rehacerse la máquina **nunca corre su `SessionEnd`**. Si el borrado
 dependiera de él, un marcador huérfano bloquearía el workspace para siempre — que es exactamente

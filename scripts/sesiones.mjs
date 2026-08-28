@@ -200,8 +200,15 @@ async function main() {
     // (invocación a mano), se cae al entorno y al cwd, que sigue siendo util.
     let h = {};
     try { h = JSON.parse(leerStdin() || '{}'); } catch { /* a mano, sin stdin */ }
+    // Como hook, el id sale del payload y de ningún otro sitio (mismo motivo que
+    // `--cerrar`: un hijo heredaría el del padre y le reescribiría el marcador).
+    // A mano sí vale el entorno, porque ahí lo pide una persona.
+    const sesion = h.session_id
+      ?? (args.includes('--hook') ? null : process.env.CLAUDE_CODE_SESSION_ID)
+      ?? (args.includes('--hook') ? null : process.env.CLAUDE_SESSION_ID)
+      ?? `manual-${process.pid}`;
     const marca = registrar({
-      sesion: h.session_id ?? process.env.CLAUDE_SESSION_ID ?? `manual-${process.pid}`,
+      sesion,
       cwd: h.cwd ?? process.cwd(),
       transcript: h.transcript_path ?? '',
     });
@@ -235,10 +242,27 @@ async function main() {
     // `.resume.lock`. Lo que aporta es que un cierre limpio libere YA en vez de
     // en 30 min.
     let h = {};
-    try { h = JSON.parse(leerStdin() || '{}'); } catch { /* a mano */ }
-    const sesion = h.session_id ?? process.env.CLAUDE_CODE_SESSION_ID
-      ?? process.env.CLAUDE_SESSION_ID;
-    if (sesion && olvidar(sesion)) console.log(`sesión ${String(sesion).slice(0, 8)} liberada`);
+    try { h = JSON.parse(leerStdin() || '{}'); } catch { /* payload roto */ }
+
+    // ⚠ SÓLO el `session_id` del payload. NUNCA `CLAUDE_CODE_SESSION_ID`.
+    //
+    // Medido el 2026-08-28: un `claude` anidado (que es lo que lanza el ejecutor
+    // `c` del bot, y lo que hace esta misma sesión al probar) HEREDA la variable
+    // de entorno del padre. Con el fallback puesto, el SessionEnd del hijo
+    // borraba el marcador del PADRE -- o sea, liberaba un workspace que seguía
+    // ocupado, en silencio y sin que el padre se enterara. Es exactamente el
+    // falso «no hay nadie» que este registro existe para no dar.
+    //
+    // Borrar el marcador equivocado es peor que no borrar ninguno: lo que no se
+    // borre caduca solo por el latido del transcript. Así que sin id explícito,
+    // no se toca nada.
+    const sesion = h.session_id;
+    if (!sesion) {
+      console.log('no me dijeron qué sesión se cierra: no borro nada '
+        + '(el marcador caduca solo por su transcript).');
+      return 0;
+    }
+    if (olvidar(sesion)) console.log(`sesión ${String(sesion).slice(0, 8)} liberada`);
     return 0;
   }
 

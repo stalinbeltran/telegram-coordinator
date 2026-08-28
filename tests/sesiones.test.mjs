@@ -292,3 +292,49 @@ test('--cerrar libera el workspace, pero NO es de lo que depende la caducidad', 
     registrar(m2, { sesion: 'nueva-2', cwd: ws2, transcript: transcript(m2, 'nueva', 0) }),
     /Nadie más trabaja aquí/);
 });
+
+test('un claude ANIDADO no puede borrar el marcador de su padre', () => {
+  // MEDIDO el 2026-08-28: `--cerrar` caía a `CLAUDE_CODE_SESSION_ID` cuando el
+  // payload no traía id, y un `claude` hijo HEREDA esa variable. Resultado: el
+  // SessionEnd del hijo liberaba el workspace del PADRE, que seguía ocupado.
+  // Es justo el falso «no hay nadie» que este registro existe para no dar.
+  const m = mundo();
+  const ws = workspace(m, 'padre', 'pa-');
+  registrar(m, { sesion: 'PADRE-1', cwd: ws, transcript: transcript(m, 'padre', 0) });
+
+  const out = execFileSync('node', [SESIONES, '--cerrar'], {
+    input: '{}',                                  // el hijo no dice quién cierra
+    encoding: 'utf8',
+    env: {                                        // ...pero heredó la env del padre
+      ...process.env, COORD_SESIONES_DIR: m.registro,
+      CLAUDE_CODE_SESSION_ID: 'PADRE-1',
+    },
+  });
+  assert.match(out, /no borro nada/);
+  assert.ok(existsSync(join(m.registro, 'PADRE-1.json')), 'borró el marcador del padre');
+
+  // y con id explícito sí cierra, que es para lo que está
+  execFileSync('node', [SESIONES, '--cerrar'], {
+    input: JSON.stringify({ session_id: 'PADRE-1' }),
+    encoding: 'utf8',
+    env: { ...process.env, COORD_SESIONES_DIR: m.registro },
+  });
+  assert.ok(!existsSync(join(m.registro, 'PADRE-1.json')));
+});
+
+test('el hook tampoco registra al padre cuando quien arranca es un hijo', () => {
+  const m = mundo();
+  const ws = workspace(m, 'padre2', 'p2-');
+  registrar(m, { sesion: 'PADRE-1', cwd: ws, transcript: transcript(m, 'padre', 0) });
+
+  // hook sin session_id en el payload, con la env del padre heredada
+  execFileSync('node', [SESIONES, '--registrar', '--hook'], {
+    input: '{}', encoding: 'utf8',
+    env: {
+      ...process.env, COORD_SESIONES_DIR: m.registro,
+      CLAUDE_CODE_SESSION_ID: 'PADRE-1',
+    },
+  });
+  const marca = JSON.parse(readFileSync(join(m.registro, 'PADRE-1.json'), 'utf8'));
+  assert.equal(marca.workspace, ws, 'le reescribieron el workspace al padre');
+});
