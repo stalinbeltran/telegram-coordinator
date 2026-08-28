@@ -1,6 +1,6 @@
 # Reglas de diseño de aplicaciones
 
-**Para qué es esto.** Diecisiete reglas para decidir **cómo se parte un sistema, cómo se conectan
+**Para qué es esto.** Diecinueve reglas para decidir **cómo se parte un sistema, cómo se conectan
 sus piezas y dónde vive cada cosa**. Salen de una revisión de arquitectura de este proyecto —cinco
 repos que existen para entrenar una red— y están escritas para servir en **cualquier otro
 proyecto**: el ejemplo es de aquí, la regla no.
@@ -374,10 +374,10 @@ que es la regla de siempre: el dato vive donde se produjo.
 
 ⚠ **Este documento crece con cada fallo, como un preflight.** Cuando una decisión de estructura
 salga mal, la regla que lo habría evitado se añade aquí **en el mismo commit que el arreglo**, con
-lo que costó — y si contradice a una de las diecisiete, se corrige la vieja en vez de añadir una
+lo que costó — y si contradice a una de las diecinueve, se corrige la vieja en vez de añadir una
 excepción.
 
-⚠ **Y no se cita como autoridad.** Diecisiete reglas escritas a partir de **un** sistema, revisado
+⚠ **Y no se cita como autoridad.** Diecinueve reglas escritas a partir de **un** sistema, revisado
 **una** vez. Aciertan en lo que ese sistema ya pagó; en un proyecto con otras restricciones —un
 equipo grande, latencia dura, un binario que se distribuye— alguna sobra o se invierte. Si una regla
 no encaja, el error puede estar en la regla: dilo aquí.

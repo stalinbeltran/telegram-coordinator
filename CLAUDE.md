@@ -153,7 +153,7 @@ docs/
   WORKSPACE.ejemplo.json    plantilla de identidad de un workspace
   revision-2026-08-22.md    qué se hizo en agosto y qué documentación
                             habría ahorrado las vueltas (los ocho patrones)
-  reglas-de-diseno.md       las 17 reglas de DISEÑO de aplicaciones, por
+  reglas-de-diseno.md       las 19 reglas de DISEÑO de aplicaciones, por
                             disparador: al partir en piezas, al conectarlas,
                             al decidir dónde vive un artefacto...
   ejecutores-federados.md   propuesta: que cada repo traiga sus ejecutores
@@ -509,7 +509,7 @@ para el resto apunta.
 Y lleva un apartado de **«lo que quedó pendiente»**, que es la parte que más se pierde: un
 barrido incompleto que no dice qué le falta es indistinguible de uno terminado.
 
-## Cómo se DISEÑA aquí: las 17 reglas, y se entra por el disparador
+## Cómo se DISEÑA aquí: las 19 reglas, y se entra por el disparador
 
 Antes de proponer una estructura nueva —un repo, un módulo, una interfaz entre dos piezas, o
 dónde se guarda algo que el sistema produce— **se leen las reglas que apliquen** de
