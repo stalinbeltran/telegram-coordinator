@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, mkdir, unlink } from 'node:fs/promises';
+import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve, isAbsolute, basename, relative } from 'node:path';
 import { homedir } from 'node:os';
@@ -46,6 +46,24 @@ const dir = join(DATA_DIR, 'ws');
 // sessionId -> raíz del workspace (absoluta)
 const porSesion = new Map<string, string>();
 
+/**
+ * Qué DECIDIÓ cada tema, que no es lo mismo que dónde trabaja:
+ *
+ *   `atado`    tiene workspace propio
+ *   `defecto`  se queda con el árbol del coordinador. Lo es el PRIMER tema que
+ *              escribe, y así es como el usuario lo elige: escribiendo ahí
+ *              primero, sin nada que configurar ni que recordar
+ *   `suelto`   lo soltó a mano con `/ws off`
+ *
+ * ⚠ Los tres son DECISIONES, y por eso hay un mapa aparte del de ataduras: sin
+ * él, «suelto a propósito» y «tema que nunca ha escrito» son el mismo estado
+ * (los dos sin workspace), y el automontaje volvería a montar en el mensaje
+ * siguiente — dejando al usuario sin la salida de emergencia que `/ws off` es.
+ * Por eso `clearWorkspace` ya no borra el fichero: lo marca.
+ */
+type Modo = 'atado' | 'defecto' | 'suelto';
+const modoPorSesion = new Map<string, Modo>();
+
 /** Dónde se buscan los workspaces por nombre. Mismo nombre de variable que
  *  `scripts/sesiones.mjs`, para que las dos mitades se muevan juntas. */
 export function raizWorkspaces(): string {
@@ -66,6 +84,7 @@ export async function loadWorkspaces(): Promise<void> {
   // Se vacía primero: esto es «lee el estado del disco», no «añade». Sin esto,
   // una atadura a un workspace que ya no está sobrevivía en memoria a la recarga.
   porSesion.clear();
+  modoPorSesion.clear();
   await mkdir(dir, { recursive: true });
   let files: string[];
   try {
@@ -82,7 +101,12 @@ export async function loadWorkspaces(): Promise<void> {
       // árbol del coordinador, R2) que una ruta muerta que falla en cada mensaje.
       // El fichero NO se borra a propósito: si ese workspace se vuelve a montar
       // con el mismo nombre, el tema se re-ata solo al siguiente arranque.
-      if (data?.session && data?.ws && existsSync(data.ws)) porSesion.set(data.session, data.ws);
+      if (!data?.session) continue;
+      // El MODO se carga siempre, exista o no el directorio: es la decisión del
+      // tema, y perderla haría que el automontaje montara otro a sus espaldas.
+      // Los ficheros anteriores a esto no lo traen: si tienen `ws`, era `atado`.
+      modoPorSesion.set(data.session, (data.modo as Modo) ?? (data.ws ? 'atado' : 'suelto'));
+      if (data.ws && existsSync(data.ws)) porSesion.set(data.session, data.ws);
     } catch {
       /* ignora archivos corruptos */
     }
@@ -95,21 +119,68 @@ export function getWorkspace(session: string): string | undefined {
 
 export async function setWorkspace(session: string, ws: string): Promise<void> {
   porSesion.set(session, ws);
+  await anotar(session, ws, 'atado');
+}
+
+/**
+ * `/ws off`. NO borra el fichero: lo deja diciendo «suelto a propósito».
+ *
+ * ⚠ Borrarlo era lo que hacía antes, y con automontaje eso deja `/ws off` sin
+ * efecto: el mensaje siguiente vería un tema sin decisión y montaría otro. La
+ * salida de emergencia no puede depender de un estado que se borra.
+ */
+export async function clearWorkspace(session: string): Promise<boolean> {
+  const habia = porSesion.delete(session);
+  await anotar(session, null, 'suelto');
+  return habia;
+}
+
+/** El tema se queda con el árbol del coordinador. No monta nada. */
+export async function marcarDefecto(session: string): Promise<void> {
+  porSesion.delete(session);
+  await anotar(session, null, 'defecto');
+}
+
+async function anotar(session: string, ws: string | null, modo: Modo): Promise<void> {
+  modoPorSesion.set(session, modo);
   await mkdir(dir, { recursive: true });
   await writeFile(
     join(dir, `${sanitize(session)}.json`),
-    JSON.stringify({ session, ws, updated: new Date().toISOString() }, null, 2) + '\n',
+    JSON.stringify({ session, ws, modo, updated: new Date().toISOString() }, null, 2) + '\n',
   );
 }
 
-export async function clearWorkspace(session: string): Promise<boolean> {
-  const habia = porSesion.delete(session);
-  try {
-    await unlink(join(dir, `${sanitize(session)}.json`));
-  } catch {
-    /* no existía el archivo */
-  }
-  return habia;
+export type DecisionWs =
+  | { accion: 'nada' }
+  | { accion: 'defecto' }
+  | { accion: 'montar'; nombre: string; prefijo: string | undefined };
+
+/**
+ * Qué hay que hacer con este tema ANTES de atender su mensaje.
+ *
+ * Las cuatro reglas, y las cuatro tienen test:
+ *   1. Un tema ya decidido no se vuelve a decidir (`nada`), aunque su workspace
+ *      haya desaparecido del disco: montarle otro a sus espaldas le cambiaría el
+ *      árbol en silencio, que es el fallo caro.
+ *   2. El primero que escribe se queda con el árbol del coordinador (`defecto`).
+ *   3. Los demás montan el suyo, y sólo AL ESCRIBIR: un tema que nunca escribe
+ *      no cuesta ni un fichero.
+ *   4. `/ws off` cuenta como decisión, así que cae en la 1.
+ *
+ * No toca el disco: decidir es leer. Quien actúa es el llamante.
+ */
+export function decidirWorkspace(session: string): DecisionWs {
+  if (modoPorSesion.has(session)) return { accion: 'nada' };
+  if (![...modoPorSesion.values()].includes('defecto')) return { accion: 'defecto' };
+  const hilo = session.slice(session.lastIndexOf('_') + 1);
+  return {
+    accion: 'montar',
+    nombre: `tema-${hilo}`,
+    // Un prefijo derivado del id del tema es único por construcción, que es lo
+    // que de verdad importa: es lo ÚNICO que separa tus máquinas de pago de las
+    // de otro tema. Si el id no es numérico, que lo elija `--nuevo`.
+    prefijo: /^\d+$/.test(hilo) ? `t${hilo}-` : undefined,
+  };
 }
 
 /**

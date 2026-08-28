@@ -29,6 +29,7 @@
 import { readFileSync, existsSync, readlinkSync } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
 import { dentroDe, workspacesLocales } from './workspaces-locales.mjs';
+import { razonesGit, IGNORA_AL_MONTAR } from './git-pendiente.mjs';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
@@ -148,22 +149,14 @@ for (const { raiz } of LOCALES) {
     const p = join(raiz, r);
     if (!existsSync(p)) continue;
     const eti = `${r}${donde(raiz)}`;
-    const sucio = sh('git status --porcelain', p);
-    if (sucio === null) { dudas.push(`no pude leer el git de ${eti}`); continue; }
-    if (sucio) razones.push({ tipo: 'git', n: sucio.split('\n').length,
-      largo: `${eti}: ${sucio.split('\n').length} fichero(s) sin commitear` });
-    const rama = sh('git branch --show-current', p);
-    if (!rama) continue;
-    const sinEmpujar = sh(`git log --oneline origin/${rama}..${rama}`, p);
-    if (sinEmpujar === null) {
-      // sin upstream: la rama entera es local y se pierde
-      if (!sh(`git rev-parse --verify origin/${rama}`, p)) {
-        razones.push({ tipo: 'git', n: 1, largo: `${eti}: la rama "${rama}" no está en el remoto` });
-      }
-    } else if (sinEmpujar) {
-      razones.push({ tipo: 'git', n: sinEmpujar.split('\n').length,
-        largo: `${eti}: ${sinEmpujar.split('\n').length} commit(s) sin empujar en "${rama}"` });
-    }
+    // ⚠ `--nuevo` reescribe el `data/fuentes.json` de la COPIA para apuntarla a
+    // sí misma, así que en un workspace ese fichero sale modificado sin que
+    // nadie haya trabajado. En el árbol del coordinador NO se ignora: ahí un
+    // cambio en fuentes.json sí es un cambio.
+    const ignorar = r === 'telegram-coordinator' && raiz !== dirname(COORD) ? IGNORA_AL_MONTAR : [];
+    const { duda, razones: rs } = razonesGit(p, { ignorar });
+    if (duda) { dudas.push(`no pude leer el git de ${eti}`); continue; }
+    for (const x of rs) razones.push({ tipo: 'git', n: x.n, largo: `${eti}: ${x.texto}` });
   }
 }
 if (!razones.some((r) => r.tipo === 'git')) limpio.push('todo commiteado y empujado');

@@ -15,10 +15,17 @@ import {
   clearWorkspace,
   resolverWorkspace,
   listarWorkspaces,
+  decidirWorkspace,
+  marcarDefecto,
 } from './workspaces.js';
 import { processIncoming } from './orchestrator.js';
+import { runCommand } from './runner.js';
+import { COORD_HOME } from './config.js';
 
 const TELEGRAM_LIMIT = 4000; // margen bajo el límite real de 4096
+/** Clonar los cinco repos tardó 6 s medido el 2026-08-28; el margen es por si
+ *  la red va mal, no porque se espere tardar. */
+const TIMEOUT_MONTAJE_MS = 600_000;
 
 function sidOf(ctx: Context): string {
   return sessionId(ctx.chat!.id, ctx.message?.message_thread_id);
@@ -32,6 +39,60 @@ async function send(ctx: Context, text: string): Promise<void> {
   for (let i = 0; i < body.length; i += TELEGRAM_LIMIT) {
     await ctx.reply(body.slice(i, i + TELEGRAM_LIMIT), { message_thread_id: thread });
   }
+}
+
+/**
+ * El PRIMER mensaje de un tema decide en qué árbol trabaja, y se corre ANTES de
+ * atender ese mensaje: si no, el primero correría en el árbol equivocado.
+ *
+ *   · el primer tema que escriba se queda con el del coordinador. Así es como
+ *     el usuario lo elige —escribiendo ahí primero—, sin nada que configurar.
+ *   · los demás montan el suyo, y sólo al escribir: un tema que nunca escribe
+ *     no cuesta ni un fichero ni los ~78 MB de los cinco clones.
+ *   · un tema ya decidido no se vuelve a tocar, y `/ws off` ES una decisión.
+ *
+ * ⚠ Si el montaje falla NO se escribe decisión, así que el mensaje siguiente lo
+ * reintenta (R2: no se sigue a medias ni en silencio). Para dejar de intentarlo,
+ * `/ws off` — y por eso el aviso de error lo dice.
+ */
+async function asegurarWorkspace(ctx: Context): Promise<void> {
+  const sid = sidOf(ctx);
+  const d = decidirWorkspace(sid);
+  if (d.accion === 'nada') return;
+
+  if (d.accion === 'defecto') {
+    await marcarDefecto(sid);
+    console.log(`[WS] ${sid} se queda con el árbol del coordinador (primer tema que escribe)`);
+    return;
+  }
+
+  // Si ya está montado —reintento tras un fallo, o lo montó alguien a mano— se
+  // ata y ya: volver a clonar sobre él fallaría con «ya existe».
+  const previo = await resolverWorkspace(d.nombre);
+  if ('ws' in previo) {
+    await setWorkspace(sid, previo.ws);
+    await send(ctx, `🧰 Este tema queda atado a su workspace:\n  ${previo.ws}`);
+    return;
+  }
+
+  await send(ctx, `🧰 Primer mensaje de este tema: le monto su propio workspace "${d.nombre}" (unos segundos)…`);
+  const args = ['--nuevo', d.nombre, ...(d.prefijo ? ['--prefijo', d.prefijo] : []),
+    '--que', `tema ${sid} de Telegram`];
+  const r = await runCommand(
+    `node scripts/workspace.mjs ${args.map((a) => JSON.stringify(a)).join(' ')} 2>&1`,
+    '', {}, TIMEOUT_MONTAJE_MS, COORD_HOME,
+  );
+  const destino = await resolverWorkspace(d.nombre);
+  if (!r.ok || 'error' in destino) {
+    console.error(`❌ No se pudo montar el workspace de ${sid}:\n${r.output}`);
+    await send(ctx, `❌ No pude montarle un workspace a este tema:\n\n${r.output.slice(-1200)}\n\n` +
+      'Sigo en el árbol del coordinador y lo reintento en el próximo mensaje. ' +
+      'Para que deje de intentarlo: /ws off');
+    return;
+  }
+  await setWorkspace(sid, destino.ws);
+  await send(ctx, `🧰 Workspace propio montado y atado:\n  ${destino.ws}\n\n` +
+    'Todo lo de este tema corre ahí. Se suelta con /ws off.');
 }
 
 async function main(): Promise<void> {
@@ -146,6 +207,7 @@ async function main(): Promise<void> {
   });
 
   bot.command('use', async (ctx) => {
+    await asegurarWorkspace(ctx);
     const name = (ctx.match ?? '').trim();
     if (!name) {
       await send(ctx, 'Uso: /use <ejecutor>');
@@ -244,6 +306,9 @@ async function main(): Promise<void> {
   bot.on('message:text', async (ctx) => {
     const text = ctx.message.text;
     if (text.startsWith('/')) return; // comando no reconocido
+    // ANTES de enrutar: si no, el primer mensaje de un tema correría en el árbol
+    // del coordinador y sólo el segundo iría a donde toca.
+    await asegurarWorkspace(ctx);
     const exec = getSession(sidOf(ctx));
     if (!exec) {
       await send(ctx, 'No hay sesión activa. Usa /use <ejecutor> para empezar.');
