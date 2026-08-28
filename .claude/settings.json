@@ -22,6 +22,18 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/triage.mjs\" --hook",
+            "timeout": 10,
+            "statusMessage": "¿de qué clase es esta petición?"
+          }
+        ]
+      }
     ]
   }
 }

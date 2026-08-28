@@ -156,6 +156,8 @@ docs/
   reglas-de-diseno.md       las 19 reglas de DISEÑO de aplicaciones, por
                             disparador: al partir en piezas, al conectarlas,
                             al decidir dónde vive un artefacto...
+  agentes.md                los tres agentes (revisor/arquitecto/verificador)
+                            y el triage que OBLIGA a llamarlos
   ejecutores-federados.md   propuesta: que cada repo traiga sus ejecutores
                             y el coordinador los descubra (NO implementada)
 reportes/
@@ -508,6 +510,28 @@ para el resto apunta.
 
 Y lleva un apartado de **«lo que quedó pendiente»**, que es la parte que más se pierde: un
 barrido incompleto que no dice qué le falta es indistinguible de uno terminado.
+
+## Quién revisa cada petición: el triage OBLIGA, los agentes JUZGAN
+
+Las reglas de aquí abajo están escritas y aun así se rompen, porque una regla escrita compite con
+otras 1.400 líneas. Por eso hay dos capas, y la distinción entre ellas es todo el diseño
+([`docs/agentes.md`](docs/agentes.md)):
+
+- **`scripts/triage.mjs`** corre en el hook `UserPromptSubmit` de `.claude/settings.json`, o sea
+  **en cada mensaje y lo dispara el harness, no el modelo**. Clasifica la petición —gasto ·
+  destructivo · estructura · implementación— y dice **a qué agente hay que pasarla**. No razona:
+  casa patrones. Pone la **obligación**.
+- **Los agentes de `.claude/agents/`** ponen el **juicio**: `revisor` (¿esta petición se sostiene?
+  ¿contradice algo ya medido?), `arquitecto` (¿dónde va y cómo se conecta?, aplicando las 19
+  reglas) y `verificador` (¿es verdad lo que voy a decir que hice?).
+
+⚠ **Una consulta normal no dispara nada, y es deliberado**: un aviso que sale siempre se deja de
+leer en una semana (patrón B). Lo que pasa por revisión es cada petición que **puede hacer daño**,
+no cada petición.
+
+⚠ **El hook obliga pero no impide.** `UserPromptSubmit` inyecta contexto; el que puede **negar** una
+llamada concreta es `PreToolUse`, y **no está puesto**. Está escrito en `docs/agentes.md` § «Lo que
+este diseño NO puede hacer» para que no se dé por hecho un freno que no existe.
 
 ## Cómo se DISEÑA aquí: las 19 reglas, y se entra por el disparador
 
