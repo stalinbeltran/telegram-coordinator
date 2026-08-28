@@ -555,15 +555,79 @@ Y dos sobre **dónde** se escribe, porque documentar no basta si no llega:
   nuevo hay que mandarlo a sus **dos** destinos» se lee cada vez que toca hacerlo.
   Escrita como historia, volvió a morder con el token de Vast.
 
-## ⚠ VERIFICACIÓN PENDIENTE (dejada el 2026-08-27): ¿llegó el dataset solo?
+## ⚠ PENDIENTE AHORA MISMO (dejado el 2026-08-28): lanzar `do-v`, el estudio de `dropout`
 
-**Si estás en un server recién lanzado, esto es lo primero.** El server anterior se destruyó
-**a propósito** para comprobar una cosa: que el dataset de ventanas llega ahora **solo, por
-git**, sin renderizar nada. Hasta que se compruebe, el encargo no está cerrado.
+**Si estás en un server recién lanzado, esto es lo primero.** El server anterior se descartó con
+el tanteo ya hecho y el estudio completo **creado, commiteado y sin lanzar**. Es un comando.
 
-Va aquí y no en la memoria de Claude a propósito: `~/.claude/` se destruye con la máquina, así
-que una nota allí no sobrevive justo al evento que tiene que verificar. Es la regla de siempre —
-**lo que no está empujado, no existe**.
+Va aquí y no en la memoria de Claude a propósito: `~/.claude/` se destruye con la máquina, así que
+una nota allí no sobrevive justo al evento que tiene que sobrevivir. **Lo que no está empujado, no
+existe.**
+
+```bash
+node scripts/bench-preflight.mjs --fix     # el venv de foveal-vision NUNCA está en un dev nuevo
+cd ~/src/foveal-vision
+.venv/bin/python scripts/estudio_progreso.py --sweep do-v --tabla   # ¿queda algo por correr?
+"$COORD_HOME/scripts/desacoplar.sh" sh -c '
+set -a; [ -f "$COORD_HOME/.env" ] && . "$COORD_HOME/.env"
+[ -f "$HOME/.config/dev-secrets.env" ] && . "$HOME/.config/dev-secrets.env"; set +a
+.venv/bin/python scripts/estudio_flota.py --sweep do-v --cpu E5-26 --criba 2 \
+    --git --horas-max 8 --prefijo dr- --yes > /tmp/estudio-dropout-completo.log 2>&1
+node "$COORD_HOME/scripts/notify.mjs" "estudio completo de dropout (do-v) terminado"' &
+```
+
+**20 runs · ≈1,1 $ · ~3,5 h** al ritmo real medido (53 s/época; los 40 estimados se quedaron
+cortos). Al terminar: `estudio_informe.py --sweep do-v --vigente 0.0`, y el reporte a
+`reportes/` con su fila (regla de siempre).
+
+### Los valores del tanteo `do-t`, ya medidos — **no hay que repetirlos**
+
+Corrido el 2026-08-28 01:30→04:51 UTC, 8/8 runs, 5 máquinas, **0,3626 $**, dataset
+`dirty1000-80px-16px-r20260827`, base `ws16-p2-d2-L4`. Detalle en el reporte
+[#17](reportes/2026/08-agosto/2026-08-28-dropout-tanteo.md) y el criterio en
+[`foveal-vision/docs/plan-dropout-2026-08-28.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-dropout-2026-08-28.md).
+
+| `dropout` | f1 (media) | épocas | **brecha val/train** |
+|---:|---:|---:|---:|
+| **0,0** *(vigente, gana)* | **0,9315** | 47 · 54 | **+29,5 %** |
+| 0,25 | 0,9282 | 46 · 59 | −4,4 % |
+| 0,5 | 0,9274 | 73 · 82 | −15,7 % |
+| **0,1** *(el peor)* | **0,9129** | 34 · 35 | −2,6 % |
+
+**Lo que hay que llevarse de aquí, que no es el ranking:**
+
+1. **La brecha val/train de +28 % que motivaba todo esto queda CONFIRMADA** de forma independiente
+   sobre un dataset nuevo: **+29,5 %** con `dropout` = 0,0. La premisa era buena.
+2. **`dropout` cierra esa brecha ENTERA ya con 0,1** (+29,5 % → −2,6 %) y con 0,5 la invierte.
+   Regulariza exactamente como se diseñó. **Y el f1 baja igual, en los tres valores.** O sea: el
+   sobreajuste **no era el cuello de botella**; `patience` ya lo estaba recogiendo. Es el desenlace
+   que el plan escribió **antes** de mirar.
+3. **El `train_loss` casi se dobla** (0,0793 → 0,1480 con 0,1): la red no redistribuye capacidad,
+   **la pierde**. Con 167.852 parámetros sobre este dato no sobra red, falta.
+4. Con `weight_decay` (#14), **los dos mandos de regularización quedan cerrados** — y ahora con un
+   mecanismo medido detrás en vez de una conjetura.
+5. ⚠ **`patience` = 10 NO es neutral en este eje** (34 a 82 épocas, factor 2,4): `dropout` mete
+   ruido, la `val_loss` mejora a tirones y una `patience` fija corta antes. Parte de lo medido es
+   eso, y es la explicación más plausible de que el eje **no sea monótono**. Es un estudio propio
+   (`dropout` × `patience`) y **no se ha hecho**.
+
+⚠ **Y `do-v` NO es repetir el tanteo.** Aporta el punto **`0,05`**, que nadie ha mirado y es donde
+podría quedar una ganancia, y **5 semillas**, que bajan el `p` mínimo alcanzable de 0,333 a
+**0,0079** — lo que convierte «el vigente gana» en una declaración al 5 % en vez de una impresión.
+El rango `{0 · 0,05 · 0,1 · 0,2}` **no se elige ahora**: lo fijó la tabla que el plan escribió
+antes de mirar, y vive en `TABLA_PICO` dentro de `foveal-vision/scripts/estudio_dropout.py`.
+
+---
+
+## ✅ RESUELTO el 2026-08-28: el dataset SÍ llegó solo, por git
+
+La verificación que dejó el server del 27-ago **salió bien**. En una máquina nueva, que no
+renderizó nada, el preflight dio `[  ok  ] datasets de estudio  2 con windows.npz commiteado`, y
+el tanteo de `dropout` entrenó sobre `dirty1000-80px-16px-r20260827` sin tocar un render. **El
+`windows.npz` en git funciona**, que era justo lo que había que comprobar.
+
+Lo de abajo se conserva porque los **tres caminos** por los que un server recibe el dato siguen
+teniendo que estar en pie, y si alguno se rompe, se rompe en silencio.
 
 ```bash
 node scripts/bench-preflight.mjs        # la línea «datasets de estudio»
