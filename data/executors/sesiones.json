@@ -1,0 +1,11 @@
+{
+  "name": "sesiones",
+  "command": "node scripts/sesiones.mjs {{input}} 2>&1 | tail -c 3500",
+  "encargados": ["echo"],
+  "timeoutMs": 60000,
+  "descripcion": "¿Quién más está trabajando en esta máquina AHORA? Una sesión de Claude no deja procesos corriendo, así que `workspace` no la ve: ésta sí. La vida sale del transcript de cada sesión (ACTIVA <30 min · CALLADA <4 h), y si no puede leerlo dice NO SÉ en vez de dar por libre el workspace.",
+  "ejemplos": [
+    "(sin texto) — la tabla de sesiones y los choques",
+    "--json"
+  ]
+}

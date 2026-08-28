@@ -1,0 +1,12 @@
+{
+  "name": "workspace",
+  "command": "node scripts/workspace.mjs {{input}} 2>&1 | tail -c 3500",
+  "encargados": ["echo"],
+  "timeoutMs": 600000,
+  "descripcion": "¿En qué workspace estoy y está sano? Comprueba identidad, los 5 repos hermanos en su rama, fuentes.json y qué corre que no es mío. Con `--nuevo <linea>` MONTA uno entero (clona los 5 repos con rama y prefijo propios): es lo que hay que hacer cuando otra sesión ya ocupa éste.",
+  "ejemplos": [
+    "(sin texto) — el informe de coherencia",
+    "--nuevo stride --que \"barrer stride sobre la base vigente\"",
+    "--nuevo cierre --prefijo ci- --rama cierre-parametros"
+  ]
+}

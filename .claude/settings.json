@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/sesiones.mjs\" --registrar --hook",
+            "timeout": 15,
+            "statusMessage": "¿trabaja alguien más en este workspace?"
+          }
+        ]
+      }
+    ]
+  }
+}

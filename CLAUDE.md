@@ -130,7 +130,8 @@ scripts/
   notify.mjs           aviso a Telegram desde un proceso desacoplado
   cargar-secretos.mjs  los DOS ficheros de secretos, para lo desacoplado
   desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart)
-  workspace.mjs        ¿en qué copia estoy y está sana? (varias sesiones a la vez)
+  workspace.mjs        ¿en qué copia estoy y está sana? · `--nuevo` MONTA una
+  sesiones.mjs         ¿quién más trabaja aquí AHORA? (lo corre el hook al abrir)
   cerrable.mjs         ¿se puede APAGAR este server, o se pierde algo?
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
   bench-preflight.mjs  ¿tiene esta máquina con qué medir? (--fix arregla)
@@ -1034,7 +1035,68 @@ otra línea de trabajo. **Cada coordinador apunta al suyo:**
 ⚠ Y por lo mismo: **no metas workspaces bajo `~/src/`**, que es donde apunta el patrón por
 defecto. `~/ws/` existe justo para no heredar ese comodín.
 
-### Al abrir una sesión, cuatro preguntas antes de nada
+### Al abrir una sesión NO hay que acordarse de nada: lo dice el hook
+
+Desde el 2026-08-28 hay un **hook `SessionStart`** (en `.claude/settings.json`, commiteado para
+que viaje con el repo) que corre `scripts/sesiones.mjs --registrar --hook` y mete en el contexto
+de la sesión, antes de que escribas nada:
+
+```
+Tu sesión: 57511e85 · workspace /home/deploy/ws/fechado (fechado)
+Nadie más trabaja aquí. Adelante.
+```
+
+...o, si el workspace ya tiene dueño:
+
+```
+🔴 HAY OTRA SESIÓN EN ESTE MISMO WORKSPACE
+   0c7762b3  activa desde hace 3 min
+   → node scripts/workspace.mjs --nuevo <linea-de-trabajo>
+```
+
+**Por qué hace falta, y por qué `workspace.mjs` no bastaba:** aquél contesta *«qué PROCESOS
+corren que no son míos»*, y **una sesión de Claude leyendo y escribiendo ficheros no deja ningún
+proceso corriendo**. El 2026-08-28 dos sesiones trabajaron a la vez sobre los mismos repos; la
+segunda sólo se enteró porque el usuario se lo dijo a mano, y el choque llegó igual (un reporte
+citando rutas que la otra acababa de mover). **Que exista otra sesión tiene que ser un dato, no
+algo que alguien recuerde mencionar.**
+
+#### La regla de caducidad, que aquí no es opcional (regla 3 de escritura)
+
+Una sesión **no puede** probar que está viva con un pid: el proceso que escribe el marcador es el
+hook, que muere enseguida, y nadie va a refrescar un heartbeat. Pero **Claude Code añade a su
+transcript en cada mensaje**, así que el `mtime` del `.jsonl` es un latido que ya existe y que
+nadie tiene que mantener. El marcador guarda **dónde** está ese fichero; la vida se lee de él.
+
+| tramo | qué significa |
+|---|---|
+| **ACTIVA** (< 30 min) | ha escrito hace poco: es la que de verdad puede pisarte |
+| **CALLADA** (< 4 h) | abierta pero parada. **Sigue contando**: hay un usuario detrás |
+| **VIEJA** | se da por muerta; su marcador se borra a los 7 días |
+| **NO SÉ** | no se puede leer su transcript. **Cuenta como ocupada** |
+
+Un marcador huérfano **caduca solo**: si la sesión murió, su transcript deja de crecer. Sin dueño
+vivo, no hay cerrojo. Y el `NO SÉ` es deliberado — un falso *«no hay nadie»* es permiso para pisar
+el trabajo de otro, que es el error caro de los dos.
+
+⚠ **El hook nunca puede impedir que arranque una sesión**: sale con 0 pase lo que pase, y si no
+puede comprobar nada lo dice. Tiene test.
+
+#### Montar un workspace es UN comando
+
+```bash
+node scripts/workspace.mjs --nuevo <linea-de-trabajo> [--prefijo xx-] [--rama r] [--que "..."]
+```
+
+Hace los ocho pasos que antes se hacían a mano, y **olvidarse de uno no fallaba: fallaba a mitad
+y en silencio**. Directorio bajo `~/ws` (no bajo `~/src`, que es donde apunta el comodín de
+`fuentes.json`), los **cinco** repos, rama propia en cada uno, **prefijo libre comprobado contra
+los workspaces que ya existen**, `WORKSPACE.json`, `fuentes.json` apuntando aquí, y borrado del
+estado efímero por tema. No crea el venv ni arranca el bot, y dice por qué.
+
+Desde Telegram: `/use sesiones` y `/use workspace`.
+
+### Las cuatro preguntas que contesta `workspace.mjs`
 
 Las contesta las cuatro de una vez **`node scripts/workspace.mjs`**, que sale con código 0
 sólo si el workspace es coherente y para cada fallo imprime el comando que lo arregla:

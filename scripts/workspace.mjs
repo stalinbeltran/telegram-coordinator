@@ -18,7 +18,7 @@
 // Sale con código 0 sólo si el workspace es coherente. Cada fallo trae el
 // comando exacto que lo arregla.
 
-import { readFileSync, existsSync, readlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readlinkSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname, basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -36,6 +36,102 @@ const WS = dirname(COORD);                 // el workspace es el PADRE del coord
 const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
                'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator'];
 
+const RAIZ_WS = process.env.COORD_WS_RAIZ ?? join(process.env.HOME ?? '', 'ws');
+
+// --- `--nuevo <linea>`: montar un workspace entero de una vez ----------------
+//
+// Existe porque hacerlo a mano son ocho pasos y olvidarse de uno no falla: falla
+// a mitad y en silencio. Los ocho, y lo que cuesta saltarse cada uno:
+//   1. el directorio bajo ~/ws (NO bajo ~/src, que es donde apunta el comodín
+//      por defecto de fuentes.json y mezclaría los ejecutores de los dos)
+//   2. los CINCO repos, aunque no los uses: los scripts se buscan entre ellos
+//      por ROOT.parent, y una copia parcial falla a mitad
+//   3. una rama propia en cada uno: el remoto es de todos
+//   4. un prefijo propio: es lo ÚNICO que separa tus máquinas de pago de las de
+//      otra sesión en una cuenta que es una sola
+//   5. WORKSPACE.json en la raíz, que es donde vive esa identidad
+//   6. fuentes.json apuntando aquí y sólo aquí
+//   7. borrar el estado efímero por tema, que si no lo copiado cree que manda
+//      sobre las mismas conversaciones
+//   8. NO arrancar el bot: sólo una instancia puede hacer polling (error 409)
+function nuevo(linea, argv) {
+  const dest = join(RAIZ_WS, linea);
+  if (existsSync(dest)) {
+    console.error(`Ya existe ${dest}. Elige otro nombre o bórralo a mano.`);
+    return 1;
+  }
+  const opt = (n, d) => {
+    const i = argv.indexOf(n);
+    return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
+  };
+
+  // El prefijo NO puede repetirse: `vigilante_avance.py` decide por él qué
+  // máquinas son suyas, y dos workspaces con el mismo prefijo se destruyen las
+  // máquinas el uno al otro creyéndolas huérfanas propias.
+  const usados = new Set();
+  for (const raiz of [RAIZ_WS, join(process.env.HOME ?? '', 'src')]) {
+    for (const d of (existsSync(raiz) ? sh(`ls -1 ${raiz}`, null)?.split('\n') ?? [] : [])) {
+      const f = join(raiz, d, 'WORKSPACE.json');
+      if (existsSync(f)) { try { usados.add(JSON.parse(readFileSync(f, 'utf8')).prefijo); } catch { /* roto: no reserva nada */ } }
+    }
+    const propio = join(raiz, 'WORKSPACE.json');
+    if (existsSync(propio)) { try { usados.add(JSON.parse(readFileSync(propio, 'utf8')).prefijo); } catch { /* idem */ } }
+  }
+  let prefijo = opt('--prefijo', null);
+  if (!prefijo) {
+    const base = linea.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'ws';
+    for (const cand of [base.slice(0, 2), base.slice(0, 3), ...Array.from({ length: 9 }, (_, i) => base.slice(0, 2) + (i + 1))]) {
+      if (!usados.has(`${cand}-`)) { prefijo = `${cand}-`; break; }
+    }
+  }
+  if (!prefijo || usados.has(prefijo)) {
+    console.error(`No pude elegir un prefijo libre (usados: ${[...usados].join(', ')}). Pásalo con --prefijo xx-`);
+    return 1;
+  }
+  const rama = opt('--rama', linea);
+
+  console.log(`Creando ${dest}\n  prefijo "${prefijo}"  ·  rama "${rama}"\n`);
+  mkdirSync(dest, { recursive: true });
+  for (const r of REPOS) {
+    // el remoto se copia del clon que ya tienes, para respetar forks y
+    // credenciales; sólo se inventa la URL si aquí no está ese repo
+    const url = sh('git remote get-url origin', join(WS, r))
+      ?? `https://github.com/stalinbeltran/${r}.git`;
+    process.stdout.write(`  clonando ${r}… `);
+    if (sh(`git clone --quiet ${url} ${join(dest, r)}`, dest) === null) {
+      console.log('FALLÓ'); console.error(`  no pude clonar ${url}`); return 1;
+    }
+    sh(`git checkout -q -b ${rama}`, join(dest, r));
+    console.log(`ok (${rama})`);
+  }
+
+  writeFileSync(join(dest, 'WORKSPACE.json'), JSON.stringify({
+    nombre: linea, prefijo, rama,
+    creado: new Date().toISOString().slice(0, 10),
+    que: opt('--que', '<una linea: que se esta haciendo aqui>'),
+    sesion: process.env.CLAUDE_SESSION_ID ?? '<quien>',
+  }, null, 2) + '\n');
+
+  const coordNuevo = join(dest, 'telegram-coordinator');
+  writeFileSync(join(coordNuevo, 'data', 'fuentes.json'),
+    JSON.stringify({ fuentes: [join(dest, '*', 'telegram')] }, null, 2) + '\n');
+  // estado efímero POR TEMA de Telegram: copiado, dos coordinadores creerían los
+  // dos que mandan sobre la misma conversación
+  for (const d of ['sessions', 'claude-sessions', 'shell-cwd']) {
+    rmSync(join(coordNuevo, 'data', d), { recursive: true, force: true });
+  }
+
+  console.log(`\nListo: ${dest}`);
+  console.log('\nLo que falta, y por qué no lo hago yo:');
+  console.log(`  · el venv de foveal-vision (tarda minutos, y el preflight ya sabe):`);
+  console.log(`      cd ${coordNuevo} && node scripts/bench-preflight.mjs --fix`);
+  console.log('  · NO arranques el bot aquí: sólo una instancia puede hacer polling');
+  console.log('    por token (error 409), y tumbaría la que te contesta por Telegram.');
+  console.log(`  · di qué haces, para que la siguiente sesión lo lea:`);
+  console.log(`      "que" en ${join(dest, 'WORKSPACE.json')}`);
+  return 0;
+}
+
 const problemas = [];
 const ok = [];
 const nota = (lista, campo, detalle, arreglo) =>
@@ -44,6 +140,17 @@ const nota = (lista, campo, detalle, arreglo) =>
 function sh(cmd, cwd) {
   try { return execSync(cmd, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
   catch { return null; }
+}
+
+const iNuevo = process.argv.indexOf('--nuevo');
+if (iNuevo >= 0) {
+  const linea = process.argv[iNuevo + 1];
+  if (!linea || linea.startsWith('--')) {
+    console.error('Uso: node scripts/workspace.mjs --nuevo <linea-de-trabajo> [--prefijo xx-] [--rama r] [--que "..."]');
+    console.error('La LÍNEA DE TRABAJO, no el repo ni la fecha: "cierre", "stride", "fechado".');
+    process.exit(1);
+  }
+  process.exit(nuevo(linea, process.argv));
 }
 
 // --- 1. la identidad
