@@ -685,9 +685,20 @@ workspace y parece que `/ws` no hizo nada. Medido el 2026-08-28.
 ⚠ **`/ws` sólo lista árboles que tengan `WORKSPACE.json`**, así que el del coordinador no sale si no
 tiene identidad. No falta nada: está escrito así en `src/workspaces.ts:155`.
 
-## ⚠ LO PRIMERO AL VOLVER (2026-08-28): verificar el AUTOMONTAJE, y ojo con el primer mensaje
+## ⚠ AUTOMONTAJE: 4 de 7 pasos verdes (2026-08-28). Faltan los que piden un TEMA NUEVO
 
-**Implementado y sin verificar en vivo** (`231d9ac`, tests en `4c33d72`). Desde ese commit, el
+**Implementado (`231d9ac`, tests en `4c33d72`) y verificado a medias el 2026-08-28.** Verdes:
+los tests (111/111), que el tema principal se queda con el defecto **sin montar nada** (visto
+en el log del bot en vivo), **el freno** (§ 5, las dos mitades) y que un tema que no escribe no
+cuesta nada. Faltan los pasos **3, 4 y 6**, que sólo los dispara un mensaje en un **tema
+nuevo**; están anotados en el documento y se cierran de una vez.
+
+⚠ **Y hay un hallazgo ABIERTO**: un montaje cortado a mitad deja el tema reintentando en cada
+mensaje **sin poder funcionar nunca** (`--nuevo` dice «ya existe», `resolverWorkspace` dice «no
+tiene WORKSPACE.json»). Salidas: `/ws off`, o `rm -rf ~/ws/tema-<id>`. Detalle y por qué no se
+arregló todavía, en [`docs/verificar-auto-ws.md`](docs/verificar-auto-ws.md).
+
+Desde ese commit, el
 **primer mensaje de un tema decide en qué árbol trabaja**: el primer tema que escriba se queda
 con `~/src` y no monta nada; los demás montan su `~/ws/tema-<id>` (~6 s) y quedan atados.
 
