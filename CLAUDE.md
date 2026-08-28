@@ -612,6 +612,33 @@ Y dos sobre **dónde** se escribe, porque documentar no basta si no llega:
   nuevo hay que mandarlo a sus **dos** destinos» se lee cada vez que toca hacerlo.
   Escrita como historia, volvió a morder con el token de Vast.
 
+## ⚠ LO PRIMERO AL VOLVER (2026-08-28): verificar `/ws` — este server se destruyó PARA ESTO
+
+**Si el server acaba de nacer, esto va antes que nada.** El anterior se destruyó a propósito para
+probar en una máquina limpia el commit `d93a3c9` («un workspace por TEMA»), que es lo único que no
+se podía comprobar sin un bot arrancado de cero.
+
+La lista está en **[`docs/verificar-ws-2026-08-28.md`](docs/verificar-ws-2026-08-28.md)** y son ocho
+pasos, unos diez minutos. En corto, y por orden:
+
+```
+/ws                     ← si hay SILENCIO, el bot no tiene el código nuevo. Ahí se para todo
+npm test                ← 93/93
+/use workspace          ← --nuevo prueba --que "verificar /ws tras relanzar"
+/ws prueba
+/use workspace          ← la 1ª línea DEBE decir /home/deploy/ws/prueba, no /home/deploy/src
+```
+
+⚠ **Y comprueba el freno, que es el que cuesta dinero** (paso 6 del documento): `cerrable.mjs` tiene
+que nombrar el trabajo sin empujar de **otro** workspace. Si no lo nombra, diría `🟢 CERRABLE` con la
+flota de otro tema facturando.
+
+⚠ **No verifiques con `shell` + `pwd`** si el tema ya tenía un `cd`: el `cd` guardado gana sobre el
+workspace y parece que `/ws` no hizo nada. Medido el 2026-08-28.
+
+Va aquí y no en la memoria de Claude por lo de siempre: `~/.claude/` se destruye con la máquina, y
+lo que no está empujado no existe.
+
 ## ⚠ PENDIENTE AHORA MISMO (dejado el 2026-08-28): lanzar `do-v`, el estudio de `dropout`
 
 **Si estás en un server recién lanzado, esto es lo primero.** El server anterior se descartó con
@@ -1116,6 +1143,17 @@ remontar el workspace con el mismo nombre **re-ata el tema solo** al siguiente a
 `🟢 CERRABLE` con la flota de otro tema facturando. Ahora cuenta las máquinas, los procesos y lo no
 empujado de **todos los workspaces de la máquina** —que es lo que la pregunta *«¿se puede apagar
 este server?»* significa de verdad—, y los nombra: `foveal-vision [dropout]: 3 sin commitear`.
+
+#### Dos alternativas descartadas, para no volver a discutirlas
+
+- **Un coordinador por workspace.** Imposible sin un token por bot: sólo una instancia puede hacer
+  polling (error 409). Es lo que obliga a que el workspace sea un dato **por tema** y no del proceso.
+- **`git worktree` en vez de clones.** Sigue siendo la opción barata si llegan a hacer falta muchos
+  workspaces: un solo `.git` por repo, un `fetch` sirve para todos, y git **impide** dos worktrees
+  en la misma rama, o sea que «rama propia por workspace» dejaría de ser convención. No se hizo
+  porque `--nuevo` con clones ya funciona y el disco no aprieta (los cinco repos son ~80 MB, medido
+  el 2026-08-28, con 73 GB libres). **Lo caro no es el disco: es el venv de `foveal-vision`**, que
+  hay que rehacer por copia y no está medido.
 
 ### Los cuatro recursos que **sí** son compartidos, y cómo se reparten
 
