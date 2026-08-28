@@ -17,11 +17,20 @@
 import { execFileSync, execSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const FIX = process.argv.includes('--fix');
 const HOME = homedir();
-const SRC = join(HOME, 'src');
+
+// El árbol de repos es el PADRE de este coordinador, no `~/src` a secas.
+//
+// Con un solo árbol las dos cosas coinciden y esto no cambia nada; con varios
+// workspaces (`~/ws/<linea>/`, § «Varias sesiones a la vez») no coinciden, y
+// cablear `~/src` hacía que el preflight de un workspace comprobara —y con
+// `--fix`, ARREGLARA— los repos de OTRO. Un preflight que mira el árbol
+// equivocado es peor que ninguno: da luz verde sobre algo que no es tuyo.
+const SRC = dirname(resolve(dirname(fileURLToPath(import.meta.url)), '..'));
 const LANZADOR = join(SRC, 'digital-ocean-dropplet-auto-launching');
 const DO_API = 'https://api.digitalocean.com/v2';
 const VOLUMEN = process.env.BENCH_VOLUME || 'bench-data';
