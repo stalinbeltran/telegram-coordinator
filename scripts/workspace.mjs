@@ -25,7 +25,15 @@ import { execSync } from 'node:child_process';
 
 const COORD = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WS = dirname(COORD);                 // el workspace es el PADRE del coordinador
-const REPOS = ['foveal-vision', 'telegram-coordinator',
+// ⚠ `foveal-vision-data` va en la lista, y es el que MAS importa aqui: es donde
+// viven los runs, los recorridos y los `windows.npz` que NO se pueden re-derivar.
+// Faltaba (esta lista es anterior a la separacion de datos del 2026-08-27) y el
+// fallo era del peor tipo: silencioso y creible. Medido el 2026-08-28 -- con dos
+// informes de `patience` sin empujar en ese repo, esto imprimia
+// "todo commiteado y empujado" y el veredicto salia VERDE, o sea permiso para
+// destruir la maquina. Es exactamente la perdida que costo el `r20260824` y la
+// comparabilidad de 20 runs ya pagados.
+const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
                'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator'];
 
 const problemas = [];
