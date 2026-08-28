@@ -636,10 +636,13 @@ Y dos cosas que la lista no pedía y ahora están medidas:
 
 ### Lo que hay que saber la próxima vez que se monte un workspace
 
-- **Un workspace montado fija el `🔴 NO CERRAR` mientras exista**, aunque no haya nada a medias: su
-  rama no está en el remoto y `--nuevo` deja `data/fuentes.json` modificado en la copia. Es la regla
-  aplicada bien —nombra qué se perdería—, pero conviene saberlo: un workspace de trabajo **nunca**
-  deja la máquina en verde.
+- **Un workspace montado ya NO fija el `🔴 NO CERRAR`.** Esto fue verdad hasta el automontaje y
+  dejó de serlo con él: `git-pendiente.mjs` no cuenta como pérdida una rama **sin commits propios**,
+  y el `data/fuentes.json` que reescribe `--nuevo` se ignora **dentro** de un workspace (en el árbol
+  del coordinador sigue avisando, `scripts/cerrable.mjs:156`). Medido el 2026-08-28 con `tema-2` y
+  `tema-438` montados y la rama de éste empujada: `🟢 CERRABLE`, código 0. Lo que **sí** lo pone en
+  rojo es trabajo de verdad —un fichero sin commitear, o commits propios sin empujar—, que es
+  exactamente lo que se quiere.
 - **El aviso del documento («si dice `/home/deploy/src`, el re-enraizado no funciona») sólo vale
   DESPUÉS de atar.** Sin `/ws <nombre>`, correr en el árbol del coordinador es lo correcto — y se
   parece exactamente a un fallo. Pasó en esta verificación: se saltó el paso 3 y el 4 se leyó como
@@ -685,7 +688,7 @@ workspace y parece que `/ws` no hizo nada. Medido el 2026-08-28.
 ⚠ **`/ws` sólo lista árboles que tengan `WORKSPACE.json`**, así que el del coordinador no sale si no
 tiene identidad. No falta nada: está escrito así en `src/workspaces.ts:155`.
 
-## ⚠ AUTOMONTAJE: 6 de 7 pasos verdes (2026-08-28). Falta `/ws off` y una comprobación
+## ⚠ AUTOMONTAJE: 6 de 7 pasos verdes (2026-08-28). Falta sólo `/ws off`
 
 **Implementado (`231d9ac`, tests en `4c33d72`) y verificado por Telegram el 2026-08-28.** El
 ciclo entero está visto en vivo: los temas 2 y 438 escribieron su primer mensaje y montaron su
@@ -694,10 +697,11 @@ estado efímero borrado en la copia. El tema principal se quedó con el defecto 
 nada**, y **el freno sigue en `🟢` con los dos workspaces montados** — que era el punto del
 arreglo de `git-pendiente.mjs`. Tests 111/111.
 
-Falta el paso **6** (`/ws off` de mensaje a mensaje, cubierto por test pero no visto por el
-bot) y, del **4**, verlo por Telegram: `cwdEnWorkspace()` manda cada tema a su árbol con las
-ataduras reales, pero falta un ejecutor corriendo allí. Los dos pasos son un mensaje cada uno y
-están escritos en el documento.
+Falta **sólo** el paso **6** (`/ws off` de mensaje a mensaje, cubierto por test pero no visto
+por el bot), que es un mensaje y está escrito en el documento. El **4** se cerró el 2026-08-28 a
+las 22:23: un `/use c` en el tema 438 corrió con `COORD_WS=/home/deploy/ws/tema-438` y el cwd ya
+re-enraizado —o sea un ejecutor de verdad **en la copia**, y por el camino automático—, con
+`DATA_DIR` todavía absoluto al árbol del coordinador.
 
 ⚠ **Y hay un hallazgo ABIERTO**: un montaje cortado a mitad deja el tema reintentando en cada
 mensaje **sin poder funcionar nunca** (`--nuevo` dice «ya existe», `resolverWorkspace` dice «no
