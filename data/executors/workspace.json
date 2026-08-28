@@ -1,12 +1,16 @@
 {
   "name": "workspace",
   "command": "node scripts/workspace.mjs {{input}} 2>&1 | tail -c 3500",
-  "encargados": ["echo"],
+  "encargados": [
+    "echo"
+  ],
   "timeoutMs": 600000,
-  "descripcion": "¿En qué workspace estoy y está sano? Comprueba identidad, los 5 repos hermanos en su rama, fuentes.json y qué corre que no es mío. Con `--nuevo <linea>` MONTA uno entero (clona los 5 repos con rama y prefijo propios): es lo que hay que hacer cuando otra sesión ya ocupa éste.",
+  "descripcion": "¿En qué árbol de repos corre este tema, y está sano? Comprueba identidad, los 5 repos hermanos en su rama, fuentes.json y qué corre que no es mío. Con `--nuevo <linea>` MONTA un workspace entero (clona los 5 repos con rama y prefijo propios), para cuando quieres una línea de trabajo aparte. Montar NO ata: el tema se muda luego con `/ws <nombre>`.",
   "ejemplos": [
-    "(sin texto) — el informe de coherencia",
-    "--nuevo stride --que \"barrer stride sobre la base vigente\"",
-    "--nuevo cierre --prefijo ci- --rama cierre-parametros"
+    "(sin texto) — dónde corre este tema y si el árbol está sano",
+    "--nuevo patience --que \"tanteo pa-t\"   → monta ~/ws/patience con los 5 repos",
+    "--nuevo cierre --prefijo ci- --rama cierre-parametros   → eligiendo prefijo y rama",
+    "⚠ después de montar, en CADA tema que quieras mudar:  /ws patience",
+    "   receta entera y límites: README § «Un workspace por tema»"
   ]
 }

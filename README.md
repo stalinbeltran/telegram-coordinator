@@ -41,6 +41,7 @@ ls -a             (con sesión abierta) se ejecuta en el sistema
 /who              ejecutor activo en este tema
 /executors        lista de ejecutores
 /end              cierra la sesión
+/ws               en qué árbol de repos trabaja este tema
 /whoami           tu id de Telegram
 ```
 
@@ -208,6 +209,112 @@ coordinador. Con `definer` se fija en el encabezado con el token `timeout=<ms>`:
 exec c echo claude-watch timeout=0
 node scripts/claude-session.mjs
 ```
+
+## Un workspace por tema (`/ws`): dos temas, dos copias de los repos
+
+Por defecto **todos los temas trabajan en el árbol donde vive el coordinador**
+(`~/src`), y eso basta casi siempre. Si lo que quieres es que cada tema trabaje
+en un **repo distinto**, tampoco hace falta nada: cada ejecutor ya corre en la
+raíz del repo que lo declara, y `shell` recuerda su `cd` por tema.
+
+Esto hace falta sólo cuando **dos líneas de trabajo tocan los mismos ficheros a
+la vez** —dos estudios, dos ramas, dos experimentos— y no deben pisarse. Un
+**workspace** es una copia de los **cinco** repos hermanos juntos, con rama y
+prefijo propios, bajo `~/ws/<línea-de-trabajo>`.
+
+⚠ **Los cinco, aunque uses uno.** Los scripts se buscan entre ellos por el
+directorio padre (`bench_dataset.py` busca el generador en `ROOT.parent`), así
+que una copia con un repo suelto **no falla al empezar: falla a mitad**.
+
+### Los comandos, que son los de siempre
+
+```
+/ws               en qué workspace trabaja este tema, y cuáles hay montados
+/ws <nombre>      ata este tema a ~/ws/<nombre>
+/ws off           lo suelta: vuelve al árbol del coordinador
+/use workspace    el ejecutor que MONTA uno, y que comprueba si está sano
+```
+
+### La receta entera, de cero
+
+**Montar es una acción de la máquina; atar es del tema.** Por eso son dos cosas
+y no una: montas una vez, y atas los temas que quieras.
+
+```
+(en cualquier tema)
+/use workspace
+--nuevo patience --que "tanteo pa-t"    ← SIN barra: es un mensaje al ejecutor
+
+    Creando /home/deploy/ws/patience
+      prefijo "pa-"  ·  rama "patience"
+      clonando foveal-vision… ok (patience)
+      ...los cinco...
+    Listo: /home/deploy/ws/patience
+
+(en el tema que quieras mudar)
+/ws patience      → ✅ Este tema trabaja ahora en: /home/deploy/ws/patience
+/use c            → y ya hablas con claude, pero dentro de esa copia
+```
+
+`--nuevo` elige un **prefijo libre** comprobado contra los workspaces que ya
+existen, pone rama propia en los cinco repos, escribe `WORKSPACE.json` y deja el
+`fuentes.json` de la copia apuntando ahí. No arranca ningún bot, y dice por qué.
+
+### Comprobar que de verdad corre allí
+
+```
+/use workspace
+(cualquier mensaje)
+
+    Workspace: /home/deploy/ws/patience  (patience)
+    [  ok  ] repo   foveal-vision en "patience"      ← si dice "main", no ataste
+    ...
+```
+
+### Lo que conviene saber
+
+- **`/use` y `/ws` son ortogonales.** `/use` dice **qué programa** te atiende;
+  `/ws` dice **en qué árbol** corre. Cambiar uno no toca el otro.
+- **La atadura sobrevive a `/end`**: vive en `data/ws/`, que `/end` no borra.
+  Cerrar la sesión suelta el ejecutor, no te muda de árbol.
+- **El estado por tema NO se muda con el workspace.** Tu `cd` de `shell` y tu
+  conversación con `c` siguen donde estaban: son del tema, no del árbol.
+- **Si el repo no está en el workspace, el ejecutor se niega antes de correr**, y
+  te dice las dos salidas: clonar el repo, o `/ws off`. No cae al árbol original,
+  que sería correr con otra rama sin avisar.
+- **Un tema sin atar sigue en `~/src`**, y no pasa nada: no hace falta un
+  workspace por tema.
+
+### Límites conocidos (medidos el 2026-08-28)
+
+- **El `cd` guardado de `shell` gana sobre el workspace.** Si ese tema ya tenía un
+  `cd`, seguirás ahí después de atar y parecerá que `/ws` no hizo nada. Es
+  coherente —el `cd` es explícito y más específico—, pero por eso la comprobación
+  se hace con `workspace` y no con `shell` + `pwd`.
+- **`/ws` sólo lista árboles que tengan `WORKSPACE.json`**, así que el del propio
+  coordinador no sale si no tiene identidad. No falta nada.
+- **La atadura es efímera**: `data/ws/` está en `.gitignore`, así que al rehacer
+  la máquina se pierde (igual que el `cd` y los markers de `claude`). Lo que
+  sobrevive es el **id del tema**; por eso `/ws` acepta el **nombre**, y remontar
+  el workspace con el mismo nombre **re-ata el tema solo** al siguiente arranque.
+- **Un workspace montado deja `cerrable` en 🔴 mientras exista**, aunque no haya
+  nada a medias: su rama no está en el remoto. Es correcto —nombra qué se
+  perdería—, pero un workspace de trabajo nunca deja la máquina en verde.
+- **`/executors` es único para todo el bot**: se descubre desde `~/src`. Un
+  ejecutor que exista **sólo** dentro de un workspace no aparece.
+- **No arranques un segundo bot en la copia**: sólo una instancia puede hacer
+  polling por token (error 409). Un workspace se copia para trabajar en el
+  código, no para servir.
+- **El `.venv` de `foveal-vision` hay que rehacerlo por copia** (`/use preflight`
+  → `--fix` con el tema ya atado). Los repos son ~80 MB; el venv es lo caro.
+
+### La regla que manda sobre todas
+
+Si ves algo roto que pertenece a **otro** workspace: **dilo, no lo arregles**. No
+edites fuera del tuyo, no mates procesos que no lanzaste (`pkill -f estudio_flota`
+mata los de todos los workspaces) y no destruyas máquinas cuya etiqueta no sea tu
+prefijo. No es un conflicto de git recuperable: es trabajo destruido en caliente,
+sin síntoma hasta que a alguien le fallan los números.
 
 ## Ejecutor `shell`: el `cd` persiste por tema
 
