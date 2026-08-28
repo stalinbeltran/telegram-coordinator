@@ -202,6 +202,54 @@ async function main() {
     }
   }
 
+  // 5 bis. El venv de `foveal-vision`, que es la diferencia entre "el repo está"
+  //    y "el repo puede correr".
+  //
+  //    ⚠ Ésta es exactamente la regla 5 del proyecto ("un preflight comprueba
+  //    estado utilizable, no presencia") aplicada al fallo que la destapó otra
+  //    vez. Medido el 2026-08-28 en esta máquina, lanzada con `lanzar launch
+  //    dev`: los cuatro repos estaban, el token estaba, el dataset había llegado
+  //    por git... y el preflight imprimía **"Todo listo: se puede medir"** con
+  //    `foveal-vision/.venv` inexistente. `cloud-init` clona los repos pero no
+  //    crea venvs, así que en un dev recién hecho NUNCA está.
+  //
+  //    Y falla tarde y feo: `estudio_flota.py`, `bench_fleet.py` y
+  //    `estudio_*.py` se invocan todos como `.venv/bin/python ...` (así están
+  //    escritos los ejecutores de Telegram y los planes), así que desde Telegram
+  //    el síntoma es un `No such file or directory` sin más contexto.
+  //
+  //    Se comprueba IMPORTANDO, no mirando si el directorio existe: un venv a
+  //    medias (creado y con el `pip install` cortado) tiene `bin/python` y no
+  //    tiene torch, y ése es el estado que se descubre a mitad.
+  const fvVenv = join(SRC, 'foveal-vision', '.venv', 'bin', 'python');
+  const cmdVenv = `${fvVenv} -c "import torch, numpy, yaml; import sys; ` +
+    `sys.path.insert(0, 'src'); import fv; print(torch.__version__)"`;
+  const venvOk = existsSync(fvVenv)
+    && intenta(cmdVenv, { cwd: join(SRC, 'foveal-vision') });
+  if (venvOk && venvOk.ok) {
+    anota('OK', 'venv de foveal-vision', `torch ${venvOk.salida.trim()} · fv importable`);
+  } else {
+    const comoArreglarlo =
+      'cd ~/src/foveal-vision && python3 -m venv .venv \\\n' +
+      '  && .venv/bin/python -m pip install -q --index-url https://download.pytorch.org/whl/cpu torch \\\n' +
+      '  && .venv/bin/python -m pip install -q -e ".[api,dev]"';
+    if (FIX) {
+      // Tarda minutos (torch son ~900 MB descomprimidos). El índice CPU es
+      // deliberado: la rueda por defecto arrastra CUDA (~2,5 GB) y aquí se
+      // entrena en CPU o no se entrena -- quien entrena de verdad es la máquina
+      // alquilada, que se monta su propio entorno.
+      const r = intenta(comoArreglarlo, { cwd: SRC, timeout: 900000 });
+      if (r.ok) anota('ARREGLADO', 'venv de foveal-vision', 'creado con torch CPU');
+      else anota('FALTA', 'venv de foveal-vision', r.salida, comoArreglarlo);
+    } else {
+      anota('FALTA', 'venv de foveal-vision',
+        existsSync(fvVenv)
+          ? 'existe .venv pero no importa torch/numpy/fv (instalación a medias)'
+          : 'no existe ~/src/foveal-vision/.venv',
+        comoArreglarlo);
+    }
+  }
+
   // 6. El volumen del dataset del benchmark de vCPU.
   //
   //    ⚠ Desde el 2026-08-27 esto YA NO BLOQUEA, y el motivo importa: el dato
