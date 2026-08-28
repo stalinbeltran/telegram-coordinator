@@ -202,8 +202,18 @@ async function main() {
     }
   }
 
-  // 6. El dataset. Es lo caro: se genera con Chromium y mil renders. Vive en un
-  //    volumen justo para no repetirlo en cada máquina nueva.
+  // 6. El volumen del dataset del benchmark de vCPU.
+  //
+  //    ⚠ Desde el 2026-08-27 esto YA NO BLOQUEA, y el motivo importa: el dato
+  //    vive en git (`foveal-vision-data/window-datasets/`) y `bench_fleet.py`
+  //    lo publica desde ahí, así que se puede medir sin volumen ninguno. El
+  //    volumen quedó como caché para máquinas que lo tengan montado.
+  //
+  //    Un preflight que bloquea por algo que no impide medir enseña a saltarse
+  //    el preflight, y entonces deja de servir para lo que sí bloquea.
+  const dsEnGit = existsSync(join(SRC, 'foveal-vision-data', 'window-datasets'))
+    && intenta(`ls ${join(SRC, 'foveal-vision-data', 'window-datasets')}/*/windows.npz`).ok;
+  const nivelVolumen = dsEnGit ? 'AVISO' : 'FALTA';
   let volumen = null;
   if (token) {
     try {
@@ -225,17 +235,18 @@ async function main() {
     const tam = (statSync(join(MNT, ARTEFACTOS[0])).size / 1e6).toFixed(1);
     anota('OK', 'dataset', `${MNT} montado, windows.npz ${tam} MB, huella ${huella}…`);
   } else if (montado) {
-    anota('FALTA', 'dataset', `${MNT} está montado pero vacío o incompleto`,
+    anota(nivelVolumen, 'dataset', `${MNT} está montado pero vacío o incompleto`,
       'Generarlo una vez (tarda, usa Chromium):\n' +
       '      cd ~/src/foveal-vision && python3 scripts/bench_dataset.py');
   } else if (volumen && volumen.droplet_ids?.length && meta && volumen.droplet_ids.includes(meta.droplet_id)) {
-    anota('FALTA', 'dataset', `el volumen '${VOLUMEN}' está conectado pero no montado`,
+    anota(nivelVolumen, 'dataset', `el volumen '${VOLUMEN}' está conectado pero no montado`,
       `cd ~/src/digital-ocean-dropplet-auto-launching && python3 scripts/do_droplet.py volume attach ${VOLUMEN}`);
   } else if (volumen) {
-    anota('FALTA', 'dataset', `el volumen '${VOLUMEN}' existe (${volumen.size_gigabytes} GB en ${volumen.region.slug}) pero no está en esta máquina`,
+    anota(nivelVolumen, 'dataset', `el volumen '${VOLUMEN}' existe (${volumen.size_gigabytes} GB en ${volumen.region.slug}) pero no está en esta máquina`,
       `cd ~/src/digital-ocean-dropplet-auto-launching && python3 scripts/do_droplet.py volume attach ${VOLUMEN} --droplet ${meta?.hostname || '<este droplet>'}`);
   } else {
-    anota('FALTA', 'dataset', `no existe el volumen '${VOLUMEN}' en la cuenta`,
+    anota(nivelVolumen, 'dataset', `no existe el volumen '${VOLUMEN}' en la cuenta`,
+      (dsEnGit ? 'Opcional: el dato ya está en git y bench_fleet lo publica desde ahí.\n    ' : '') +
       'cd ~/src/digital-ocean-dropplet-auto-launching\n' +
       `      python3 scripts/do_droplet.py volume create ${VOLUMEN} --size-gb 10 --region ${region}\n` +
       `      python3 scripts/do_droplet.py volume attach ${VOLUMEN} --droplet ${meta?.hostname || '<este droplet>'}\n` +

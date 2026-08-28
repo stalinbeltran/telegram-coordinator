@@ -572,8 +572,19 @@ ls -la ~/src/foveal-vision-data/window-datasets/*/windows.npz
 
 | Qué tiene que salir | Qué significa |
 |---|---|
-| `[  ok  ] datasets de estudio   N con windows.npz commiteado` | ✅ **funcionó**: el dato viajó por git a una máquina que nunca renderizó nada |
+| `[  ok  ] datasets de estudio   2 con windows.npz commiteado` | ✅ **funcionó**: el dato viajó por git a una máquina que nunca renderizó nada |
 | `[ aviso] … NINGUNO con windows.npz (sólo manifest/split)` | ❌ el `.npz` no llegó al remoto — mirar si el commit del dato se empujó |
+
+Los dos que tienen que estar, empujados el 2026-08-28 (~2,2 MB cada uno):
+`bench-dirty1000-16-r20260827` (benchmark de vCPU) y `dirty1000-80px-16px-r20260827`
+(estudios). Y el preflight entero debe salir con **código 0** — el volumen `bench-data` ya
+**no** bloquea, porque el dato viene de git.
+
+⚠ **Los `-r20260827` llevan la época de render porque son datos NUEVOS.** Al reconstruir,
+`bench_dataset.py build` **abortó solo**: la huella recién construida no coincidía con la del
+manifest commiteado (`6268a2f5…` contra `c2b51245…`). Es la tercera confirmación independiente
+de que reconstruir no devuelve el dataset. El `r20260826` se queda con su manifest y **sin npz**:
+ese dato se perdió y no vuelve.
 
 Y las tres comprobaciones que lo cierran del todo:
 
