@@ -234,3 +234,61 @@ test('--tomar se niega a lo que no es un workspace, y a no saber quién es', () 
     assert.match((e.stderr || '') + (e.stdout || ''), /No sé qué sesión soy/);
   }
 });
+
+test('un --tomar SOBREVIVE a que la sesión se reanude', () => {
+  // MEDIDO el 2026-08-28 con el hook ya en marcha: esta sesión hizo `--tomar`,
+  // se reanudó, y el `--registrar` del SessionStart reescribió el marcador con
+  // el workspace deducido del cwd -- borrando la mudanza en silencio. Una
+  // decisión explícita no la pisa una inferida.
+  const m = mundo();
+  const origen = workspace(m, 'donde-arranque', 'da-');
+  const real = workspace(m, 'donde-trabajo', 'dt-');
+  const tr = transcript(m, 'aaaa', 0);
+
+  registrar(m, { sesion: 'aaaa-1', cwd: origen, transcript: tr });
+  execFileSync('node', [SESIONES, '--tomar', real], {
+    encoding: 'utf8',
+    env: { ...process.env, COORD_SESIONES_DIR: m.registro, CLAUDE_CODE_SESSION_ID: 'aaaa-1' },
+  });
+
+  // ...la sesión se reanuda: el hook vuelve a registrar con el cwd VIEJO
+  const out = registrar(m, { sesion: 'aaaa-1', cwd: origen, transcript: tr });
+  assert.match(out, /donde-trabajo/);
+  assert.match(out, /tomado a mano/);
+  assert.equal(JSON.parse(readFileSync(join(m.registro, 'aaaa-1.json'), 'utf8')).workspace, real);
+
+  // y una sesión que NO tomó nada sí sigue el cwd
+  const out2 = registrar(m, { sesion: 'bbbb-2', cwd: origen, transcript: transcript(m, 'bbbb', 0) });
+  assert.match(out2, /donde-arranque/);
+});
+
+test('--cerrar libera el workspace, pero NO es de lo que depende la caducidad', () => {
+  const m = mundo();
+  const ws = workspace(m, 'cierre', 'ce-');
+  const tr = transcript(m, 'aaaa', 0);
+  registrar(m, { sesion: 'aaaa-1', cwd: ws, transcript: tr });
+
+  // otra sesión la ve mientras está viva
+  assert.match(
+    registrar(m, { sesion: 'bbbb-2', cwd: ws, transcript: transcript(m, 'bbbb', 0) }),
+    /HAY OTRA SESIÓN/);
+
+  execFileSync('node', [SESIONES, '--cerrar'], {
+    input: JSON.stringify({ session_id: 'aaaa-1' }),
+    encoding: 'utf8',
+    env: { ...process.env, COORD_SESIONES_DIR: m.registro },
+  });
+  assert.ok(!existsSync(join(m.registro, 'aaaa-1.json')));
+
+  // ⚠ y lo que NO puede pasar: que SIN --cerrar quede bloqueado para siempre.
+  // Una sesión matada a SIGKILL (o la máquina rehecha) nunca corre su
+  // SessionEnd, así que la caducidad por transcript sigue siendo EL mecanismo;
+  // esto sólo la adelanta. Mundo aparte para que no lo enturbie nadie más.
+  const m2 = mundo();
+  const ws2 = workspace(m2, 'muerta-sin-cerrar', 'ms-');
+  registrar(m2, { sesion: 'zombi-1', cwd: ws2, transcript: transcript(m2, 'zombi', 9 * 60) });
+  assert.ok(existsSync(join(m2.registro, 'zombi-1.json')));   // su marcador SIGUE ahí
+  assert.match(
+    registrar(m2, { sesion: 'nueva-2', cwd: ws2, transcript: transcript(m2, 'nueva', 0) }),
+    /Nadie más trabaja aquí/);
+});
