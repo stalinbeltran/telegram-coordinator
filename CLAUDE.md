@@ -463,6 +463,37 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    ruta relativa, así que filtrar por la salida de `ps` da por ajenos los procesos propios
    (medido el 2026-08-27). Se resuelve con `/proc/<pid>/cwd`.
 
+4. **El veredicto NO puede depender de desde dónde preguntes** — y dependía. `cerrable.mjs` se
+   **copia con el workspace**, así que desde que un tema re-enraíza sus comandos, `/use cerrable`
+   ejecuta la copia de `~/ws/tema-N/telegram-coordinator/scripts/`. El script deducía de su propia
+   ubicación en disco (el antipatrón de la **R4**) las dos cosas que decide, y las dos se daban la
+   vuelta al correr desde una copia. Medido el 2026-08-28, mismo instante y misma máquina, con un
+   cambio real sin commitear en `~/src/telegram-coordinator`:
+
+   | Se pregunta desde | Decía | |
+   |---|---|---|
+   | `~/src` | `🔴 NO CERRAR` | correcto |
+   | `~/ws/tema-2` | **`🟢 CERRABLE`** | **permiso para destruir la máquina** |
+
+   - **Qué árboles mira:** `dirname(COORD)` pasaba a ser el workspace, así que **el árbol de casa
+     no entraba en la lista** y su trabajo sin empujar era invisible. Es el falso verde, o sea el
+     único fallo de este script que cuesta dinero.
+   - **Qué ignora:** el `data/fuentes.json` que reescribe `--nuevo` se ignoraba si el árbol «no era
+     desde donde preguntas». Desde dentro dejaba de ignorarse (🔴 permanente por un árbol vacío: el
+     aviso que sale siempre y se deja de leer) y en cambio **sí** se ignoraba el de casa, donde un
+     cambio ahí es un cambio de verdad.
+
+   Casa se **declara** con `COORD_HOME` —que el coordinador pasa a todo comando y **no**
+   re-enraíza (`src/orchestrator.ts`)— y sólo se deduce del disco cuando el script no está dentro
+   de un workspace montado. Si corre desde una copia y nadie se lo dijo, **dice `NO SÉ`** en vez de
+   inventárselo. Y lo que se ignora es «este árbol es un workspace **montado**» (tiene
+   `WORKSPACE.json`), que no cambia según quién pregunte. Seis tests en
+   `tests/cerrable-casa.test.mjs`; cinco de los seis fallan con el código anterior.
+
+   ⚠ **Y la lección general, que es la que se repite:** todo script que se copie con el workspace
+   y hable del **conjunto** de la máquina tiene este fallo latente. `dirname(COORD)` es «dónde
+   estoy», nunca «dónde está casa».
+
 ⚠ **El ejecutor lo llama con `--exit0`** porque el coordinador lee cualquier código ≠ 0 como
 «el ejecutor falló» y entonces no corre los encargados: la respuesta no llegaría a Telegram.
 El veredicto va en el **texto**, que es donde se lee. Fuera de Telegram el código de salida

@@ -39,9 +39,33 @@ const COORD = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 // causa de que todos los temas compartieran un árbol -- ver src/workspaces.ts.
 const WS = process.env.COORD_WS ? resolve(process.env.COORD_WS) : dirname(COORD);
 
-// El árbol del coordinador cuenta SIEMPRE; el del tema también, por si `/ws`
-// apunta fuera de `~/ws`.
-const LOCALES = workspacesLocales([dirname(COORD), WS]);
+/**
+ * El árbol de CASA: donde vive el coordinador que corre de verdad.
+ *
+ * ⚠ NO es `dirname(COORD)`. Este script se copia con el workspace, y desde que
+ * un tema de Telegram re-enraíza sus comandos, `/use cerrable` ejecuta LA COPIA
+ * de `~/ws/tema-N/telegram-coordinator/scripts/`. Deducir casa de dónde está el
+ * fichero es el antipatrón de la R4, y aquí el precio fue el peor posible:
+ * preguntando desde un tema con workspace, `~/src` NO ENTRABA en la lista, así
+ * que el trabajo sin empujar de casa era invisible. Medido el 2026-08-28, mismo
+ * instante y con un cambio real sin commitear en ~/src/telegram-coordinator:
+ * desde `~/src` daba 🔴 y desde `~/ws/tema-2` daba 🟢 — permiso para destruir.
+ *
+ * Se DECLARA con `COORD_HOME`, que el coordinador pasa a todo comando y que NO
+ * se re-enraíza (`src/orchestrator.ts`), y sólo se deduce del disco cuando este
+ * script no está dentro de un workspace montado — que es el caso de la consola.
+ * Si corre desde una copia y nadie le dijo dónde está casa, no se lo inventa:
+ * lo dice, y eso cae en NO SÉ. Entre un fallo ruidoso y uno silencioso, el
+ * ruidoso.
+ */
+const enCopia = existsSync(join(dirname(COORD), 'WORKSPACE.json'));
+const CASA = process.env.COORD_HOME
+  ? dirname(resolve(process.env.COORD_HOME))
+  : (enCopia ? null : dirname(COORD));
+
+// El árbol de casa cuenta SIEMPRE; el de este script y el del tema también, por
+// si `/ws` apunta fuera de `~/ws`.
+const LOCALES = workspacesLocales([CASA, dirname(COORD), WS]);
 /** Cómo se nombra un árbol en el informe: sólo estorba si hay uno solo. */
 const donde = (raiz) => (LOCALES.length > 1 ? ` [${LOCALES.find((l) => l.raiz === raiz)?.nombre ?? basename(raiz)}]` : '');
 const BREVE = process.argv.includes('--breve');
@@ -66,6 +90,12 @@ const TRABAJOS = /estudio_flota\.py|vigilante_avance\.py|vigilante_prioridades\.
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar
+if (CASA === null) {
+  dudas.push(
+    'corro desde una copia dentro de un workspace y nadie me pasó COORD_HOME: ' +
+    'NO sé dónde está el árbol de casa del coordinador, así que no puedo mirar ' +
+    'si le queda algo sin empujar');
+}
 const limpio = [];    // lo que sí está en orden
 
 function sh(cmd, cwd, env) {
@@ -144,7 +174,7 @@ if (vivos.length) {
 }
 
 // ---------------------------------------------------------------- 3. lo no empujado
-for (const { raiz } of LOCALES) {
+for (const { raiz, montado } of LOCALES) {
   for (const r of REPOS) {
     const p = join(raiz, r);
     if (!existsSync(p)) continue;
@@ -153,7 +183,20 @@ for (const { raiz } of LOCALES) {
     // sí misma, así que en un workspace ese fichero sale modificado sin que
     // nadie haya trabajado. En el árbol del coordinador NO se ignora: ahí un
     // cambio en fuentes.json sí es un cambio.
-    const ignorar = r === 'telegram-coordinator' && raiz !== dirname(COORD) ? IGNORA_AL_MONTAR : [];
+    //
+    // ⚠⚠ La condición es «este árbol es un workspace MONTADO» (tiene
+    // WORKSPACE.json), y NO «este árbol no es desde donde pregunto», que es lo
+    // que decía antes (`raiz !== dirname(COORD)`). Las dos coinciden sólo si
+    // preguntas desde `~/src` — y desde que un tema de Telegram re-enraíza sus
+    // comandos, `cerrable` corre DENTRO del workspace del tema en cada `/use
+    // cerrable`. Ahí la vieja se daba la vuelta entera y el veredicto pasaba a
+    // depender de DÓNDE preguntas, que es lo que un freno no puede hacer.
+    // Medido el 2026-08-28, mismo instante y misma máquina:
+    //   · desde ~/src        → 🔴 (bien)   · desde ~/ws/tema-2 → 🟢 (¡permiso!)
+    //     con un cambio real sin commitear en ~/src/telegram-coordinator
+    //   · y al revés, el `fuentes.json` del propio montaje daba 🔴 desde dentro.
+    // El falso 🟢 es el caro: se lee como permiso para destruir la máquina.
+    const ignorar = r === 'telegram-coordinator' && montado ? IGNORA_AL_MONTAR : [];
     const { duda, razones: rs } = razonesGit(p, { ignorar });
     if (duda) { dudas.push(`no pude leer el git de ${eti}`); continue; }
     for (const x of rs) razones.push({ tipo: 'git', n: x.n, largo: `${eti}: ${x.texto}` });

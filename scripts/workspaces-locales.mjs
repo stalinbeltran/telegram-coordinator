@@ -47,7 +47,14 @@ export function workspacesLocales(extra = []) {
     let id = null;
     try { id = JSON.parse(readFileSync(join(raiz, 'WORKSPACE.json'), 'utf8')); }
     catch { /* sin identidad, o rota: sigue contando como árbol */ }
-    out.push({ raiz, nombre: id?.nombre ?? basename(raiz), prefijo: id?.prefijo ?? null });
+    // ⚠ `montado` es «lo creó `--nuevo`», y se mira por el FICHERO, no por que
+    // haya parseado: una identidad rota sigue siendo un workspace montado. Es lo
+    // que separa una copia del árbol de casa, y quien pregunta no entra en la
+    // cuenta — ver el uso en `cerrable.mjs`.
+    out.push({
+      raiz, nombre: id?.nombre ?? basename(raiz), prefijo: id?.prefijo ?? null,
+      montado: existsSync(join(raiz, 'WORKSPACE.json')),
+    });
   };
   const base = raizWorkspaces();
   try {
