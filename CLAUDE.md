@@ -153,6 +153,9 @@ docs/
   WORKSPACE.ejemplo.json    plantilla de identidad de un workspace
   revision-2026-08-22.md    qué se hizo en agosto y qué documentación
                             habría ahorrado las vueltas (los ocho patrones)
+  reglas-de-diseno.md       las 17 reglas de DISEÑO de aplicaciones, por
+                            disparador: al partir en piezas, al conectarlas,
+                            al decidir dónde vive un artefacto...
   ejecutores-federados.md   propuesta: que cada repo traiga sus ejecutores
                             y el coordinador los descubra (NO implementada)
 reportes/
@@ -505,6 +508,25 @@ para el resto apunta.
 
 Y lleva un apartado de **«lo que quedó pendiente»**, que es la parte que más se pierde: un
 barrido incompleto que no dice qué le falta es indistinguible de uno terminado.
+
+## Cómo se DISEÑA aquí: las 17 reglas, y se entra por el disparador
+
+Antes de proponer una estructura nueva —un repo, un módulo, una interfaz entre dos piezas, o
+dónde se guarda algo que el sistema produce— **se leen las reglas que apliquen** de
+[`docs/reglas-de-diseno.md`](docs/reglas-de-diseno.md). No se lee entero: su § 0 es una tabla
+que va de la **acción que estás a punto de hacer** a las reglas que la gobiernan.
+
+Salen del [análisis de arquitectura del 2026-08-28](reportes/2026/08-agosto/2026-08-28-analisis-arquitectura.md),
+que revisó los cinco repos como un solo sistema. Cada regla trae **cómo se comprueba**, y la mitad
+están ilustradas con algo que este proyecto **incumple hoy** —el grafo cíclico de repos, `scripts/`
+adelantando a `src/`, los reportes en el repo del transporte, cero CI— porque una regla que sólo se
+ilustra con aciertos no se distingue de un eslogan.
+
+⚠ **Si una regla choca con lo que ibas a hacer, dilo y explica el choque**; no la rompas en
+silencio ni la des por inaplicable sin decirlo. Si el usuario confirma, se hace como pide y **la
+excepción se anota con su motivo** donde se aplique. Y el documento **crece con cada fallo**, como
+un preflight: una decisión de estructura que salga mal deja allí su regla en el mismo commit que
+el arreglo.
 
 ## Cómo se escribe aquí (y por qué estas cinco reglas y no otras)
 

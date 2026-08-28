@@ -215,6 +215,12 @@ no-determinación puede morder en cualquier otro sitio que re-derive algo.
 
 ## 4. Qué hacer, por orden de retorno
 
+> **Y lo que se generaliza de aquí ya está escrito.** Los hallazgos de la § 3 —y los aciertos de la
+> § 2— quedaron convertidos en reglas reutilizables, indexadas por la acción que las dispara, en
+> [`docs/reglas-de-diseno.md`](../../../docs/reglas-de-diseno.md). Este reporte es **la evidencia**;
+> aquel documento es **la regla**. Si los dos discrepan, manda éste, que es el que midió.
+
+
 | # | Cambio | Por qué ahí |
 |---|---|---|
 | 1 | **CI mínimo en los 5 repos** (`pytest` / `tsc --noEmit` al empujar) | Quince líneas por repo; ataca el modo de fallo más caro que tiene el proyecto |
