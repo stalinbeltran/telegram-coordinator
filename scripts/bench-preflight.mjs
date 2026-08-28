@@ -349,6 +349,71 @@ async function main() {
     }
   }
 
+  // 7 bis. Los estudios YA MEDIDOS: que se puedan ENCONTRAR, no que estén.
+  //
+  //    Es la distinción de siempre aquí, y esta vez costó un estudio entero: los
+  //    runs de `do-t` estaban en git, commiteados y empujados, y aun así se
+  //    escribieron en la raíz plana del repo de datos en vez de en
+  //    `<año>/<mes>/`, porque el mes se buscaba por un directorio de estudio que
+  //    los `estudio_*.py` no crean nunca (medido el 2026-08-28; el detalle en
+  //    foveal-vision/CLAUDE.md § «El agujero que dejó todo un estudio en la raíz
+  //    plana»). Nada falló, nada avisó, y quien lo mirara en el repo veía dos
+  //    formas conviviendo sin saber cuál es la buena.
+  //
+  //    Así que se pregunta lo que de verdad importa a una sesión nueva: ¿cuántos
+  //    recorridos y runs RESUELVE `fv` por su nombre, y queda algo sin fechar?
+  //    Resolver por nombre es lo que hacen `estudio_informe.py` y
+  //    `estudio_progreso.py`; contar directorios no probaría lo mismo.
+  //
+  //    AVISA, no bloquea: lo plano se sigue leyendo (la cascada lo mira primero),
+  //    así que no impide medir nada -- sólo hay que recogerlo.
+  {
+    const datos = join(SRC, 'foveal-vision-data');
+    const fv = join(SRC, 'foveal-vision');
+    const py = join(fv, '.venv', 'bin', 'python');
+    if (!existsSync(join(datos, '.git')) || !existsSync(py)) {
+      // sin repo de datos o sin venv ya lo han dicho los bloques 5 y 5 bis
+    } else {
+      const guion = [
+        'import sys, json; sys.path.insert(0, "src")',
+        'from fv import artefactos, settings',
+        'from fv.training.registry import RunStore',
+        'raiz = settings.data_root()',
+        'recs = artefactos.nombres("sweeps", raiz / "sweeps")',
+        'runs = artefactos.nombres("runs", raiz / "runs")',
+        'rs = RunStore()',
+        'malos = [n for n in runs if not (rs.path(n) / "config.json").exists()]',
+        'plano = [d for d in ("runs", "sweeps", "studies") if (raiz / d).is_dir()]',
+        'print(json.dumps({"recs": len(recs), "runs": len(runs), '
+        + '"malos": malos[:3], "n_malos": len(malos), "plano": plano}))',
+        // `; ` y no un salto de línea: `JSON.stringify` escapa el salto como
+        // `\n`, y dentro de las comillas dobles del shell eso llega a python
+        // como barra-ene literal -- SyntaxError. Todas son sentencias simples.
+      ].join('; ');
+      const r = intenta(`${py} -c ${JSON.stringify(guion)}`, { cwd: fv });
+      let d = null;
+      try { d = JSON.parse(r.salida.split('\n').pop()); } catch { /* abajo */ }
+      if (!d) {
+        anota('AVISO', 'estudios medidos', `no pude preguntárselo a fv: ${r.salida.slice(-200)}`,
+          'Sin esto no sé si lo ya medido se puede encontrar por su nombre.\n' +
+          `      cd ${fv} && .venv/bin/python scripts/estudio_progreso.py --sweep <recorrido>`);
+      } else if (d.n_malos) {
+        anota('AVISO', 'estudios medidos',
+          `${d.n_malos} run(s) NO resuelven por nombre (p.ej. ${d.malos.join(', ')})`,
+          'Están listados pero su config.json no aparece donde la cascada mira.\n' +
+          '    Es dato medido que ningún informe va a leer.');
+      } else if (d.plano.length) {
+        anota('AVISO', 'estudios medidos',
+          `${d.recs} recorridos · ${d.runs} runs · ⚠ sin fechar en la raíz: ${d.plano.join(', ')}`,
+          'Se lee, pero conviven dos formas. Recógelo (simula sin --aplicar):\n' +
+          `      cd ${fv} && .venv/bin/python scripts/recoger_planos.py`);
+      } else {
+        anota('OK', 'estudios medidos',
+          `${d.recs} recorridos · ${d.runs} runs resuelven por nombre · nada sin fechar`);
+      }
+    }
+  }
+
   // 7. Herramientas que usa la orquestación.
   for (const [bin, para] of [
     ['python3', 'el lanzador'],
