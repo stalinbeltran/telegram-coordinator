@@ -92,7 +92,8 @@ los marcados como «plana».
 | `overlap_border_px`, `merge`, `pool_mode`, `pad_mode` | 0 · concat · avg · edge | **medidos** *(#14)* | los cuatro vigentes | Tanteo + verificación: **ninguno mueve el vigente**. `overlap_border_px` 2 daba +0,0158 con 1 semilla y +0,0055 con 4 (`p` = 0,314). ⚠ **`merge: sum` EMPATA con 0,54× de parámetros** (91.052 contra 167.852): no gana, pero que empate es la noticia. `pool_mode: max` pierde 0,023 | [#14](2026/08-agosto/2026-08-26-cierre-parametros.md) |
 | **`dropout`** | **0,0** | **tanteo** *(pendiente `do-v`)* | **0,0** | Primera medida del parámetro. 0,0 → 0,9315 · 0,25 → 0,9282 · 0,5 → 0,9274 · **0,1 → 0,9129** (el peor: el eje **no es monótono**). Amplitud 0,0186, casi el doble del umbral de 0,010 — el eje mueve la aguja, **hacia abajo**. ⚠ **Lo que de verdad se midió es el mecanismo**: la brecha val/train pasa de **+29,5 %** (con 0,0) a **−2,6 %** ya con 0,1, o sea que regulariza como se diseñó, **y el f1 no sube**. Y el `train_loss` casi se dobla: no redistribuye capacidad, la pierde. Cierra —con `weight_decay`— los dos mandos de regularización, y con un mecanismo medido detrás. ⚠ **`patience` = 10 no es neutral en este eje** (34 a 82 épocas): parte de lo medido es eso | [#17](2026/08-agosto/2026-08-28-dropout-tanteo.md) |
 | `k_periph`, `s_center`, `s_periph` | 3 · 1 · 1 | **NO BARRIBLES hoy** | — | ⚠ **No es que salieran mal: tienen UN SOLO valor legal** con la geometría vigente (comprobado con `build_search_space`). La banda periférica son 4 px, y un kernel/stride debe caber en ~la mitad. Serían barribles con el borde ancho — o sea que **`border_px` = 8 los acerca** | [#14](2026/08-agosto/2026-08-26-cierre-parametros.md) |
-| `optimizer`, `weight_decay`, `lambda_pos`, `smooth_l1_beta`, `patience` | adam · 0,0 · 1,0 · 0,08 · 10 | **medidos** *(#14)* | los cinco vigentes | **Ninguno mueve el vigente.** ⚠ **`weight_decay` = 0 GANA y subirlo hunde** (0,001 → 0,8731): la regularización **no** es la respuesta a la brecha val/train de +28 %, que era la prioridad «10 ter» — y eso rebaja el interés de implementar `dropout`. `patience` = 5 pierde 0,0105: **confirma el mínimo medido de 8**. `adam ≡ adamw` con `wd` = 0: el **control** salió bien | [#14](2026/08-agosto/2026-08-26-cierre-parametros.md) |
+| `optimizer`, `weight_decay`, `lambda_pos`, `smooth_l1_beta` | adam · 0,0 · 1,0 · 0,08 | **medidos** *(#14)* | los cuatro vigentes | **Ninguno mueve el vigente.** ⚠ **`weight_decay` = 0 GANA y subirlo hunde** (0,001 → 0,8731). ⚠ **Y desde el [#17] esto ya no se lee como «la regularización no ayuda porque no hace falta»**: `dropout` **sí** cierra la brecha val/train y el f1 tampoco sube, así que lo medido es que **la brecha no es el cuello de botella**. `adam ≡ adamw` con `wd` = 0: el **control** salió bien | [#14](2026/08-agosto/2026-08-26-cierre-parametros.md) · [#17](2026/08-agosto/2026-08-28-dropout-tanteo.md) |
+| **`patience`** | **10** | ⚠ **tanteo, y ABIERTO POR ARRIBA** *(no «medido»)* | **20** *(el borde del rango)* | ⚠ **Esta fila decía «medido, ninguno mueve el vigente» y escondía la mitad interesante; corregida el 2026-08-28 leyendo `pat-t` e `pat-v`.** **`20` gana LAS DOS VECES** y de forma consistente (+0,0028 y +0,0027 sobre el vigente), con el eje **monótono** — y **20 es el techo del rango: nadie ha mirado más allá**. Pero ninguna declara (`p` = 0,667 y 1,000; con 2 semillas el suelo es 0,333) y **+0,0027 está por debajo de δ**. `5` pierde las dos veces (−0,0105, −0,0041): confirma el mínimo de 8. ⚠ **`pat-v` nunca terminó (6/9: le falta la semilla 3 entera)** y sus semillas se diseñaron para SUMAR a las de `pat-t` — **nunca se sumaron**, porque el informe trabaja sobre un recorrido. Hay **4 semillas pagadas sin analizar juntas**, y sobre `r20260826`, que se perdió. ⚠ **Único eje NO cost-neutral por reloj**: más `patience` = más épocas = más dinero | [#14](2026/08-agosto/2026-08-26-cierre-parametros.md) |
 | `momentum`, `epochs` | 0,9 · 100 | **no procede** | — | `momentum` es **inerte** con `adam`. `epochs` es **guarda, no ajuste, y hoy no ata**: medido sobre los 630 runs con curvas, la época más alta es **130** y **ninguno** llegó a 150, así que subir el tope daría runs idénticos | [#14](2026/08-agosto/2026-08-26-cierre-parametros.md) |
 
 ### Red plana de control (`plana-24-single` · `regions: single` · ≈165.430 parámetros)
@@ -155,6 +156,23 @@ Es el mejor ratio ganancia/coste del inventario, y está **deliberadamente sin a
    `overlap_fovea_range(16)` = [0…7]— y no el presupuesto.
 5. **El confound de `border_reduce` sigue abierto**: capacidad contra resolución. Desconfundirlo pide
    un diseño que suba N sin subir el área, o que compare a parámetros igualados.
+6. **`do-v` está creado y sin lanzar** — el estudio de 5 semillas de `dropout` sobre
+   {0 · 0,05 · 0,1 · 0,2}. 20 runs, ≈1,1 $. El tanteo [#17] dejó el vigente `0,0` ganando, pero
+   con 2 semillas no declara, y falta mirar **`0,05`**, que nadie ha visto.
+7. ⚠ **`patience` NO estaba «medido»: está abierto por arriba, y hay 4 semillas pagadas sin
+   analizar.** `20` gana a `10` en las **dos** medidas independientes (+0,0028 y +0,0027), el eje
+   sube monótono y **20 es el borde del rango**. Ninguna declara (2 semillas cada una) y `pat-v`
+   **nunca terminó** (6/9: falta la semilla 3 entera). Sus semillas se diseñaron para **sumar** a
+   las de `pat-t` y **nunca se sumaron** — el informe trabaja sobre un recorrido. Y todo eso está
+   sobre `r20260826`, que se perdió: hay que **re-medir**. El siguiente paso es un **tanteo**
+   `{10 · 20 · 40}` con **`epochs` subido a 300** (con `patience` 20 los runs ya llegaban a 92
+   épocas; con 40 pasarían del tope de 150 y **fallarían R1**), y con el criterio de **quedarse
+   ahí** si la amplitud no llega a 0,010 o si `40` no mejora a `20`. Está escrito entero en
+   [`telegram-coordinator/CLAUDE.md`](../CLAUDE.md).
+8. **Y `patience` es además un CONFOUND a lo largo de los demás ejes** — medido en el [#17]: las
+   épocas fueron de 34 a 82 según el `dropout` (factor 2,4), o sea que **cada brazo de un eje
+   recibe un presupuesto de entrenamiento distinto**. Eso es otro estudio (2-D, o cambiar la regla
+   de comparación) y **no lo contesta un tanteo 1-D de `patience`**.
 
 ### Dónde está el detalle de cada cosa
 

@@ -617,6 +617,87 @@ podría quedar una ganancia, y **5 semillas**, que bajan el `p` mínimo alcanzab
 El rango `{0 · 0,05 · 0,1 · 0,2}` **no se elige ahora**: lo fijó la tabla que el plan escribió
 antes de mirar, y vive en `TABLA_PICO` dentro de `foveal-vision/scripts/estudio_dropout.py`.
 
+### Y DETRÁS DE `do-v`: el estudio de `patience`, empezando por el tanteo
+
+**Pendiente, anotado el 2026-08-28.** Va **después** de `do-v` y **empieza por un tanteo** — con
+la expectativa explícita de que **lo más probable es que se quede ahí**. Por qué, y qué habría que
+mirar exactamente:
+
+#### Lo que YA está medido, y no hay que volver a pagar
+
+`patience` **sí se barrió** en el #14, dos veces, {5 · 10 · 20}. ⚠ **Pero la tabla de
+`reportes/README.md` lo resumía como «ninguno mueve el vigente», y eso escondía la mitad
+interesante.** Los números, leídos hoy de `pat-t` e `pat-v`:
+
+| `patience` | `pat-t` (semillas 1-2) | `pat-v` (semillas 4-5) | épocas |
+|---:|---:|---:|---|
+| 5 | 0,9166 | 0,9323 | 15 · 36 · 27 · 43 |
+| **10** *(vigente)* | 0,9271 | 0,9364 | 40 · 47 · 48 · 66 |
+| **20** | **0,9299** | **0,9391** | 84 · 85 · 58 · 92 |
+
+1. **`20` gana las DOS veces**, con una diferencia notablemente consistente (**+0,0028** y
+   **+0,0027** sobre el vigente), y el eje sube **monótono**. **`20` es el techo del rango: el eje
+   NO está acotado por arriba y nadie ha mirado más allá.**
+2. **Pero ninguna de las dos declara**: `p` = 0,667 y 1,000, y con 2 semillas el suelo alcanzable
+   es 0,333. **Y +0,0027 está por debajo de δ**, así que por la regla del proyecto no movería el
+   vigente ni con `p` bueno.
+3. ⚠ **`pat-v` NUNCA TERMINÓ: 6/9.** Le falta **la semilla 3 entera** (los tres valores). Estaba
+   diseñado como semillas 3-5 para *sumar* a las 1-2 de `pat-t` y llegar a 5 — y **nunca se
+   sumaron**, porque `estudio_informe.py` trabaja sobre **un** recorrido. O sea que hay **4
+   semillas pagadas que nadie ha analizado juntas**.
+4. ⚠ **Y las cuatro están sobre `r20260826`, que se perdió.** No se pueden extender ni sumar: un
+   estudio nuevo **re-mide desde cero** sobre `r20260827`.
+
+#### El tanteo que hay que correr: `pa-t`
+
+**`patience` ∈ {10 · 20 · 40}**, 2 semillas = **6 runs**. Estimado **≈0,5 $ y ~4 h** *(estimado,
+no medido: sale de 47 + 85 + ~150 épocas por semilla a los 53 s/época del tanteo de dropout)*.
+
+- **El `5` NO entra.** Pierde en las dos medidas (−0,0105 y −0,0041) y confirma el mínimo de 8
+  medido indirectamente sobre 70 runs. Pagar por re-confirmar al perdedor es justo donde un
+  tanteo no debe gastar.
+- **El `40` es el punto del estudio.** `20` gana dos veces **y es el borde del rango**: es el mismo
+  caso que `borde-ancho`, y se resuelve mirando más allá, no repitiendo lo de dentro.
+
+⚠ **DOS cosas que hay que fijar ANTES de lanzarlo, o el estudio nace inválido:**
+
+1. **`epochs` tiene que subir a 300.** Con `patience` = 20 los runs llegaron a **84-92 épocas**;
+   con 40 es plausible que pasen de 150, que es el tope actual. **Un run que para por el tope
+   falla R1** — mide presupuesto, no calidad — y entonces el punto que más interesa es justo el
+   que no se puede leer. Es la misma razón por la que `bs-alto-*` subió el tope a 300.
+2. **Este eje NO es cost-neutral, y es el único así.** Más `patience` = más épocas = **más
+   dinero**, casi lineal: un run de `patience` 40 cuesta ~2× uno de 10. La comparación tiene que
+   sopesar la ganancia **contra su coste**, como en `border_reduce` y a diferencia de `dropout`.
+
+#### El criterio para QUEDARSE en el tanteo — escrito antes de mirar
+
+**`patience` se queda en 10 y el estudio se cierra en el tanteo** si se cumple **cualquiera**:
+
+1. la amplitud entre `{10, 20, 40}` **no llega a 0,010** (el doble del ruido típico entre
+   semillas, el mismo umbral que el bloque B del #14) — entonces la meseta es plana y `patience`
+   es un mando de **coste**, no de calidad: se queda el más barato, que es 10; **o**
+2. **`40` no mejora a `20`** — el eje satura o se da la vuelta, y entonces las dos medidas ya
+   existentes («20 supera a 10 por +0,0027») son toda la historia, y ese número **está por debajo
+   de δ**: no mueve un vigente.
+
+**Sólo se sube a 5 semillas si se cumplen LAS DOS**: algún punto supera al vigente por **más de
+1 SE** *y* la amplitud pasa de 0,010.
+
+⚠ **Y lo más probable es quedarse.** Las dos medidas que ya hay dan +0,0027, muy por debajo del
+umbral de 0,010. Escribir esto antes es justamente lo que permite que «no hubo señal» sea un
+resultado y no una decepción.
+
+#### La pregunta grande que este tanteo NO contesta
+
+**`patience` es un CONFOUND a lo largo de los demás ejes, y eso es otro estudio.** Medido en el
+tanteo de `dropout` (#17): las épocas fueron de **34** (dropout 0,1) a **82** (dropout 0,5), factor
+**2,4**. Con una `patience` fija, cada brazo de un eje recibe **un presupuesto de entrenamiento
+distinto**, así que parte de lo que mide *cualquier* barrido es eso. Atacarlo pide un diseño 2-D
+(`dropout` × `patience`) o cambiar la regla de comparación (escalar `patience`, o rankear a
+épocas igualadas). **Un tanteo 1-D de `patience` no lo toca**, y conviene no confundir las dos
+cosas: la primera pregunta es *«¿cuánto conviene esperar?»* y la segunda es *«¿estoy comparando
+en igualdad de condiciones?»*.
+
 ---
 
 ## ✅ RESUELTO el 2026-08-28: el dataset SÍ llegó solo, por git

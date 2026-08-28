@@ -75,6 +75,16 @@ era la implementación, es que la brecha no es el cuello de botella.
    `patience` = 10 ese ruido*, no sólo cuánto regulariza — y es la explicación más plausible de
    que el eje **no sea monótono** (0,1 es el peor y el que antes para; 0,5 el que más entrena y
    casi alcanza al vigente). **Es un estudio propio y no se ha hecho.**
+
+   ⚠ **Y al ir a anotarlo se destapó otra cosa: `patience` tampoco estaba cerrado en 1-D.** Leídos
+   hoy `pat-t` e `pat-v` del #14: **`20` gana a `10` en las DOS medidas** (+0,0028 y +0,0027), el
+   eje sube **monótono** y **`20` es el borde del rango** — nadie ha mirado más allá. Ninguna
+   declara (2 semillas cada una, `p` = 0,667 y 1,000) y **`pat-v` nunca terminó (6/9: le falta la
+   semilla 3 entera)**; sus semillas se diseñaron para **sumar** a las de `pat-t` y **nunca se
+   sumaron**, porque el informe trabaja sobre **un** recorrido. Son **4 semillas pagadas sin
+   analizar juntas**, y sobre `r20260826`, que se perdió. La tabla de `reportes/README.md` lo
+   resumía como «medido, ninguno mueve el vigente»; **queda corregida**. El tanteo que toca
+   (`{10 · 20 · 40}`, con `epochs` a 300) está escrito en `telegram-coordinator/CLAUDE.md`.
 3. **Sin métrica de tarea (R5)**, como todos los ejes del proyecto.
 4. **El s/época de la tabla NO compara valores**: los cuatro se corrieron en orden en la misma
    máquina, así que está confundido con el momento del alquiler (el log registra `s1` pasando de
