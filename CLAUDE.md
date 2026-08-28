@@ -1129,6 +1129,25 @@ node scripts/sesiones.mjs --tomar ~/ws/<linea>     # esta sesión pasa a ser su 
 trabajar en él. Se identifica por `CLAUDE_CODE_SESSION_ID`, y **si no sabe qué sesión es, se
 niega** en vez de pisar el marcador de otra.
 
+⚠ **Y el traspaso sobrevive a que la sesión se reanude.** Medido el 2026-08-28, con el hook ya
+corriendo: esta sesión hizo `--tomar ~/ws/fechado`, se reanudó, y el `--registrar` del
+`SessionStart` reescribió el marcador con el workspace deducido del cwd — **borrando la mudanza en
+silencio**, con lo que el registro pasó a avisar del choque equivocado y a callar el bueno. El
+marcador lleva ahora `tomado: true` y **una decisión explícita no la pisa una inferida**; el cwd sí
+se refresca, porque eso es un dato. Tiene test.
+
+#### Al cerrar: `SessionEnd` suelta el workspace — pero eso es la COMODIDAD, no la regla
+
+Hay un segundo hook que borra el marcador al cerrar la sesión, para que un cierre limpio libere el
+workspace **ya** en vez de dentro de 30 minutos.
+
+⚠ **No es de lo que depende la caducidad, y no puede serlo.** Una sesión que muere por SIGKILL, al
+cerrar la terminal o al rehacerse la máquina **nunca corre su `SessionEnd`**. Si el borrado
+dependiera de él, un marcador huérfano bloquearía el workspace para siempre — que es exactamente
+el fallo del `.resume.lock`. El mecanismo sigue siendo el latido del transcript; esto sólo lo
+adelanta. Hay un test que lo fija: una sesión muerta **sin** `--cerrar`, con su marcador todavía en
+disco, deja de contar igual.
+
 Desde Telegram: `/use sesiones` y `/use workspace`.
 
 ### Las cuatro preguntas que contesta `workspace.mjs`

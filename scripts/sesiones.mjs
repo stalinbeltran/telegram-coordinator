@@ -107,10 +107,36 @@ export function transcriptDe(sesion) {
   return '';
 }
 
-export function registrar({ sesion, cwd, transcript }) {
-  const ws = workspaceDe(cwd) ?? workspaceDe(COORD);
+export function marcadorDe(sesion) {
+  try { return JSON.parse(readFileSync(join(REGISTRO, `${sesion}.json`), 'utf8')); }
+  catch { return null; }
+}
+
+export function olvidar(sesion) {
+  try { unlinkSync(join(REGISTRO, `${sesion}.json`)); return true; } catch { return false; }
+}
+
+export function registrar({ sesion, cwd, transcript, tomado = false }) {
+  // ⚠ Un traspaso EXPLÍCITO (`--tomar`) sobrevive a que la sesión se reanude.
+  //
+  // Medido el 2026-08-28, con el hook ya en marcha: esta sesión hizo
+  // `--tomar ~/ws/fechado`, se reanudó, y el `--registrar` del SessionStart
+  // reescribió el marcador con el workspace deducido del cwd (`~/src`) --
+  // borrando la mudanza. Una decisión explícita pisada por una inferida, y en
+  // silencio: el registro pasaba a avisar del choque equivocado.
+  //
+  // El cwd sí se refresca (es un dato), pero el workspace no: quien dijo dónde
+  // trabaja manda sobre dónde arrancó.
+  const previo = marcadorDe(sesion);
+  const heredado = !tomado && previo?.tomado ? previo.workspace : null;
+  const ws = heredado ?? workspaceDe(cwd) ?? workspaceDe(COORD);
   mkdirSync(REGISTRO, { recursive: true });
-  const marca = { sesion, cwd, transcript, workspace: ws, desde: new Date().toISOString() };
+  const marca = {
+    sesion, cwd, transcript, workspace: ws,
+    tomado: tomado || Boolean(heredado),
+    desde: previo?.desde ?? new Date().toISOString(),
+    visto: new Date().toISOString(),
+  };
   writeFileSync(join(REGISTRO, `${sesion}.json`), JSON.stringify(marca, null, 2) + '\n');
   return marca;
 }
@@ -121,7 +147,7 @@ export function veredicto(marca, otras) {
   const ws = marca.workspace;
   const yo = ws ? `${ws} (${identidad(ws)?.nombre ?? basename(ws)})` : '⚠ NINGUNO';
   const l = [];
-  l.push(`Tu sesión: ${id(marca.sesion)} · workspace ${yo}`);
+  l.push(`Tu sesión: ${id(marca.sesion)} · workspace ${yo}` + (marca.tomado ? ' (tomado a mano, no deducido del cwd)' : ''));
 
   if (!ws) {
     l.push('');
@@ -198,6 +224,24 @@ async function main() {
     return 0;
   }
 
+  if (args.includes('--cerrar')) {
+    // El hook SessionEnd: la sesión suelta su workspace al cerrarse.
+    //
+    // ⚠ Esto es una COMODIDAD, no el mecanismo. La regla sigue siendo la
+    // caducidad por transcript (regla 3 de escritura): una sesión que muere por
+    // SIGKILL, por cerrar la terminal o porque se rehace la máquina NUNCA corre
+    // su SessionEnd. Si esto fuera el único borrado, un marcador huérfano
+    // bloquearía el workspace para siempre -- que es exactamente el fallo del
+    // `.resume.lock`. Lo que aporta es que un cierre limpio libere YA en vez de
+    // en 30 min.
+    let h = {};
+    try { h = JSON.parse(leerStdin() || '{}'); } catch { /* a mano */ }
+    const sesion = h.session_id ?? process.env.CLAUDE_CODE_SESSION_ID
+      ?? process.env.CLAUDE_SESSION_ID;
+    if (sesion && olvidar(sesion)) console.log(`sesión ${String(sesion).slice(0, 8)} liberada`);
+    return 0;
+  }
+
   const iTomar = args.indexOf('--tomar');
   if (iTomar >= 0) {
     // Mudarse de workspace SIN abrir sesión nueva. Hace falta porque el cwd de
@@ -224,6 +268,7 @@ async function main() {
     const previo = sesiones({ limpiar: false }).find((x) => x.sesion === sesion);
     const marca = registrar({
       sesion, cwd: ws, transcript: previo?.transcript || transcriptDe(sesion),
+      tomado: true,
     });
     console.log(`Esta sesión pasa a ser la dueña de ${ws} (${identidad(ws)?.nombre ?? '?'}).`);
     console.log(veredicto(marca, sesiones()));
