@@ -28,6 +28,24 @@ const { COORD_HOME } = await import('../src/config.js');
 process.env.COORD_HOME = COORD_HOME;
 const { runCommand } = await import('../src/runner.js');
 const { parseCommands } = await import('../src/protocol.js');
+// El workspace del tema re-enraíza el cwd de TODO comando. Si este arnés no lo
+// aplicara, depurar un ejecutor atado a un workspace mostraría un directorio
+// distinto del que corre de verdad -- o sea, mentiría justo donde se usa para
+// no tener que fiarse de la memoria.
+const { loadWorkspaces, getWorkspace, cwdEnWorkspace } = await import('../src/workspaces.js');
+await loadWorkspaces();
+const WS = process.env.COORD_WS || getWorkspace(process.env.COORD_SESSION);
+if (WS) process.env.COORD_WS = WS;
+
+/** El cwd real de un comando, o aborta diciendo por qué no lo hay. */
+function cwdDe(def) {
+  const r = cwdEnWorkspace(def.cwd, def.origen?.raiz, WS);
+  if ('error' in r) {
+    console.error(`\n⛔ ${r.error}`);
+    process.exit(1);
+  }
+  return r.cwd;
+}
 
 const [, , execName, ...rest] = process.argv;
 const input = rest.join(' ');
@@ -45,6 +63,7 @@ console.log(`TIMEOUT por comando: ${process.env.COMMAND_TIMEOUT_MS ?? 30000} ms`
 console.log(`DATA_DIR: ${process.env.DATA_DIR ?? 'data'}`);
 console.log(`COORD_SESSION: ${process.env.COORD_SESSION}`);
 console.log(`COORD_HOME: ${COORD_HOME}`);
+console.log(`COORD_WS: ${WS ?? '(ninguno: se usa el árbol del coordinador)'}`);
 console.log('FUENTES (manda la primera):');
 for (const f of await fuentes()) console.log(`  ${f.dir}   → cwd ${f.raiz}`);
 line('═');
@@ -57,7 +76,7 @@ if (!executor) {
 
 console.log(`EJECUTOR: ${executor.name}   [${repoDe(executor)}]`);
 console.log(`  definido  : ${executor.origen?.fichero}`);
-console.log(`  directorio: ${executor.cwd}`);
+console.log(`  directorio: ${cwdDe(executor)}${WS ? `   (re-enraizado en ${WS})` : ''}`);
 if (executor.origen?.pisados.length) {
   console.log(`  ⚠️ pisa a : ${executor.origen.pisados.join(', ')}`);
 }
@@ -79,7 +98,7 @@ console.log(`  comando   : ${resolved}`);
 line();
 
 let t = Date.now();
-const result = await runCommand(executor.command, input, undefined, executor.timeoutMs, executor.cwd);
+const result = await runCommand(executor.command, input, undefined, executor.timeoutMs, cwdDe(executor));
 console.log(`▶ Ejecutor terminó en ${Date.now() - t} ms · ok=${result.ok}`);
 show('  salida', result.output);
 line('═');
@@ -103,9 +122,9 @@ for (const encName of executor.encargados) {
     continue;
   }
   console.log(`  comando: ${enc.command}`);
-  console.log(`  directorio: ${enc.cwd}`);
+  console.log(`  directorio: ${cwdDe(enc)}`);
   t = Date.now();
-  const encResult = await runCommand(enc.command, result.output, undefined, enc.timeoutMs, enc.cwd);
+  const encResult = await runCommand(enc.command, result.output, undefined, enc.timeoutMs, cwdDe(enc));
   console.log(`  ▶ terminó en ${Date.now() - t} ms · ok=${encResult.ok}`);
   show('  salida', encResult.output);
   if (!encResult.ok) {
@@ -118,7 +137,7 @@ for (const encName of executor.encargados) {
     if (action.type === 'user') {
       if (action.text.trim()) replies.push(action.text);
     } else {
-      const shellRes = await runCommand(action.cmd, '', undefined, undefined, enc.cwd);
+      const shellRes = await runCommand(action.cmd, '', undefined, undefined, cwdDe(enc));
       replies.push(shellRes.ok ? shellRes.output : `❌ Error al ejecutar comando:\n${shellRes.output}`);
     }
   }

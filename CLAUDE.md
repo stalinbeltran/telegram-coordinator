@@ -50,7 +50,7 @@ incluyendo conversar con `claude` con memoria por conversación.
 
 ```
 Tú (Telegram; un TEMA del grupo = una SESIÓN)
-  → Coordinador  ── ¿comando de control? (/use /end /who /executors /whoami) → responde
+  → Coordinador  ── ¿comando de control? (/use /end /who /ws /executors /whoami) → responde
   → EJECUTOR ligado a la sesión (comando shell)  → una salida de texto
   → cada ENCARGADO del ejecutor recibe esa salida → devuelve "comandos":
         >>USER <texto>   → enviar <texto> al usuario por Telegram
@@ -117,6 +117,8 @@ src/
   config.ts        carga .env (process.loadEnvFile, sin dependencias) + validación
   registry.ts      cargar/guardar ejecutores y encargados + sembrado del kit
   sessions.ts      sesiones por tema (en memoria + persistidas)
+  workspaces.ts    QUÉ WORKSPACE usa cada tema; re-enraíza el cwd de los
+                   comandos bajo él. `/ws` lo ata, y sobrevive a `/end`
   runner.ts        ejecución de shell: timeout que MATA el árbol de procesos,
                    captura de errores, env extra, nunca lanza
   protocol.ts      parseo de >>USER / >>SHELL
@@ -132,6 +134,8 @@ scripts/
   desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart)
   workspace.mjs        ¿en qué copia estoy y está sana? · `--nuevo` MONTA una
   sesiones.mjs         ¿quién más trabaja aquí AHORA? (lo corre el hook al abrir)
+  workspaces-locales.mjs  qué workspaces hay en ESTA máquina; lo comparten
+                       `cerrable.mjs` y `workspace.mjs` (dos copias divergen)
   cerrable.mjs         ¿se puede APAGAR este server, o se pierde algo?
   test-executor.mjs    harness para depurar un ejecutor SIN Telegram
   bench-preflight.mjs  ¿tiene esta máquina con qué medir? (--fix arregla)
@@ -145,6 +149,7 @@ data/
   sessions/*.json       (efímero, ignorado por git)
   claude-sessions/*.json (markers de claude por sesión, ignorado por git)
   shell-cwd/*.json      (directorio actual por sesión, ignorado por git)
+  ws/*.json             (workspace de cada tema, ignorado por git)
 
   ...y en CUALQUIER otro repo de ~/src (ver data/fuentes.json):
   <repo>/telegram/executors/*.json    sus ejecutores, junto al código que llaman
@@ -444,10 +449,15 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    permiso es justo el que cuesta dinero. Es la misma regla que el cerrojo sin dueño vivo:
    entre un fallo ruidoso y uno silencioso, el ruidoso.
 
-2. **Distingue TUS máquinas de las de otra sesión por el `prefijo` del `WORKSPACE.json`.** Con
-   varios workspaces la cuenta es una sola (ver § «Varias sesiones a la vez»). Y por eso la
-   pista para recogerlas destruye **por etiqueta** y avisa en voz alta de **no usar
-   `destroy --all`**, que se llevaría por delante las de la otra sesión.
+2. **Cuenta lo de TODOS los workspaces de ESTA máquina, no sólo el del que pregunta.** La
+   pregunta es *«¿se puede apagar este SERVER?»*, y todo lo que muera con él cuenta: la cuenta de
+   Vast es una sola (ver § «Varias sesiones a la vez») y desde que cada TEMA puede tener su
+   workspace (`/ws`), un mismo bot alquila con **varios prefijos** desde una máquina. Filtrar por
+   el prefijo del que pregunta decía `🟢 CERRABLE` con la flota de otro tema facturando — el fallo
+   silencioso que este script existe para no cometer. Lo que sí sigue siendo ajeno es lo que no
+   casa con **ningún** prefijo local: eso es de otro server. Y por eso la pista para recogerlas
+   destruye **por etiqueta** y avisa en voz alta de **no usar `destroy --all`**, que se llevaría
+   por delante las de la otra sesión.
 
 3. **De quién es un proceso lo dice su CWD, no su línea de comando.** La flota se lanza con
    ruta relativa, así que filtrar por la salida de `ps` da por ajenos los procesos propios
@@ -1041,6 +1051,72 @@ viviera dentro de uno se copiaría con él y mentiría (además de no ser commit
 correcto: es estado de la máquina, no del repo). Es lo primero que hay que leer al abrir sesión
 y lo primero que hay que escribir al crear un workspace.
 
+### Desde Telegram, **un workspace por TEMA**: `/ws`
+
+Los workspaces de arriba separan **sesiones de Claude Code**. El coordinador no participaba, así
+que **todos los temas compartían un árbol** —el del proceso— aunque en disco hubiera diez. La causa
+era exactamente el antipatrón de la R4 (*el acoplamiento se declara, nunca se deduce del layout del
+disco*):
+
+```
+scripts/workspace.mjs   const WS = dirname(COORD);   ← deducido del disco
+scripts/cerrable.mjs    const WS = dirname(COORD);
+```
+
+Un coordinador vive en un directorio y sólo puede haber uno (error 409): un directorio, un
+workspace, para todos los temas. Ahora se **declara**:
+
+```
+/ws               en qué workspace trabaja este tema, y cuáles hay montados
+/ws <nombre>      lo ata a ~/ws/<nombre>  (o a una ruta)
+/ws off           lo suelta: vuelve al árbol del coordinador
+```
+
+Atado el tema, **todo comando corre en el repo equivalente de ese árbol** y recibe `COORD_WS`.
+`data/ws/<sesión>.json` guarda la atadura.
+
+#### Las cinco decisiones que hay que respetar si se toca
+
+1. **`/ws` es un comando de CONTROL, no un ejecutor** —y es lo único de esta lista que no cabía en
+   la filosofía 2—. Los ejecutores se re-enraízan bajo el workspace del tema; si `/ws` fuera uno, la
+   forma de salir de un workspace roto viviría **dentro** de ese workspace. Un comando de control
+   corre en el proceso del bot y no se puede re-enraizar: **la salida de emergencia nunca depende de
+   aquello de lo que quieres salir.**
+
+2. **Si el repo no está en el workspace, se NIEGA antes de correr** (R2: o degrada con un defecto
+   declarado, o falla *antes de empezar*; fallar a mitad no es una opción). Caer al árbol original
+   sería correr con otra rama y otro prefijo **sin decirlo** — el fallo silencioso caro. El error
+   dice las dos salidas: clonar el repo, o `/ws off`.
+
+3. **La atadura sobrevive a `/end`**, y por eso no vive en `data/sessions/` —que `/end` borra— sino
+   en `data/ws/`. Cerrar la sesión suelta el **ejecutor**, no te muda de árbol. Igual que el `cd` de
+   `shell` y la conversación de `claude`. Tiene test.
+
+4. **El estado por tema NO se muda con el workspace.** El coordinador pasa `DATA_DIR` absoluto a
+   todo comando: sin eso, re-enraizar el cwd movería `data/shell-cwd/` y `data/claude-sessions/` a
+   la copia del workspace, y atar un tema **parecería borrarle el `cd` y la conversación**.
+
+5. **El descubrimiento sigue siendo ÚNICO: `fuentes.json` no se mira por tema.** Los cinco repos de
+   cada workspace son clones del mismo sitio, así que `bench.json` es idéntico en todos: no hacen
+   falta N definiciones descubiertas, hace falta **una** ejecutada en N directorios. Eso evita que
+   `/executors` mezcle las copias.
+   ⚠ El precio: un ejecutor que exista **sólo** en un workspace y no en el árbol del coordinador
+   **no sale en `/executors`**. Si hace falta, se añade su árbol a `fuentes.json` — con las
+   colisiones que eso trae (ver § *`fuentes.json` apunta a UN workspace*).
+
+⚠ **La atadura es EFÍMERA** (`data/` está en `.gitignore`), y es a propósito: el mismo precio que ya
+pagan los markers de claude. Lo que sobrevive a rehacer la máquina es el **id del tema**, que es un
+hecho de Telegram; volver a atar es un `/ws <nombre>` por tema, y por eso `/ws` acepta el **nombre**
+y no sólo una ruta. Si el workspace ya no está en disco, la atadura **no se carga**: el tema vuelve
+al árbol del coordinador en vez de apuntar a una ruta muerta. Y el fichero no se borra, así que
+remontar el workspace con el mismo nombre **re-ata el tema solo** al siguiente arranque.
+
+⚠ **Y el freno va en el mismo commit (R11).** Con un workspace por tema, un mismo bot alquila con
+**varios prefijos** desde una sola máquina, y `cerrable.mjs` filtraba por **uno**: habría dicho
+`🟢 CERRABLE` con la flota de otro tema facturando. Ahora cuenta las máquinas, los procesos y lo no
+empujado de **todos los workspaces de la máquina** —que es lo que la pregunta *«¿se puede apagar
+este server?»* significa de verdad—, y los nombra: `foveal-vision [dropout]: 3 sin commitear`.
+
 ### Los cuatro recursos que **sí** son compartidos, y cómo se reparten
 
 Copiar carpetas separa el disco. **No separa nada más.** Éstos son globales de la máquina o
@@ -1191,6 +1267,17 @@ sólo si el workspace es coherente y para cada fallo imprime el comando que lo a
 2. ¿está cada repo hermano, y en la rama de este workspace?
 3. ¿`fuentes.json` apunta aquí y sólo aquí?
 4. ¿qué hay corriendo, y qué de eso **no es mío**? — por `/proc/<pid>/cwd`, no por `ps`
+
+⚠ **La 4 se contesta SIEMPRE, aunque no haya nada corriendo.** Callar cuando no hay procesos hace
+que *«no lo miré»* y *«miré y no hay»* se lean igual — y en un SO sin `/proc` los descartaba todos
+en silencio, o sea que habría respondido «nadie» para siempre. Mismo criterio que el `NO SÉ` de
+`cerrable.mjs`.
+
+⚠ **Y «mío» se compara por SEGMENTO de ruta, no con `startsWith`.** Estando en `~/ws/do`, un proceso
+de `~/ws/do-v` salía como **propio** — y lo ajeno leído como propio es lo que te hace matarlo
+(regla 0). Comprobado el 2026-08-28 con un proceso en `/home/deploy/src-otro`. Con un workspace por
+tema los nombres vecinos dejan de ser hipotéticos. Vive en `scripts/workspaces-locales.mjs`, que
+comparten este script y `cerrable.mjs`: dos copias de esa comparación divergen y nadie se entera.
 
 Como todo preflight de aquí, **comprueba estado utilizable, no presencia**, y **crece con
 cada fallo**: si algo se descubre a mitad, la comprobación se añade ahí en el mismo commit

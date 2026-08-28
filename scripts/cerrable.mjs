@@ -27,12 +27,22 @@
 // que se lee como permiso es exactamente el que cuesta dinero.
 
 import { readFileSync, existsSync, readlinkSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, basename } from 'node:path';
+import { dentroDe, workspacesLocales } from './workspaces-locales.mjs';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
 const COORD = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const WS = dirname(COORD);
+// El workspace se DECLARA (`COORD_WS`, que pone el coordinador con el del tema)
+// y sólo se deduce del disco como defecto. Es R4: deducirlo del layout era la
+// causa de que todos los temas compartieran un árbol -- ver src/workspaces.ts.
+const WS = process.env.COORD_WS ? resolve(process.env.COORD_WS) : dirname(COORD);
+
+// El árbol del coordinador cuenta SIEMPRE; el del tema también, por si `/ws`
+// apunta fuera de `~/ws`.
+const LOCALES = workspacesLocales([dirname(COORD), WS]);
+/** Cómo se nombra un árbol en el informe: sólo estorba si hay uno solo. */
+const donde = (raiz) => (LOCALES.length > 1 ? ` [${LOCALES.find((l) => l.raiz === raiz)?.nombre ?? basename(raiz)}]` : '');
 const BREVE = process.argv.includes('--breve');
 // El codigo de salida de este script es INFORMACION (0/1/2), no un fallo. Pero
 // el coordinador lee cualquier codigo != 0 como "el ejecutor fallo" y entonces
@@ -65,11 +75,12 @@ function sh(cmd, cwd, env) {
 }
 
 // ---------------------------------------------------------------- 1. lo que se paga
-let ws = null;
-try { ws = JSON.parse(readFileSync(join(WS, 'WORKSPACE.json'), 'utf8')); } catch { /* sin identidad */ }
-const prefijo = ws?.prefijo ?? null;
+const prefijosLocales = LOCALES.map((l) => l.prefijo).filter(Boolean);
+const sinIdentidad = LOCALES.filter((l) => !l.prefijo);
 
-const lanzador = join(WS, 'digital-ocean-dropplet-auto-launching');
+const lanzador = [WS, ...LOCALES.map((l) => l.raiz)]
+  .map((r) => join(r, 'digital-ocean-dropplet-auto-launching'))
+  .find(existsSync) ?? join(WS, 'digital-ocean-dropplet-auto-launching');
 if (!existsSync(lanzador)) {
   dudas.push('no está el repo del lanzador: no puedo preguntar qué hay alquilado');
 } else {
@@ -85,7 +96,11 @@ if (!existsSync(lanzador)) {
       .map((l) => l.match(/^\s*(\d{6,})\s+(\S+)/))
       .filter(Boolean)
       .map((m) => ({ id: m[1], etiqueta: m[2] }));
-    const mias = prefijo ? filas.filter((f) => f.etiqueta.startsWith(prefijo)) : filas;
+    // Mías = de CUALQUIER workspace de esta máquina. Sin ningún prefijo conocido
+    // no se puede distinguir, así que cuentan todas: ante la duda, NO cerrable.
+    const mias = prefijosLocales.length
+      ? filas.filter((f) => prefijosLocales.some((p) => f.etiqueta.startsWith(p)))
+      : filas;
     const ajenas = filas.length - mias.length;
     const gasto = (salida.match(/Gastando ahora:\s*([\d.,]+)\s*\$\/h/) ?? [])[1];
     if (mias.length) {
@@ -94,10 +109,12 @@ if (!existsSync(lanzador)) {
                ` — si este server muere, siguen facturando y nadie las recoge`,
         etiquetas: mias.map((m) => m.etiqueta) });
     } else if (filas.length) {
-      limpio.push(`Vast: nada mío (${ajenas} instancia(s) de otro workspace, no cuentan)`);
+      limpio.push(`Vast: nada de esta máquina (${ajenas} instancia(s) de otro server, no cuentan)`);
     }
-    if (!prefijo && filas.length) {
-      dudas.push('sin `prefijo` en WORKSPACE.json no puedo distinguir mis máquinas de las de otra sesión');
+    if (sinIdentidad.length && filas.length) {
+      dudas.push(
+        `sin \`prefijo\` en WORKSPACE.json de ${sinIdentidad.map((l) => l.nombre).join(', ')} ` +
+        `no puedo distinguir esas máquinas de las de otro server`);
     }
   }
 }
@@ -114,34 +131,39 @@ const vivos = (sh('ps -eo pid,args') ?? '').split('\n').slice(1)
     const m = l.match(TRABAJOS);
     return { pid, cwd, que: m ? m[0] : '?' };
   })
-  .filter((v) => v.cwd?.startsWith(WS));
+  .filter((v) => v.cwd && LOCALES.some((l) => dentroDe(v.cwd, l.raiz)));
 if (vivos.length) {
   const porQue = [...new Set(vivos.map((v) => v.que))].join(', ');
+  const arboles = [...new Set(vivos.map((v) => donde(LOCALES.find((l) => dentroDe(v.cwd, l.raiz))?.raiz)))]
+    .filter(Boolean).join('');
   razones.push({ tipo: 'proc', breve: `${vivos.length} proceso(s) vivo(s)`,
-    largo: `${vivos.length} proceso(s) de trabajo vivo(s) (${porQue}) — morirían con el server` });
+    largo: `${vivos.length} proceso(s) de trabajo vivo(s) (${porQue})${arboles} — morirían con el server` });
 } else {
-  limpio.push('nada de trabajo corriendo en este workspace');
+  limpio.push('nada de trabajo corriendo en esta máquina');
 }
 
 // ---------------------------------------------------------------- 3. lo no empujado
-for (const r of REPOS) {
-  const p = join(WS, r);
-  if (!existsSync(p)) continue;
-  const sucio = sh('git status --porcelain', p);
-  if (sucio === null) { dudas.push(`no pude leer el git de ${r}`); continue; }
-  if (sucio) razones.push({ tipo: 'git', n: sucio.split('\n').length,
-    largo: `${r}: ${sucio.split('\n').length} fichero(s) sin commitear` });
-  const rama = sh('git branch --show-current', p);
-  if (!rama) continue;
-  const sinEmpujar = sh(`git log --oneline origin/${rama}..${rama}`, p);
-  if (sinEmpujar === null) {
-    // sin upstream: la rama entera es local y se pierde
-    if (!sh(`git rev-parse --verify origin/${rama}`, p)) {
-      razones.push({ tipo: 'git', n: 1, largo: `${r}: la rama "${rama}" no está en el remoto` });
+for (const { raiz } of LOCALES) {
+  for (const r of REPOS) {
+    const p = join(raiz, r);
+    if (!existsSync(p)) continue;
+    const eti = `${r}${donde(raiz)}`;
+    const sucio = sh('git status --porcelain', p);
+    if (sucio === null) { dudas.push(`no pude leer el git de ${eti}`); continue; }
+    if (sucio) razones.push({ tipo: 'git', n: sucio.split('\n').length,
+      largo: `${eti}: ${sucio.split('\n').length} fichero(s) sin commitear` });
+    const rama = sh('git branch --show-current', p);
+    if (!rama) continue;
+    const sinEmpujar = sh(`git log --oneline origin/${rama}..${rama}`, p);
+    if (sinEmpujar === null) {
+      // sin upstream: la rama entera es local y se pierde
+      if (!sh(`git rev-parse --verify origin/${rama}`, p)) {
+        razones.push({ tipo: 'git', n: 1, largo: `${eti}: la rama "${rama}" no está en el remoto` });
+      }
+    } else if (sinEmpujar) {
+      razones.push({ tipo: 'git', n: sinEmpujar.split('\n').length,
+        largo: `${eti}: ${sinEmpujar.split('\n').length} commit(s) sin empujar en "${rama}"` });
     }
-  } else if (sinEmpujar) {
-    razones.push({ tipo: 'git', n: sinEmpujar.split('\n').length,
-      largo: `${r}: ${sinEmpujar.split('\n').length} commit(s) sin empujar en "${rama}"` });
   }
 }
 if (!razones.some((r) => r.tipo === 'git')) limpio.push('todo commiteado y empujado');

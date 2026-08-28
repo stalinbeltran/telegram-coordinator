@@ -111,6 +111,15 @@ export function runCommand(
     });
 
     if (!usesPlaceholder && child.stdin) {
+      // ⚠ Un comando que no lee stdin —o que ya terminó— deja la tubería cerrada,
+      // y escribir en ella emite un 'error' EPIPE. Sin este manejador es una
+      // excepción NO capturada, o sea que TUMBA el coordinador: justo lo que la
+      // filosofía 3 promete que no puede pasar, y `bot.catch` no lo ve porque no
+      // es un error del bot sino de un socket. No es hipotético: `true` con
+      // 200 KB de entrada lo reproduce siempre (medido 2026-08-28).
+      // Se ignora en silencio a propósito: que el comando no quiera la entrada
+      // no es un fallo suyo, y si lo fuera, su código de salida ya lo dice.
+      child.stdin.on('error', () => {});
       child.stdin.write(input);
       child.stdin.end();
     } else {

@@ -4,3 +4,4 @@ node_modules/
 data/sessions/
 data/claude-sessions/
 data/shell-cwd/
+data/ws/

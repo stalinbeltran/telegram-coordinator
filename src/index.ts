@@ -8,6 +8,14 @@ import {
   endSession,
   sessionId,
 } from './sessions.js';
+import {
+  loadWorkspaces,
+  getWorkspace,
+  setWorkspace,
+  clearWorkspace,
+  resolverWorkspace,
+  listarWorkspaces,
+} from './workspaces.js';
 import { processIncoming } from './orchestrator.js';
 
 const TELEGRAM_LIMIT = 4000; // margen bajo el límite real de 4096
@@ -30,6 +38,7 @@ async function main(): Promise<void> {
   await seedBootKit();
   await reportarFuentes();
   await loadSessions();
+  await loadWorkspaces();
 
   const bot = new Bot(BOT_TOKEN);
 
@@ -65,7 +74,10 @@ async function main(): Promise<void> {
         'Comandos:',
         '  /use <ejecutor>   abre una sesión en este tema',
         '  /end              cierra la sesión de este tema',
-        '  /who              muestra el ejecutor activo',
+        '  /who              muestra el ejecutor activo y el workspace',
+        '  /ws               en qué workspace trabaja este tema',
+        '  /ws <nombre>      ata este tema a un workspace (sobrevive a /end)',
+        '  /ws off           lo suelta: vuelve al árbol del coordinador',
         '  /executors        lista los ejecutores disponibles',
         '  /executors <n>    la ficha de uno: qué hace y ejemplos',
         '  /whoami           muestra tu id de Telegram',
@@ -161,8 +173,66 @@ async function main(): Promise<void> {
   });
 
   bot.command('who', async (ctx) => {
-    const exec = getSession(sidOf(ctx));
-    await send(ctx, exec ? `Sesión activa: ${exec}` : 'No hay sesión activa en este tema.');
+    const sid = sidOf(ctx);
+    const exec = getSession(sid);
+    const ws = getWorkspace(sid);
+    await send(
+      ctx,
+      [
+        exec ? `Sesión activa: ${exec}` : 'No hay sesión activa en este tema.',
+        ws ? `Workspace: ${ws}` : 'Workspace: (ninguno) — se usa el árbol del coordinador.',
+      ].join('\n'),
+    );
+  });
+
+  // `/ws` es un comando de CONTROL y no un ejecutor a propósito: los ejecutores
+  // se re-enraízan bajo el workspace del tema, así que si esto fuera uno, la
+  // forma de soltar un workspace roto viviría DENTRO de ese workspace. Un
+  // comando de control corre en el proceso del bot y no se puede re-enraizar:
+  // la salida de emergencia nunca depende de aquello de lo que quieres salir.
+  bot.command('ws', async (ctx) => {
+    const sid = sidOf(ctx);
+    const arg = (ctx.match ?? '').trim();
+
+    if (!arg) {
+      const ws = getWorkspace(sid);
+      const otros = await listarWorkspaces();
+      const lista = otros.length
+        ? '\n\nMontados en esta máquina:\n' +
+          otros.map((o) => `  ${o.nombre}${o.prefijo ? `  (${o.prefijo})` : ''}   ${o.raiz}`).join('\n')
+        : '\n\nNo hay ninguno montado. Móntalo con /use workspace → --nuevo <linea>';
+      await send(
+        ctx,
+        (ws
+          ? `Este tema trabaja en:\n  ${ws}`
+          : 'Este tema no está atado a ningún workspace: usa el árbol del coordinador.') + lista,
+      );
+      return;
+    }
+
+    if (arg === 'off' || arg === 'none' || arg === '-') {
+      const habia = await clearWorkspace(sid);
+      await send(
+        ctx,
+        habia
+          ? '🔓 Workspace soltado. Este tema vuelve al árbol del coordinador.'
+          : 'Este tema no estaba atado a ningún workspace.',
+      );
+      return;
+    }
+
+    const r = await resolverWorkspace(arg);
+    if ('error' in r) {
+      await send(ctx, `❌ ${r.error}`);
+      return;
+    }
+    await setWorkspace(sid, r.ws);
+    await send(
+      ctx,
+      `✅ Este tema trabaja ahora en:\n  ${r.ws}\n\n` +
+        'Todo ejecutor correrá en el repo equivalente de ese árbol, y recibe ' +
+        '`COORD_WS`. Sobrevive a /end; se suelta con /ws off.',
+    );
   });
 
   bot.command('end', async (ctx) => {

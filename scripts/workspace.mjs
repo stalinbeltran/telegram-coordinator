@@ -20,11 +20,16 @@
 
 import { readFileSync, writeFileSync, existsSync, readlinkSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname, basename, resolve } from 'node:path';
+import { dentroDe } from './workspaces-locales.mjs';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
 const COORD = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const WS = dirname(COORD);                 // el workspace es el PADRE del coordinador
+// El workspace se DECLARA y sólo se deduce del disco como defecto (R4). Con
+// `/ws` cada TEMA de Telegram tiene el suyo, y el coordinador lo pasa en
+// `COORD_WS`: sin esto, este informe hablaba siempre del árbol del proceso --
+// que es exactamente la causa de que todos los temas compartieran uno.
+const WS = process.env.COORD_WS ? resolve(process.env.COORD_WS) : dirname(COORD);
 // ⚠ `foveal-vision-data` va en la lista, y es el que MAS importa aqui: es donde
 // viven los runs, los recorridos y los `windows.npz` que NO se pueden re-derivar.
 // Faltaba (esta lista es anterior a la separacion de datos del 2026-08-27) y el
@@ -52,7 +57,8 @@ const RAIZ_WS = process.env.COORD_WS_RAIZ ?? join(process.env.HOME ?? '', 'ws');
 //   5. WORKSPACE.json en la raíz, que es donde vive esa identidad
 //   6. fuentes.json apuntando aquí y sólo aquí
 //   7. borrar el estado efímero por tema, que si no lo copiado cree que manda
-//      sobre las mismas conversaciones
+//      sobre las mismas conversaciones -- incluida `ws/`, la atadura tema →
+//      workspace: copiada, los temas del clon apuntarían al workspace de origen
 //   8. NO arrancar el bot: sólo una instancia puede hacer polling (error 409)
 function nuevo(linea, argv) {
   const dest = join(RAIZ_WS, linea);
@@ -117,7 +123,7 @@ function nuevo(linea, argv) {
     JSON.stringify({ fuentes: [join(dest, '*', 'telegram')] }, null, 2) + '\n');
   // estado efímero POR TEMA de Telegram: copiado, dos coordinadores creerían los
   // dos que mandan sobre la misma conversación
-  for (const d of ['sessions', 'claude-sessions', 'shell-cwd']) {
+  for (const d of ['sessions', 'claude-sessions', 'shell-cwd', 'ws']) {
     rmSync(join(coordNuevo, 'data', d), { recursive: true, force: true });
   }
 
@@ -202,7 +208,7 @@ const fuentesFile = join(COORD, 'data', 'fuentes.json');
 if (existsSync(fuentesFile)) {
   let fuentes = [];
   try { fuentes = JSON.parse(readFileSync(fuentesFile, 'utf8')).fuentes ?? []; } catch { /* roto: el bot ya avisa */ }
-  const fuera = fuentes.filter((f) => !f.replace('~', process.env.HOME ?? '~').startsWith(WS));
+  const fuera = fuentes.filter((f) => !dentroDe(f.replace('~', process.env.HOME ?? '~'), WS));
   if (fuera.length) {
     nota(problemas, 'fuentes.json', `apunta fuera de este workspace: ${JSON.stringify(fuera)}`,
       `los ejecutores se llaman igual en todas las copias (bench, estudio, vigilante), ` +
@@ -221,7 +227,7 @@ if (existsSync(fuentesFile)) {
 // ningún lado y filtrar por ella clasifica tus propios procesos como ajenos.
 // `/proc/<pid>/cwd` sí lo da bien. Es la misma trampa que hace inútil un
 // `pgrep -f <ruta>`.
-const vivos = (sh('ps -eo pid,args') ?? '').split('\n').slice(1)
+const vivos_ = (sh('ps -eo pid,args') ?? '').split('\n').slice(1)
   .filter((l) => /estudio_flota\.py|vigilante_avance\.py|bench_fleet\.py/.test(l))
   .filter((l) => !/\bgrep\b/.test(l))
   .map((l) => {
@@ -231,10 +237,24 @@ const vivos = (sh('ps -eo pid,args') ?? '').split('\n').slice(1)
     return { pid, cwd, linea: l.trim() };
   })
   // sin cwd legible no se puede decir de quién es, y adivinarlo es peor que no
-  // decirlo: se cuenta aparte en vez de asumir que es ajeno.
-  .filter((v) => v.cwd !== null);
-const ajenos = vivos.filter((v) => !v.cwd.startsWith(WS));
-const mios = vivos.filter((v) => v.cwd.startsWith(WS));
+  // decirlo: se cuentan aparte (abajo) en vez de asumir que son ajenos. Antes
+  // este filtro los DESCARTABA y el comentario prometía lo que el código no hacía.
+  ;
+const ilegibles = vivos_.filter((v) => v.cwd === null);
+const vivos = vivos_.filter((v) => v.cwd !== null);
+const ajenos = vivos.filter((v) => !dentroDe(v.cwd, WS));
+const mios = vivos.filter((v) => dentroDe(v.cwd, WS));
+// ⚠ Se informa SIEMPRE, aunque no haya nada. Callar cuando no hay procesos hace
+// que "no miré" y "miré y no hay" se lean igual -- y en un SO sin /proc los
+// descarta TODOS en silencio, o sea que respondería "nadie" para siempre. Es el
+// mismo criterio del NO SÉ de cerrable.mjs: entre un fallo ruidoso y uno
+// silencioso, el ruidoso.
+if (ilegibles.length) {
+  nota(ok, 'corriendo (NO SÉ)',
+    `${ilegibles.length} proceso(s) de trabajo sin /proc legible: no puedo decir de quién son`);
+} else if (!vivos.length) {
+  nota(ok, 'corriendo', 'nada de trabajo en marcha');
+}
 if (mios.length) nota(ok, 'corriendo (mío)', `${mios.length} proceso(s)`);
 if (ajenos.length) {
   nota(ok, 'corriendo (AJENO)',
