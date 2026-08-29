@@ -45,7 +45,20 @@ const CLASES = [
     // Los plurales van explícitos: `\bdroplet\b` NO casa con "droplets", así que
     // "destruye los droplets" caía en `destructivo` y se perdía el aviso de que
     // eso cuesta dinero. Lo encontró el test, no la lectura.
-    patron: /\b(alquil\w*|vast|droplets?|flotas?|estudio_flota|bench_fleet|instancias?|barrid\w+|lanzar?\s+(un\s+)?(server|servidor|m[áa]quinas?)|launch|destroy|reap)\b/i,
+    //
+    // ⚠ El VERBO + «estudio/tanteo/recorrido» entró el 2026-08-29, y el hueco lo
+    // encontró ejecutar el comando que `docs/agentes.md` promete. `lanza el
+    // estudio do-v` -- que es LA tarea pendiente de CLAUDE.md, ≈1,1 $ y 20 runs
+    // en máquinas alquiladas -- salía `consulta`: ni revisor, ni aviso de que
+    // cuesta dinero. Sobrevivió porque el test decía `lanza el estudio do-v EN LA
+    // FLOTA`, y ahí lo que casaba era «flota»: la prueba había elegido, sin
+    // querer, la única redacción que pasaba.
+    //
+    // Va con verbo y no suelto A PROPÓSITO: un `estudios?` a secas convertiría
+    // «¿qué dice el reporte del estudio de dropout?» en una alarma de gasto, y un
+    // aviso que salta con cualquier pregunta se deja de leer (patrón B). Tiene
+    // test por los dos lados: el que tiene que saltar y el que no.
+    patron: /\b(alquil\w*|vast|droplets?|flotas?|estudio_flota|bench_fleet|instancias?|barrid\w+|(lanz\w+|corre|correr|arranc\w+|ejecut\w+|repit\w+|repetir)\s+(el\s+|un\s+|los\s+|la\s+)?(estudios?|tanteos?|recorridos?|sweeps?)|lanzar?\s+(un\s+)?(server|servidor|m[áa]quinas?)|launch|destroy|reap)\b/i,
     titulo: '💸 GASTO O RECURSOS EN LA NUBE',
     obliga: [AGENTES.revisor],
     // Reglas de docs/reglas-de-diseno.md que gobiernan esto.

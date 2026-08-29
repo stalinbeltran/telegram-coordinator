@@ -607,6 +607,17 @@ no cada petición.
 llamada concreta es `PreToolUse`, y **no está puesto**. Está escrito en `docs/agentes.md` § «Lo que
 este diseño NO puede hacer» para que no se dé por hecho un freno que no existe.
 
+⚠ **Y por eso una sesión puede llegar con los subagentes apagados sin estar saltándose el triage.**
+Los tres agentes declaran `tools: Read, Grep, Glob, Bash` y los tres dicen en su prompt que trabajan
+en sólo lectura — o sea que **el límite es una petición, no un límite**, y en esta máquina `Bash`
+alquila máquinas, destruye droplets, mata procesos de otro workspace y empuja a `main`. Llamarlos es
+**delegarles esa capacidad**, y esa es una decisión del usuario. Lo que **no** vale es saltarse la
+comprobación en silencio: se hace a mano el guion del `verificador` (correr la suite, ejecutar los
+comandos que la documentación promete, separar VERIFICADO de NO VERIFICADO) y **se dice que se hizo
+así y qué se pierde con ello**. El detalle, las dos formas de quitar la razón y el choque con una
+instrucción de sesión, en [`docs/agentes.md`](docs/agentes.md) § «Llamar a un agente es DELEGARLE la
+capacidad».
+
 ## Cómo se DISEÑA aquí: las 19 reglas, y se entra por el disparador
 
 Antes de proponer una estructura nueva —un repo, un módulo, una interfaz entre dos piezas, o

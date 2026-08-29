@@ -37,6 +37,29 @@ test('lo que gasta dinero se clasifica como gasto, y manda al revisor', () => {
   }
 });
 
+test('lanzar un ESTUDIO es gasto aunque no se nombre la flota ni Vast', () => {
+  // ⚠ El caso que se escapaba, y era el peor posible: «lanza el estudio do-v» es
+  // LA tarea pendiente de CLAUDE.md —≈1,1 $ y 20 runs en máquinas alquiladas— y
+  // salía `consulta`. El test de arriba no lo veía porque decía «...EN LA FLOTA»,
+  // y lo que casaba era «flota»: la prueba había elegido sin querer la única
+  // redacción que pasaba, y el ejemplo de docs/agentes.md (sin «flota») era falso.
+  // Lo encontró ejecutar el comando que el documento promete, no leerlo.
+  for (const q of ['lanza el estudio do-v', 'corre el tanteo de patience',
+                   'ejecuta el recorrido pa-t', 'repite el barrido de dropout']) {
+    assert.equal(clasificar(q)?.clase, 'gasto', `mal clasificado: ${q}`);
+  }
+});
+
+test('...pero PREGUNTAR por un estudio no es gasto', () => {
+  // El otro lado, y es igual de importante: el patrón lleva VERBO a propósito.
+  // Con `estudios?` suelto, cualquier pregunta se volvía una alarma de dinero, y
+  // un aviso que salta siempre se deja de leer en una semana.
+  for (const q of ['¿qué dice el reporte del estudio de dropout?',
+                   'cuántos estudios hay', 'resume el tanteo de dropout']) {
+    assert.equal(clasificar(q)?.clase ?? 'consulta', 'consulta', `falso positivo: ${q}`);
+  }
+});
+
 test('el gasto GANA a lo destructivo cuando la petición es las dos cosas', () => {
   // "destruye los droplets" casa con los dos patrones. Lo que hay que leer
   // primero es que cuesta dinero, así que el orden de CLASES no es cosmético.

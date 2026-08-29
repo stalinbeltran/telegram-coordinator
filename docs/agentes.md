@@ -88,10 +88,82 @@ Cuatro límites reales. Ninguno tiene arreglo dentro de este diseño, así que v
    bloquear una acción. Lo que de verdad **frena** es un `PreToolUse`, que sí puede negar una
    llamada concreta —por ejemplo, cualquier `Bash` que case `vast_instance.py launch`—. **No está
    puesto**: es el paso siguiente natural, y va escrito aquí para que no se dé por hecho.
+   ⚠ Y tiene una consecuencia que no es teórica y que va abajo, en § «llamar a un agente es
+   delegarle la capacidad»: **mientras no esté, "sólo lectura" es una petición, no un límite.**
 4. **Nada de esto mide su propio coste todavía.** Cada revisión son tokens y latencia. **No está
    medido** cuántas peticiones caen en cada clase ni cuánto añade. Si el triage resulta ruidoso,
    los patrones se aprietan; si resulta mudo donde importa, se abren — pero con datos, no con
    impresión.
+
+---
+
+## ⚠ Llamar a un agente es DELEGARLE la capacidad, no sólo el trabajo
+
+**Ésta es la razón buena para no llamarlos, y no es «gastan tokens».** Comprobado el 2026-08-29
+leyendo las tres definiciones y `.claude/settings.json`:
+
+| Agente | `tools:` declara | Su prompt le dice |
+|---|---|---|
+| `arquitecto` | `Read, Grep, Glob, **Bash**` | «Trabajas **en solo lectura**» |
+| `revisor` | `Read, Grep, Glob, **Bash**` | «…no ejecutas nada que cambie el estado, no lanzas nada» |
+| `verificador` | `Read, Grep, Glob, **Bash**` | «No ejecutes nada que cambie el estado del mundo: nada de alquilar, destruir, empujar, desplegar ni borrar» |
+
+Los tres son de sólo lectura **por instrucción**. Los tres tienen **`Bash`**. Y `grep -c PreToolUse
+.claude/settings.json` da **0**.
+
+En esta máquina `Bash` significa: alquilar máquinas en Vast, destruir droplets, matar procesos de
+otro workspace, y empujar a `main`. O sea que **el único freno de los tres es su propio juicio** —
+combinado con el límite 1 de arriba, que dice que **no ven la conversación**: no saben lo que se
+acordó hace veinte minutos, ni qué está protegiendo ahora mismo la Regla 0.
+
+⚠ **El `verificador` es el caso incómodo, y no por descuido.** Existe para **ejecutar**: quitarle
+`Bash` lo deja sin poder hacer su trabajo. Su límite es irreducible por diseño, así que el freno
+tiene que estar **fuera** de él.
+
+**Escenario, no medición** (2026-08-29, sin ejecutarlo): esta sesión dejó `foveal-vision-web`
+instalado y parado porque el `:8010` lo ocupaba un `fv-api` de `~/ws/tema-2`. Un `verificador` al
+que se le pida «comprueba que el servicio arranca» ve un obstáculo, no un workspace ajeno —
+liberar el puerto es lo obvio desde su contexto, y es exactamente lo que la Regla 0 prohíbe
+(«si ves algo roto en otro workspace, **dilo, no lo arregles**»). Nadie se lo impediría.
+
+### Qué se pierde apagándolos, para que la cuenta esté completa
+
+Un subagente aporta **juicio independiente sobre su propio contexto**: el `verificador` no ha visto
+cómo se escribió el código, así que no hereda la confianza de quien lo escribió. Eso es justo lo
+que un agente **no puede darse a sí mismo**, y es todo el motivo por el que el triage los obliga.
+Apagarlos deja el «¿es verdad lo que voy a decir que hice?» en manos del mismo que lo hizo.
+
+**No es gratis, entonces.** Es cambiar un riesgo por otro, y conviene decir cuál se está eligiendo.
+
+### Qué quitaría la razón (y entonces sí, encenderlos)
+
+1. **`PreToolUse`** que niegue `Bash` con `vast_instance.py launch`, `do_droplet.py destroy`,
+   `git push`, `pkill`/`kill` y `systemctl` cuando quien llama es un subagente. Es el límite 3, y
+   es el arreglo de verdad: convierte «sólo lectura» de petición en límite.
+2. O **quitarle `Bash` a `revisor` y `arquitecto`**, que dicen ser de sólo lectura y no lo
+   necesitan. Barato, inmediato, y no arregla al `verificador`.
+
+Mientras no esté ninguna de las dos, **delegar a un agente con `Bash` es una decisión del usuario,
+no una del modelo** — y por eso una sesión puede llegar con los subagentes apagados y eso **no** es
+saltarse el triage: es cumplir su límite 3.
+
+### El choque, que en esta máquina es real y va a repetirse
+
+El triage marca `verificador` como **obligatorio** en cada petición de implementación. Una sesión
+puede llegar con `Do not call the AgentTool unless the user requested it` en sus instrucciones —
+pasó el 2026-08-29—. **Las dos reglas son legítimas y tiran en direcciones opuestas.**
+
+- Esa instrucción **no sale de este repo**: `.claude/settings.json` sólo instala los tres hooks, y
+  no dice nada de agentes. Viene de la configuración de la sesión (`/config`, cómo se lanzó, o el
+  harness), y **llegó sin motivo escrito**.
+- Es **condicional**: «salvo que el usuario lo pida». Una frase del usuario la levanta.
+- Qué hacer mientras: **hacer el trabajo del agente a mano y decirlo**. Correr la suite, ejecutar
+  los comandos que la documentación promete, y separar VERIFICADO de NO VERIFICADO — que es
+  literalmente el guion de `.claude/agents/verificador.md`. Lo que **no** vale es saltárselo en
+  silencio, ni ignorar la instrucción de sesión sin decirlo.
+- ⚠ Y lo que se pierde en ese modo va dicho: es el juicio independiente de arriba. Ejecutar los
+  comandos uno mismo comprueba los **hechos**; no comprueba que se estén mirando los hechos
+  correctos.
 
 ---
 
@@ -112,6 +184,21 @@ nadie se entere.
 ⚠ **El primer fallo lo encontró el test, no la lectura**: `\bdroplet\b` no casa con «droplets», así
 que *«destruye los droplets»* caía en `destructivo` y **se perdía el aviso de que eso cuesta
 dinero**. Es justamente la clase de fallo silencioso por la que estos ficheros llevan tests.
+
+⚠ **Y el segundo lo encontró EJECUTAR el comando de aquí arriba, no el test** (2026-08-29). La
+línea `node scripts/triage.mjs "lanza el estudio do-v"  # -> clase: gasto` **daba `consulta`**: ni
+`revisor`, ni aviso de que eso son ≈1,1 $ y 20 runs en máquinas alquiladas — y es LA tarea pendiente
+de `CLAUDE.md`. El patrón pedía «flota», «vast» o «droplet», y *«lanza el estudio»* no trae ninguna.
+
+Sobrevivió porque **el test decía `lanza el estudio do-v EN LA FLOTA`**, y lo que casaba ahí era
+«flota»: la prueba había elegido, sin querer, la única redacción que pasaba, y el ejemplo del
+documento —sin «flota»— era falso desde el primer día. Es justo lo que avisa el `verificador`:
+*«un comando documentado y nunca ejecutado es la forma más común de documentación falsa»*, y aquí
+la víctima era el freno del gasto.
+
+Arreglado con **verbo + sustantivo** (`lanza|corre|ejecuta|repite` + `estudio|tanteo|recorrido`) y
+no con `estudios?` suelto, que habría convertido *«¿qué dice el reporte del estudio de dropout?»* en
+una alarma de dinero. **Tiene test por los dos lados**: el que tiene que saltar y el que no.
 
 ---
 
