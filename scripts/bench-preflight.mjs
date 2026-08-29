@@ -365,6 +365,45 @@ async function main() {
     }
   }
 
+  // 7 ter. Las FUENTES: sin una, no se puede mirar una imagen ni medir la
+  //    métrica de tarea (que se puntúa contra los párrafos de A, no contra las
+  //    ventanas).
+  //
+  //    Crece con el fallo, como manda la regla 5: medido el 2026-08-29 en este
+  //    dev, `discover_sources()` devolvía CERO -- `/data/sources/` está en el
+  //    .gitignore de foveal-vision, así que las fuentes no viajan con el código,
+  //    y el repo del generador sólo trae `specs.jsonl` (los renders no). No
+  //    había forma de saberlo sin ir a buscarlo.
+  //
+  //    AVISA, no bloquea: el benchmark de vCPU no necesita la fuente, sólo el
+  //    dataset de ventanas. Lo que se pierde sin ella es revisar y la métrica de
+  //    tarea.
+  {
+    const datos = join(SRC, 'foveal-vision-data');
+    const pubs = join(datos, 'sources');
+    const locales = join(SRC, 'foveal-vision', 'data', 'sources');
+    const cuenta = (d) => existsSync(d)
+      ? intenta(`ls ${d}`).salida.split('\n').filter(Boolean)
+          .filter((n) => existsSync(join(d, n, 'labels.jsonl'))).length
+      : 0;
+    const nPub = cuenta(pubs), nLoc = cuenta(locales);
+    if (nPub + nLoc === 0) {
+      anota('AVISO', 'fuentes (A)', 'NINGUNA: no se puede revisar ni medir la métrica de tarea',
+        'Las fuentes no viajan con el código. Publica la reducida (2 MB) desde\n' +
+        '    una máquina que la tenga, y esta la verá al clonar el repo de datos:\n' +
+        '      cd ~/src/foveal-vision\n' +
+        '      .venv/bin/fv-publish-source --source local/dirty-1000-80px\n' +
+        `      cd ${datos} && git add sources && git commit -m 'data: fuente' && git push`);
+    } else if (nPub) {
+      anota('OK', 'fuentes (A)',
+        `${nPub} publicada(s) en el repo de datos${nLoc ? ` + ${nLoc} local(es)` : ''}`);
+    } else {
+      anota('AVISO', 'fuentes (A)', `${nLoc} local(es), NINGUNA publicada`,
+        'Están en disco pero no en git: se pierden al rehacer la máquina.\n' +
+        '      cd ~/src/foveal-vision && .venv/bin/fv-publish-source --source local/<nombre>');
+    }
+  }
+
   // 7 bis. Los estudios YA MEDIDOS: que se puedan ENCONTRAR, no que estén.
   //
   //    Es la distinción de siempre aquí, y esta vez costó un estudio entero: los
