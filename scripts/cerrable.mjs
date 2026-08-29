@@ -182,6 +182,58 @@ if (vivos.length) {
   limpio.push('nada de trabajo corriendo en esta máquina');
 }
 
+// ------------------------------------------- 2 bis. lo que corre DENTRO de la web app
+// Desde que la web app de `foveal-vision` corre como servicio (2026-08-29), un
+// entrenamiento, un recorrido o un estudio se lanzan desde el navegador — y ese
+// trabajo vive en un HILO del proceso `fv.api` (`JobQueue`, max_workers=1), no
+// en un proceso propio. O sea que la lista de arriba NO PUEDE verlo: casa líneas
+// de comando, y aquí no hay ninguna que casar. Un barrido lanzado desde el móvil
+// se perdería con el veredicto en 🟢, que es el fallo caro de este script.
+//
+// Se le pregunta a ella, que es la única que lo sabe: `/api/jobs` desde
+// 127.0.0.1, que la puerta deja pasar sin token a propósito (`fv/api/web.py`).
+const WEB_PORT = Number(process.env.FV_WEB_PORT ?? 8010);
+const jobsWeb = (() => {
+  // Dos rutas porque hay dos formas de servirla: con el front (`--web`: el API
+  // cuelga de `/api`) y sin él (el API en la raíz, que es como se levanta a mano
+  // para probar). Preguntar sólo por una daba «no sé» con la otra delante.
+  for (const ruta of ['/api/jobs', '/jobs']) {
+    const cruda = sh(`curl -s -m 3 http://127.0.0.1:${WEB_PORT}${ruta}`);
+    if (cruda === null) return null;      // nadie escucha (o no hay curl)
+    try {
+      const j = JSON.parse(cruda);
+      if (Array.isArray(j.jobs)) return j.jobs;
+    } catch { /* no es JSON: puede ser el index.html del front, sigue probando */ }
+  }
+  return 'desconocido';
+})();
+if (jobsWeb === null) {
+  // Nadie contesta. Eso sólo es raro —y por tanto una duda— si el servicio dice
+  // estar vivo: si no está instalado, no hay web app y no hay nada que perder.
+  // El nombre del servicio se puede fijar por entorno para que esta rama tenga
+  // test: sin eso, «está activo pero no contesta» sólo se ejercita en una
+  // máquina que ya lo tenga instalado, o sea nunca (R17).
+  const unidad = process.env.FV_WEB_UNIT ?? 'foveal-vision-web';
+  if (sh(`systemctl is-active --quiet ${unidad}`) !== null) {
+    dudas.push(`el servicio \`foveal-vision-web\` está activo pero no contesta en :${WEB_PORT}: ` +
+      'NO sé si tiene un entrenamiento dentro');
+  }
+} else if (jobsWeb === 'desconocido') {
+  dudas.push(`algo escucha en :${WEB_PORT} y no contesta como la web app: ` +
+    'NO sé si tiene trabajo dentro');
+} else {
+  const activos = jobsWeb.filter((j) => j.status === 'running' || j.status === 'queued');
+  if (activos.length) {
+    const kinds = [...new Set(activos.map((j) => j.kind).filter(Boolean))].join(', ');
+    razones.push({ tipo: 'web', breve: `${activos.length} trabajo(s) en la web app`,
+      largo: `${activos.length} trabajo(s) corriendo DENTRO de la web app` +
+             `${kinds ? ` (${kinds})` : ''} — viven en el proceso, así que mueren con ` +
+             'el server y no dejan ni un proceso que delate la pérdida' });
+  } else {
+    limpio.push('web app: sin trabajo dentro');
+  }
+}
+
 // ---------------------------------------------------------------- 3. lo no empujado
 for (const { raiz, montado } of LOCALES) {
   for (const r of REPOS) {

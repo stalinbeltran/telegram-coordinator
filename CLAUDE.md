@@ -446,9 +446,10 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
 |---|---|
 | **Máquinas de Vast vivas** | **El daño que crece solo.** El proceso que las recoge muere con el server; **las máquinas no**. Siguen facturando, sin nadie que las destruya y sin nadie que se entere |
 | **Procesos de trabajo** | Flotas, vigilantes, datasets, mediciones: mueren con la máquina y hay que repetirlos |
+| **Trabajo DENTRO de la web app** | Desde el 2026-08-29 la app de `foveal-vision` corre como servicio, y un entrenamiento lanzado desde el navegador vive en un **hilo** de `fv.api`. **No hay proceso que casar**, así que la fila de arriba no puede verlo |
 | **Lo no commiteado / no empujado** | «Lo que no está empujado, no existe»: un clon limpio saca `main` del remoto y punto |
 
-### Las tres decisiones que hay que respetar si se toca
+### Las cinco decisiones que hay que respetar si se toca
 
 1. **Ante la duda dice `NO SÉ` y sale con 2, nunca «cerrable».** Si falta el token o la API no
    contesta, no se puede saber qué hay alquilado — y un fallo silencioso que se lee como
@@ -465,11 +466,22 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    destruye **por etiqueta** y avisa en voz alta de **no usar `destroy --all`**, que se llevaría
    por delante las de la otra sesión.
 
-3. **De quién es un proceso lo dice su CWD, no su línea de comando.** La flota se lanza con
+3. **Lo que corre DENTRO de un proceso también cuenta, y hay que preguntárselo a él.** La
+   fila «procesos de trabajo» casa **líneas de comando**; un entrenamiento lanzado desde la web
+   app de `foveal-vision` es un hilo de `fv.api` (`JobQueue`, `max_workers=1`) y no aparece en
+   ningún `ps`. Sin esto, un barrido lanzado desde el móvil se perdía con el veredicto en 🟢 —
+   el falso verde otra vez. Se pregunta a `/api/jobs` (y a `/jobs`, que es como se levanta a
+   mano) desde **127.0.0.1**, que la puerta de esa app deja pasar sin token a propósito. Si algo
+   escucha en el puerto y no contesta como ella, es **NO SÉ**; si no hay nada, se calla, porque
+   una máquina sin la app no tiene por qué leer una línea sobre ella. Puerto y unidad se pueden
+   fijar con `FV_WEB_PORT`/`FV_WEB_UNIT`, que es lo que hace la rama testeable (R17). Seis tests
+   en `tests/cerrable-webapp.test.mjs`.
+
+4. **De quién es un proceso lo dice su CWD, no su línea de comando.** La flota se lanza con
    ruta relativa, así que filtrar por la salida de `ps` da por ajenos los procesos propios
    (medido el 2026-08-27). Se resuelve con `/proc/<pid>/cwd`.
 
-4. **El veredicto NO puede depender de desde dónde preguntes** — y dependía. `cerrable.mjs` se
+5. **El veredicto NO puede depender de desde dónde preguntes** — y dependía. `cerrable.mjs` se
    **copia con el workspace**, así que desde que un tema re-enraíza sus comandos, `/use cerrable`
    ejecuta la copia de `~/ws/tema-N/telegram-coordinator/scripts/`. El script deducía de su propia
    ubicación en disco (el antipatrón de la **R4**) las dos cosas que decide, y las dos se daban la
