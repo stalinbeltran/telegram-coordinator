@@ -38,8 +38,14 @@ const WS = process.env.COORD_WS ? resolve(process.env.COORD_WS) : dirname(COORD)
 // "todo commiteado y empujado" y el veredicto salia VERDE, o sea permiso para
 // destruir la maquina. Es exactamente la perdida que costo el `r20260824` y la
 // comparabilidad de 20 runs ya pagados.
+//
+// ⚠ Y `estudios-redes-neuronales` es el SEXTO desde el 2026-08-29: es el repo
+// central, donde viven los reportes y `ESTADO.md`, o sea el veredicto de todo lo
+// que ya se pago. Sin el, nadie puede comprobar si un estudio que se va a pagar
+// ya se pago una vez -- y eso es dinero, no comodidad.
 const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
-               'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator'];
+               'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator',
+               'estudios-redes-neuronales'];
 
 const RAIZ_WS = process.env.COORD_WS_RAIZ ?? join(process.env.HOME ?? '', 'ws');
 

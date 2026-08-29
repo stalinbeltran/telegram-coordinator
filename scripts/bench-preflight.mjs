@@ -196,6 +196,13 @@ async function main() {
     ['stalinbeltran/foveal-vision', 'foveal-vision'],
     ['stalinbeltran/image-text-sample-generator', 'image-text-sample-generator'],
     ['stalinbeltran/foveal-vision-data', 'foveal-vision-data'],
+    // ⚠ El repo central de los reportes (desde 2026-08-29). Bloquea por la misma
+    //    razón que los otros tres, y no por orden: sin él, `.claude/agents/revisor.md`
+    //    no puede comprobar si el estudio que se va a lanzar YA se corrió una vez.
+    //    Un barrido repetido no falla: cuesta lo mismo que el primero y sale igual
+    //    de bien, así que nadie se entera. Los ≥25,35 $ registrados hasta hoy están
+    //    ahí y en ningún otro sitio.
+    ['stalinbeltran/estudios-redes-neuronales', 'estudios-redes-neuronales'],
   ]) {
     const ruta = join(SRC, dir);
     if (existsSync(join(ruta, '.git'))) {

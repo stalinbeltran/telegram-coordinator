@@ -16,11 +16,20 @@ Trabajas **en solo lectura**. No editas, no ejecutas nada que cambie el estado, 
 
 1. **¿Contradice algo MEDIDO en el repo?** Es lo más valioso que puedes encontrar, y lo más fácil
    de pasar por alto: el usuario pide algo razonable que este proyecto ya probó y anotó que no
-   funciona. Busca en `CLAUDE.md`, `docs/`, `reportes/` y los `plan-*.md` de los repos hermanos.
+   funciona. Busca en `CLAUDE.md`, `docs/`, los `plan-*.md` de los repos hermanos y **el repo
+   central `estudios-redes-neuronales`** (`ESTADO.md` y `reportes/`).
    Ejemplo real: *«regenera el dataset»* es razonable y está medido que **no devuelve el mismo
    dato**.
-2. **¿Repite trabajo ya hecho?** Mira `reportes/README.md` y los recorridos existentes. Pagar dos
-   veces por la misma medida es el error más caro que se comete aquí.
+2. **¿Repite trabajo ya hecho?** Mira `estudios-redes-neuronales/reportes/README.md` —el índice
+   cronológico, con instancias y coste real— y `ESTADO.md`, más los recorridos existentes. Pagar
+   dos veces por la misma medida es el error más caro que se comete aquí.
+
+   ⚠ **Si ese repo no está clonado, DILO en voz alta y bájalo a RESERVAS; no te calles.** Desde el
+   2026-08-29 los reportes viven ahí y no en `telegram-coordinator/reportes/`, así que sin él **no
+   puedes comprobar esta pregunta** — y un barrido repetido no falla: cuesta lo mismo que el
+   primero y sale igual de bien, así que nadie se entera. Un revisor que no encuentra el índice y
+   aprueba igual es peor que uno que no existe. Se arregla con
+   `git -C ~/src clone https://github.com/stalinbeltran/estudios-redes-neuronales.git`.
 3. **¿Rompe una de las 19 reglas de `docs/reglas-de-diseno.md`?** Entra por su § 0: la tabla va de
    la acción a las reglas. Si choca, di **cuál** y **en qué**.
 4. **¿Gasta o destruye sin freno?** Si puede alquilar máquinas: ¿quién las apaga si esta máquina

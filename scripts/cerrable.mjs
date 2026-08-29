@@ -84,17 +84,16 @@ const EXIT0 = process.argv.includes('--exit0');
 // destruir la maquina. Es exactamente la perdida que costo el `r20260824` y la
 // comparabilidad de 20 runs ya pagados.
 //
-// ⚠ Y `foveal-vision-project` es el SEXTO desde el 2026-08-29: es donde viven los
-// reportes y `ESTADO.md`, o sea el veredicto de todo lo que ya se pagó. Va aquí
-// en el mismo commit que la centralización a propósito (R11: el freno con el
-// acelerador). Mientras no exista su remoto en GitHub es un repo LOCAL con
-// commits propios, así que esta lista lo pone en 🔴 -- que es lo correcto:
-// destruir el server ahora se lleva por delante la clasificación entera.
+// ⚠ Y `estudios-redes-neuronales` es el SEXTO desde el 2026-08-29: es el repo
+// central, donde viven los reportes y `ESTADO.md`, o sea el veredicto de todo lo
+// que ya se pagó. Va en la lista por lo mismo que `foveal-vision-data`: un
+// reporte escrito y sin empujar se pierde con la máquina, y con él la única
+// contabilidad de lo que costó cada barrido.
 // Este bucle salta los repos que no están en disco, así que añadirlo no rompe
 // ninguna máquina que no lo tenga.
 const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
                'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator',
-               'foveal-vision-project'];
+               'estudios-redes-neuronales'];
 // Lo que, si está vivo, significa que hay trabajo en curso que se perdería.
 const TRABAJOS = /estudio_flota\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py/;
 

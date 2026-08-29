@@ -166,10 +166,16 @@ docs/
   ejecutores-federados.md   propuesta: que cada repo traiga sus ejecutores
                             y el coordinador los descubra (NO implementada)
 reportes/
-  README.md                 el INDICE: la tabla cronologica de todos los
+  README.md                 SOLO UN PUNTERO desde el 2026-08-29: los reportes
+                            viven en el repo central `estudios-redes-neuronales`
+
+...y FUERA de este repo, en ~/src/estudios-redes-neuronales (el repo central):
+  ESTADO.md                 en que quedo cada parametro. SE REESCRIBE
+  reportes/README.md        el INDICE: la tabla cronologica de todos los
                             barridos, con horas, instancias y coste real
-  <año>/<mes>/<fecha>-<estudio>.md   un reporte por barrido terminado
-                            (p. ej. 2026/08-agosto/2026-08-25-bs-alto-tanteo.md)
+  reportes/<tipo>/<año>/<mes>/<fecha>-<estudio>.md
+                            un reporte por barrido terminado, clasificado
+                            (estudios · infraestructura · sintesis · arquitectura)
 ```
 
 ## Detalles técnicos que importan
@@ -499,24 +505,39 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
 El veredicto va en el **texto**, que es donde se lee. Fuera de Telegram el código de salida
 (0 cerrable · 1 no cerrar · 2 no sé) sigue sirviendo para encadenar.
 
-## Todo barrido o estudio que termine deja su reporte en `reportes/`
+## Todo barrido o estudio que termine deja su reporte en el repo CENTRAL
 
 **Regla, y no es opcional: cuando un barrido o un estudio termina, el encargo no está
-cerrado hasta que su reporte está escrito en `reportes/` y commiteado.** Va en el mismo
-commit o en el siguiente, el mismo día — la regla de arriba (`cambio terminado → commit
-→ push`) se aplica entera.
+cerrado hasta que su reporte está escrito y commiteado.** Va en el mismo commit o en el
+siguiente, el mismo día — la regla de arriba (`cambio terminado → commit → push`) se
+aplica entera.
 
-Dónde y cómo, con el detalle completo, en [`reportes/README.md`](reportes/README.md).
-En corto:
+⚠ **Desde el 2026-08-29 el reporte NO va en este repo.** Va en
+[`estudios-redes-neuronales`](https://github.com/stalinbeltran/estudios-redes-neuronales), sea cual sea el repo desde el que se lanzó el trabajo,
+el que produjo el dato o el que originó la petición. Este repo es **el transporte**:
+dispara los estudios, no los produce — guardar aquí sus reportes era el incumplimiento de
+la R7 que el propio análisis de arquitectura señaló. Y 4 de los 21 reportes no eran de
+ningún repo en concreto.
 
 ```
-reportes/<año>/<mes>/<fecha>-<nombre-del-estudio>.md
-   └─ p. ej. reportes/2026/08-agosto/2026-08-25-bs-alto-tanteo.md
+estudios-redes-neuronales/reportes/<tipo>/<año>/<mes>/<fecha>-<nombre-del-estudio>.md
+   └─ p. ej. reportes/estudios/2026/08-agosto/2026-08-25-bs-alto-tanteo.md
 ```
 
-Y **se añade su fila al final de la tabla de `reportes/README.md`**, sin tocar las
-anteriores. La tabla va en orden cronológico y es de sólo-añadir: reescribir filas viejas
-es perder el histórico que la hace útil.
+**El tipo se elige con dos preguntas mecánicas**, no por gusto: *¿se corrió algo (hay reloj
+y factura)?* y *¿cuál es el sujeto medido?* — `estudios` si es **la red**,
+`infraestructura` si es **la máquina o la cadena**, `sintesis` si **no se midió nada** y se
+relee lo ya pagado, `arquitectura` si el sujeto es **el sistema de repos y procesos**.
+⚠ **Quién lanza no clasifica**: el `#1` lo lanzó un script de `foveal-vision` y es
+`infraestructura`, porque mide s/época por vCPU.
+
+Y **se añade su fila al final de la tabla de [`reportes/README.md`](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/README.md)**,
+sin tocar las anteriores. La tabla va en orden cronológico y es de sólo-añadir: reescribir
+filas viejas es perder el histórico que la hace útil. El **estado** de cada parámetro va en
+otro fichero, [`ESTADO.md`](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/ESTADO.md), que **sí** se reescribe: son historial y estado,
+y estaban mezclados en un solo README hasta la centralización.
+
+Dónde y cómo, con el detalle completo, en [`reportes/README.md` del repo central](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/README.md).
 
 ### Qué lleva siempre, y por qué estos campos y no otros
 
@@ -581,7 +602,7 @@ dónde se guarda algo que el sistema produce— **se leen las reglas que aplique
 [`docs/reglas-de-diseno.md`](docs/reglas-de-diseno.md). No se lee entero: su § 0 es una tabla
 que va de la **acción que estás a punto de hacer** a las reglas que la gobiernan.
 
-Salen del [análisis de arquitectura del 2026-08-28](reportes/2026/08-agosto/2026-08-28-analisis-arquitectura.md),
+Salen del [análisis de arquitectura del 2026-08-28](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/arquitectura/2026/08-agosto/2026-08-28-analisis-arquitectura.md),
 que revisó los cinco repos como un solo sistema. Cada regla trae **cómo se comprueba**, y la mitad
 están ilustradas con algo que este proyecto **incumple hoy** —el grafo cíclico de repos, `scripts/`
 adelantando a `src/`, los reportes en el repo del transporte, cero CI— porque una regla que sólo se
@@ -790,13 +811,13 @@ node "$COORD_HOME/scripts/notify.mjs" "estudio completo de dropout (do-v) termin
 
 **20 runs · ≈1,1 $ · ~3,5 h** al ritmo real medido (53 s/época; los 40 estimados se quedaron
 cortos). Al terminar: `estudio_informe.py --sweep do-v --vigente 0.0`, y el reporte a
-`reportes/` con su fila (regla de siempre).
+`estudios-redes-neuronales/reportes/estudios/2026/08-agosto/` con su fila (regla de siempre).
 
 ### Los valores del tanteo `do-t`, ya medidos — **no hay que repetirlos**
 
 Corrido el 2026-08-28 01:30→04:51 UTC, 8/8 runs, 5 máquinas, **0,3626 $**, dataset
 `dirty1000-80px-16px-r20260827`, base `ws16-p2-d2-L4`. Detalle en el reporte
-[#17](reportes/2026/08-agosto/2026-08-28-dropout-tanteo.md) y el criterio en
+[#17](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/estudios/2026/08-agosto/2026-08-28-dropout-tanteo.md) y el criterio en
 [`foveal-vision/docs/plan-dropout-2026-08-28.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-dropout-2026-08-28.md).
 
 | `dropout` | f1 (media) | épocas | **brecha val/train** |
@@ -1098,7 +1119,7 @@ hoy se llama `r20260826` y no `r20260824`.
 
 **Lo que costó:** al rehacer la máquina, el `r20260824` desapareció —no estaba en
 ningún git— y con él la comparabilidad de **20 runs ya pagados**, que hubo que
-volver a medir enteros (barrido [#14](reportes/README.md)).
+volver a medir enteros (barrido [#14](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/README.md)).
 
 **La solución, desde el 2026-08-27: el `windows.npz` se commitea** en
 `foveal-vision-data/window-datasets/`, ~3-6 MB por dataset. El detalle está donde

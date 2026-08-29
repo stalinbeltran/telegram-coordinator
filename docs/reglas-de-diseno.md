@@ -24,7 +24,7 @@ repiten aquí**:
 |---|---|
 | documentar, desacoplar procesos, secretos, preflights, frenos | [`revision-2026-08-22.md` § 3, los ocho patrones A–H](revision-2026-08-22.md#3-los-ocho-patrones) |
 | cómo se redacta (procedencia de los números, «sobrevive» con complemento, caducidad de cerrojos) | [`../CLAUDE.md` § «Cómo se escribe aquí»](../CLAUDE.md) |
-| la evidencia concreta de este proyecto, con sus medidas | [`../reportes/2026/08-agosto/2026-08-28-analisis-arquitectura.md`](../reportes/2026/08-agosto/2026-08-28-analisis-arquitectura.md) |
+| la evidencia concreta de este proyecto, con sus medidas | [`estudios-redes-neuronales/reportes/arquitectura/…/2026-08-28-analisis-arquitectura.md`](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/arquitectura/2026/08-agosto/2026-08-28-analisis-arquitectura.md) |
 
 ⚠ **Las reglas de aquí son las que quedaron en pie tras mirar qué funcionó y qué costó.** Las que
 tienen ✅ es que este proyecto las cumple y le salió bien; las que tienen ❌ es que las incumple hoy
@@ -367,7 +367,7 @@ Diez preguntas. Cada «no» es deuda: se arregla o se anota **por escrito**, nun
 ## 8. Procedencia
 
 Las reglas salen del **análisis de arquitectura del 2026-08-28**
-([reporte](../reportes/2026/08-agosto/2026-08-28-analisis-arquitectura.md)), que revisó los cinco
+([reporte](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/arquitectura/2026/08-agosto/2026-08-28-analisis-arquitectura.md)), que revisó los cinco
 repos de este sistema leyendo sus interfaces reales. **Todas las cifras citadas aquí están medidas
 ese día**, con los comandos que ese reporte deja en su § 7; aquí se resumen y **no se re-derivan**,
 que es la regla de siempre: el dato vive donde se produjo.
