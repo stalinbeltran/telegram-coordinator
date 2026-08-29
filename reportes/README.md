@@ -1,5 +1,15 @@
 # Reportes de barridos y estudios
 
+> ## ⚠ MIGRACIÓN EN CURSO (2026-08-29): estos reportes se van a `foveal-vision-project`
+>
+> Ya están **copiados y clasificados** en `~/src/foveal-vision-project`, un repo que de momento
+> **sólo existe en local**: el token de esta máquina no tiene permiso para crear repos en GitHub.
+>
+> **Mientras esto esté aquí, no edites un reporte en los dos sitios.** El repo central es el que
+> manda; esta copia se borra en cuanto exista el remoto. Los pasos exactos para terminar están en
+> `foveal-vision-project/docs/migracion-2026-08-29.md`.
+
+
 Aquí queda **un reporte por cada barrido o estudio que se termine**, se haya lanzado desde donde se
 haya lanzado. El coordinador es el sitio desde el que se dispara el trabajo (`/use estudio`,
 `/use barrido`, `/use bench`), así que es también el sitio donde tiene sentido poder verlos todos
