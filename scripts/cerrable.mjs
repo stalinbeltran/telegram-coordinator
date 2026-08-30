@@ -95,7 +95,29 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
                'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator',
                'estudios-redes-neuronales'];
 // Lo que, si está vivo, significa que hay trabajo en curso que se perdería.
-const TRABAJOS = /estudio_flota\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py/;
+//
+// ⚠ Los `fv-*` entraron el 2026-08-30, y faltaban desde el principio. Un
+// entrenamiento lanzado por consola —que es LA forma documentada de entrenar
+// (`foveal-vision/docs/entrenar.md`)— no casaba con ninguno de los patrones de
+// arriba, que son todos de la flota y del benchmark. Medido ese día: un
+// `fv-train` llevaba 1 h 17 min vivo (PID 30928) y el freno decía «nada de
+// trabajo corriendo en esta máquina» — el falso verde, otra vez, y esta vez
+// sobre lo único que estaba corriendo.
+//
+// Es el mismo agujero que se tapó por el otro lado el 2026-08-29: aquello no
+// tenía proceso propio (vive en un hilo de la web app), y esto lo tiene pero con
+// un nombre que nadie había apuntado. La lección es la de siempre aquí: esta
+// lista NO se deduce, se declara — así que **cada entrada nueva de
+// `foveal-vision/pyproject.toml` que pueda tardar hay que añadirla aquí**.
+//
+// ⚠ `fv-api` y `web_app.py` NO están, y no es un olvido: son el SERVICIO, vivo
+// por definición desde que la máquina arranca. Contarlos dejaría el veredicto en
+// 🔴 permanente, que es el aviso que sale siempre y se deja de leer (patrón B).
+// Lo que corre DENTRO de ese proceso se pregunta aparte, en el bloque 2 bis.
+// Tampoco están `fv-resize` ni `fv-publish-source`: son cortos y rehacerlos
+// cuesta segundos. `fv-extract` sí, porque lo que produce (`windows.npz`) está
+// MEDIDO que no se re-deriva igual (R9).
+const TRABAJOS = /estudio_flota\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar
@@ -173,11 +195,22 @@ const vivos = (sh('ps -eo pid,args') ?? '').split('\n').slice(1)
   })
   .filter((v) => v.cwd && LOCALES.some((l) => dentroDe(v.cwd, l.raiz)));
 if (vivos.length) {
+  // Se cuentan TRABAJOS, no procesos. Un mismo trabajo aparece varias veces en
+  // `ps`: `desacoplar.sh` lo envuelve en `sudo … systemd-run … sh -c '…'` y cada
+  // envoltorio lleva la línea entera del hijo, así que casa igual. Contando
+  // procesos, un solo entrenamiento salía como «3 proceso(s) vivo(s)» (medido el
+  // 2026-08-30) — y un número que no cuadra con lo que hay se deja de creer.
+  //
+  // ⚠ Se AGRUPA, no se descartan los envoltorios: entre que arranca el `sh -c` y
+  // que existe su hijo hay un hueco en el que el envoltorio es lo único que hay,
+  // y descartarlo diría «no corre nada» justo cuando acaba de empezar. El que no
+  // deja leer su `/proc/<pid>/cwd` ya se cayó antes, en el filtro de arriba.
+  const trabajos = [...new Set(vivos.map((v) => `${v.que}\t${v.cwd}`))];
   const porQue = [...new Set(vivos.map((v) => v.que))].join(', ');
   const arboles = [...new Set(vivos.map((v) => donde(LOCALES.find((l) => dentroDe(v.cwd, l.raiz))?.raiz)))]
     .filter(Boolean).join('');
-  razones.push({ tipo: 'proc', breve: `${vivos.length} proceso(s) vivo(s)`,
-    largo: `${vivos.length} proceso(s) de trabajo vivo(s) (${porQue})${arboles} — morirían con el server` });
+  razones.push({ tipo: 'proc', breve: `${trabajos.length} trabajo(s) vivo(s)`,
+    largo: `${trabajos.length} trabajo(s) vivo(s) (${porQue})${arboles} — morirían con el server` });
 } else {
   limpio.push('nada de trabajo corriendo en esta máquina');
 }

@@ -433,7 +433,7 @@ node scripts/cerrable.mjs             # el informe entero, con qué se perdería
 Sale así, y se pega **tal cual**:
 
 ```
-🔴 **NO CERRAR** — 20 máquinas Vast (1,3864 $/h) · 2 proceso(s) vivo(s) · 29 cambio(s) sin empujar
+🔴 **NO CERRAR** — 20 máquinas Vast (1,3864 $/h) · 2 trabajo(s) vivo(s) · 29 cambio(s) sin empujar
 🟢 **CERRABLE** — nada alquilado, nada corriendo, todo empujado
 🟡 **NO SÉ** — `vast_instance.py list` falló (¿token? ¿red?): NO sé qué hay alquilado
 ```
@@ -445,11 +445,11 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
 | Qué | Por qué se pierde al apagar |
 |---|---|
 | **Máquinas de Vast vivas** | **El daño que crece solo.** El proceso que las recoge muere con el server; **las máquinas no**. Siguen facturando, sin nadie que las destruya y sin nadie que se entere |
-| **Procesos de trabajo** | Flotas, vigilantes, datasets, mediciones: mueren con la máquina y hay que repetirlos |
+| **Trabajos con proceso propio** | Flotas, vigilantes, datasets, mediciones y **entrenamientos por consola** (`fv-train` y compañía): mueren con la máquina y hay que repetirlos. La lista se **declara** (`TRABAJOS` en `cerrable.mjs`), así que un comando nuevo que tarde hay que **añadirlo ahí** |
 | **Trabajo DENTRO de la web app** | Desde el 2026-08-29 la app de `foveal-vision` corre como servicio, y un entrenamiento lanzado desde el navegador vive en un **hilo** de `fv.api`. **No hay proceso que casar**, así que la fila de arriba no puede verlo |
 | **Lo no commiteado / no empujado** | «Lo que no está empujado, no existe»: un clon limpio saca `main` del remoto y punto |
 
-### Las cinco decisiones que hay que respetar si se toca
+### Las siete decisiones que hay que respetar si se toca
 
 1. **Ante la duda dice `NO SÉ` y sale con 2, nunca «cerrable».** Si falta el token o la API no
    contesta, no se puede saber qué hay alquilado — y un fallo silencioso que se lee como
@@ -511,6 +511,27 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    ⚠ **Y la lección general, que es la que se repite:** todo script que se copie con el workspace
    y hable del **conjunto** de la máquina tiene este fallo latente. `dirname(COORD)` es «dónde
    estoy», nunca «dónde está casa».
+
+6. **La lista de trabajos se DECLARA, y por eso hay que mantenerla.** `TRABAJOS` casa nombres de
+   script, y sólo tenía los de la flota y el benchmark. Medido el 2026-08-30: un `fv-train` llevaba
+   **1 h 17 min** vivo —la forma documentada de entrenar, `foveal-vision/docs/entrenar.md`— y el
+   veredicto decía **«nada de trabajo corriendo en esta máquina»**. Es el mismo agujero que se tapó
+   por el otro lado el 2026-08-29, al revés: aquello no tenía proceso propio, y esto lo tenía con un
+   nombre que nadie había apuntado. **Cada entrada nueva de `foveal-vision/pyproject.toml` que pueda
+   tardar va a esa lista.**
+   ⚠ Y el **servicio** (`fv-api`, `web_app.py`) **no** entra: está vivo desde que arranca la máquina,
+   así que contarlo sería un 🔴 permanente — el aviso que sale siempre y se deja de leer. Lo que corre
+   *dentro* de él se pregunta aparte.
+
+7. **Se cuentan TRABAJOS, no procesos.** `desacoplar.sh` envuelve el comando en
+   `sudo … systemd-run … sh -c '…'`, y cada envoltorio lleva la línea entera del hijo: casan los
+   tres. Un solo entrenamiento salía como «3 proceso(s) vivo(s)», y un número que no cuadra con lo
+   que hay se deja de creer. Se agrupa por (qué, en qué árbol) y **no** se descartan los envoltorios:
+   entre que arranca el `sh -c` y que existe su hijo, el envoltorio es lo único que hay.
+
+   Cuatro tests en `tests/cerrable-procesos.test.mjs`; dos de los cuatro fallan con el código
+   anterior (los otros dos fijan lo que ya funcionaba: que el servicio no cuente, y que lo de otra
+   máquina no cuente).
 
 ⚠ **El ejecutor lo llama con `--exit0`** porque el coordinador lee cualquier código ≠ 0 como
 «el ejecutor falló» y entonces no corre los encargados: la respuesta no llegaría a Telegram.
