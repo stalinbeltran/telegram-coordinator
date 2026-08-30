@@ -209,7 +209,13 @@ if (vivos.length) {
   const porQue = [...new Set(vivos.map((v) => v.que))].join(', ');
   const arboles = [...new Set(vivos.map((v) => donde(LOCALES.find((l) => dentroDe(v.cwd, l.raiz))?.raiz)))]
     .filter(Boolean).join('');
-  razones.push({ tipo: 'proc', breve: `${trabajos.length} trabajo(s) vivo(s)`,
+  // ⚠ La línea BREVE también dice QUÉ corre, y eso no es adorno: es la que se pega
+  // al final de cada mensaje y la única que se lee desde el móvil. Decía sólo
+  // «1 trabajo(s) vivo(s)», así que el dueño leía un 🔴 sin poder saber de qué —
+  // y con la cuenta de Vast vacía, la conclusión razonable era «esto está roto».
+  // Pasó el 2026-08-30. Un freno que no se puede contrastar se acaba ignorando,
+  // que es exactamente lo que no puede pasarle a un freno.
+  razones.push({ tipo: 'proc', breve: `${trabajos.length} trabajo(s) vivo(s): ${porQue}`,
     largo: `${trabajos.length} trabajo(s) vivo(s) (${porQue})${arboles} — morirían con el server` });
 } else {
   limpio.push('nada de trabajo corriendo en esta máquina');
@@ -307,8 +313,13 @@ if (BREVE) {
   // agrega en un solo numero en vez de una entrada por repo.
   const partes = [];
   for (const r of razones.filter((x) => x.tipo !== 'git')) partes.push(r.breve);
-  const git = razones.filter((x) => x.tipo === 'git').reduce((a, x) => a + x.n, 0);
-  if (git) partes.push(`${git} cambio(s) sin empujar`);
+  // Lo de git sí se agrega en un número: son hasta seis repos y la línea tiene que
+  // caber. Pero si el pendiente está en UN solo repo, se nombra — que es el caso
+  // normal, y saber dónde mirar cuesta lo mismo que no saberlo.
+  const gits = razones.filter((x) => x.tipo === 'git');
+  const git = gits.reduce((a, x) => a + x.n, 0);
+  const repos = [...new Set(gits.map((x) => x.largo.split(':')[0]))];
+  if (git) partes.push(`${git} cambio(s) sin empujar${repos.length === 1 ? ` en ${repos[0]}` : ''}`);
   const motivo = partes.length ? partes.join(' · ')
     : (dudas.length ? dudas.join(' · ') : 'nada alquilado, nada corriendo, todo empujado');
   console.log(`${icono} **${estado}** — ${motivo}`);

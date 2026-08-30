@@ -98,11 +98,11 @@ async function esperarEnPs(patron) {
   throw new Error(`'${patron}' no apareció en ps`);
 }
 
-async function correr(m) {
+async function correr(m, ...extra) {
   const base = { ...process.env };
   delete base.COORD_WS;
   const { stdout } = await ejecutar(
-    'node', [join(m.coord, 'scripts', 'cerrable.mjs'), '--exit0'],
+    'node', [join(m.coord, 'scripts', 'cerrable.mjs'), '--exit0', ...extra],
     { cwd: m.coord, encoding: 'utf8',
       env: { ...base, HOME: m.raiz, COORD_HOME: m.coord,
              // puerto libre + servicio inexistente: esta rama no puede depender
@@ -162,5 +162,22 @@ test('lo que corre FUERA de estos árboles no es de este server', async () => {
     const salida = await correr(m);
     assert.match(salida, /CERRABLE/,
       'de quién es un proceso lo dice su CWD: éste no cuelga de ningún árbol local');
+  } finally { hijo.kill('SIGKILL'); }
+});
+
+test('la línea BREVE dice QUÉ corre, no sólo que corre algo', async () => {
+  // Es la que se pega al final de cada mensaje y la única que se lee desde el
+  // móvil. Decía «1 trabajo(s) vivo(s)» a secas, así que el dueño veía un 🔴 sin
+  // poder contrastarlo: miró la cuenta de Vast, la encontró vacía, y concluyó
+  // que el freno estaba roto (2026-08-30). Un freno que no se puede contrastar
+  // se acaba ignorando, que es lo único que no puede pasarle a un freno.
+  const m = maquina({ 'fv-train': DORMIR });
+  const hijo = lanzar('node', [join(m.fv, 'fv-train')], m.fv);
+  try {
+    await esperarEnPs(`${m.fv}/fv-train`);
+    const salida = await correr(m, '--breve');
+    assert.equal(salida.trim().split('\n').length, 1, 'breve es UNA línea');
+    assert.match(salida, /fv-train/,
+      'sin el nombre, el 🔴 no se puede comprobar desde el móvil');
   } finally { hijo.kill('SIGKILL'); }
 });

@@ -433,7 +433,7 @@ node scripts/cerrable.mjs             # el informe entero, con qué se perdería
 Sale así, y se pega **tal cual**:
 
 ```
-🔴 **NO CERRAR** — 20 máquinas Vast (1,3864 $/h) · 2 trabajo(s) vivo(s) · 29 cambio(s) sin empujar
+🔴 **NO CERRAR** — 20 máquinas Vast (1,3864 $/h) · 2 trabajo(s) vivo(s): estudio_flota.py · 29 cambio(s) sin empujar
 🟢 **CERRABLE** — nada alquilado, nada corriendo, todo empujado
 🟡 **NO SÉ** — `vast_instance.py list` falló (¿token? ¿red?): NO sé qué hay alquilado
 ```
@@ -529,7 +529,14 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    que hay se deja de creer. Se agrupa por (qué, en qué árbol) y **no** se descartan los envoltorios:
    entre que arranca el `sh -c` y que existe su hijo, el envoltorio es lo único que hay.
 
-   Cuatro tests en `tests/cerrable-procesos.test.mjs`; dos de los cuatro fallan con el código
+   ⚠ **Y la línea `--breve` dice QUÉ corre**, no sólo que corre algo. Es la que se pega al final de
+   cada mensaje y la única que se lee desde el móvil; decía «1 trabajo(s) vivo(s)» a secas, así que
+   el dueño veía un 🔴 sin poder contrastarlo — miró la cuenta de Vast, la encontró vacía, y
+   concluyó que el freno estaba roto (2026-08-30). **Un freno que no se puede comprobar se acaba
+   ignorando**, que es lo único que no puede pasarle a un freno. Por lo mismo, si lo pendiente de
+   git está en **un solo** repo, se nombra.
+
+   Cinco tests en `tests/cerrable-procesos.test.mjs`; tres de los cinco fallan con el código
    anterior (los otros dos fijan lo que ya funcionaba: que el servicio no cuente, y que lo de otra
    máquina no cuente).
 
