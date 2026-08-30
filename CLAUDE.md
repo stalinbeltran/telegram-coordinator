@@ -536,7 +536,14 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    ignorando**, que es lo único que no puede pasarle a un freno. Por lo mismo, si lo pendiente de
    git está en **un solo** repo, se nombra.
 
-   Cinco tests en `tests/cerrable-procesos.test.mjs`; tres de los cinco fallan con el código
+   ⚠ **Y el freno no se cuenta a sí mismo.** Un shell cuya línea *menciona* un nombre de trabajo
+   casa igual que el trabajo, así que preguntar desde la consola («¿está corriendo `fv-train`?»)
+   sumaba un trabajo inventado y el veredicto pasaba de 1 a 2 vivos sin que la máquina cambiara.
+   Se excluyen **por parentesco** (uno mismo y sus antepasados), no con una lista de palabras
+   —`grep`, `pgrep`, `ps`…— que habría que ampliar cada vez: el trabajo de verdad **nunca** puede
+   ser antepasado de quien pregunta.
+
+   Seis tests en `tests/cerrable-procesos.test.mjs`; cuatro de los seis fallan con el código
    anterior (los otros dos fijan lo que ya funcionaba: que el servicio no cuente, y que lo de otra
    máquina no cuente).
 

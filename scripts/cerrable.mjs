@@ -184,8 +184,29 @@ if (!existsSync(lanzador)) {
 // ---------------------------------------------------------------- 2. trabajo en curso
 // De quién es un proceso lo dice su CWD, no su línea de comando: la flota se
 // lanza con ruta relativa (medido 2026-08-27).
+// Yo no soy el trabajo, ni tampoco quien me lanzó. Un shell cuya línea MENCIONA
+// el nombre de un trabajo casa igual que el trabajo: preguntar por él desde la
+// consola (`pgrep -af fv-train`, o cualquier comando que lo nombre) sumaba un
+// trabajo inventado, y el veredicto pasaba de «1 vivo» a «2 vivos» sin que nada
+// hubiera cambiado en la máquina. Visto el 2026-08-30 mientras se depuraba esto
+// mismo. Un número que baila se deja de creer, y este número es el freno.
+//
+// Se excluyen por PARENTESCO y no por una lista de palabras (`grep`, `pgrep`,
+// `ps`...): esa lista habría que ir ampliándola cada vez que alguien invente una
+// forma nueva de nombrar un trabajo, y el trabajo de verdad NUNCA puede ser
+// antepasado de quien pregunta — el freno se lanza desde Telegram o desde una
+// consola, jamás desde dentro de un entrenamiento.
+const YO = new Set();
+for (let pid = process.pid, i = 0; pid > 1 && i < 40; i++) {
+  YO.add(String(pid));
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    pid = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1]);
+  } catch { break; }
+}
 const vivos = (sh('ps -eo pid,args') ?? '').split('\n').slice(1)
   .filter((l) => TRABAJOS.test(l) && !/\bgrep\b/.test(l))
+  .filter((l) => !YO.has(l.trim().split(/\s+/)[0]))
   .map((l) => {
     const pid = l.trim().split(/\s+/)[0];
     let cwd = null;

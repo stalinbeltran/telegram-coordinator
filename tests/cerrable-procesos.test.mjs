@@ -181,3 +181,21 @@ test('la línea BREVE dice QUÉ corre, no sólo que corre algo', async () => {
       'sin el nombre, el 🔴 no se puede comprobar desde el móvil');
   } finally { hijo.kill('SIGKILL'); }
 });
+
+test('preguntar por un trabajo no lo inventa: el freno no se cuenta a sí mismo', async () => {
+  // Un shell cuya línea MENCIONA el nombre casa igual que el trabajo. Preguntar
+  // desde la consola («¿está corriendo fv-train?») sumaba un trabajo que no
+  // existe, y el veredicto pasaba de 1 a 2 vivos sin que la máquina cambiara.
+  // Visto el 2026-08-30 depurando esto mismo. Un número que baila se deja de
+  // creer, y este número ES el freno.
+  const m = maquina();          // ⚠ sin ningún trabajo de verdad
+  const { stdout } = await ejecutar('sh', ['-c',
+    `# esta línea habla de fv-train\n` +
+    `node ${join(m.coord, 'scripts', 'cerrable.mjs')} --exit0 --breve`],
+    { cwd: m.coord, encoding: 'utf8',
+      env: { ...process.env, COORD_WS: undefined, HOME: m.raiz, COORD_HOME: m.coord,
+             FV_WEB_PORT: '1', FV_WEB_UNIT: 'no-existe-este-servicio.test' } });
+  assert.match(stdout, /CERRABLE/,
+    'el shell que pregunta no es el trabajo, y su padre tampoco');
+  assert.doesNotMatch(stdout, /trabajo\(s\) vivo/);
+});
