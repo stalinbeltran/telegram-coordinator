@@ -123,7 +123,10 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
 // contaba — así que el veredicto podía decir «nada corriendo» con un
 // entrenamiento de horas vivo, y apagar el server dejaba la instancia
 // facturando sin nadie que la destruyera.
-const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
+// Y `adoptar_vast.py` por lo mismo y con más razón: existe PRECISAMENTE para
+// recoger una instancia cuyo vigilante ya murió una vez, así que si él tampoco
+// se cuenta, no queda nadie mirando.
+const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar

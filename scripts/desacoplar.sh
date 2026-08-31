@@ -12,6 +12,34 @@
 # `systemd-run --scope` registra un cgroup aparte (/system.slice/<algo>.scope),
 # que un restart del servicio ya no alcanza.
 #
+# ⚠⚠ A QUE NO SOBREVIVE, Y COSTO UNA MAQUINA FACTURANDO (medido 2026-08-31)
+# ------------------------------------------------------------------------
+# `--scope` da cgroup propio, pero el proceso SIGUE SIENDO HIJO del que lo lanza.
+# Un tree-kill al padre se lo lleva entero. O sea:
+#
+#     sobrevive a  `systemctl restart telegram-coordinator`   <- para lo que se escribio
+#     NO sobrevive a que muera su propio padre                <- lo que nadie habia escrito
+#
+# Paso asi: se lanzo `entrenar_vast.py` desde una sesion de Claude Code con este
+# script; la sesion termino, el harness mato el arbol de su comando, y con el se
+# fue el scope. El entrenamiento en la maquina alquilada siguio vivo (1 h 38 min
+# cuando se descubrio) pero el proceso que baja los pesos Y DESTRUYE LA INSTANCIA
+# habia desaparecido: trabajo intacto, factura corriendo, nadie mirando.
+#
+# QUE USAR PARA TRABAJO LARGO QUE NO PUEDE MORIR CON QUIEN LO LANZA: una unidad
+# transitoria, o sea `systemd-run` SIN `--scope`. Su padre es PID 1 y sobrevive a
+# las dos cosas. Cuesta un nombre de unidad y da ademas `systemctl status`:
+#
+#   sudo systemd-run --unit=<nombre> --uid=$(id -u) --gid=$(id -g) \
+#        --working-directory="$PWD" --setenv=HOME="$HOME" \
+#        --property=StandardOutput=append:/tmp/<nombre>.log \
+#        --property=StandardError=append:/tmp/<nombre>.log \
+#        /bin/bash -lc '<comando>'
+#
+# Este script NO se cambia a unidad: la mayoria de lo que pasa por aqui son
+# trabajos cortos que sí quieren morir con su turno, y una unidad con nombre fijo
+# choca si se lanza dos veces. Lo que hacia falta era decir a que NO sobrevive.
+#
 # NINGUN SECRETO VIAJA POR AQUI, y es a proposito: `sudo` escribe la lista de
 # --preserve-env COMPLETA y en claro en el journal del sistema, asi que pasar
 # BOT_TOKEN o DO_TOKEN por aqui los deja en disco en cada lanzamiento. Solo se

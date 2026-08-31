@@ -144,6 +144,24 @@ test('un entrenamiento en VAST impide cerrar: quien destruye la instancia es EST
     } finally { hijo.kill('SIGKILL'); }
   });
 
+test('el vigilante de RESCATE también cuenta: si él no se ve, no queda nadie mirando',
+  async () => {
+    // `adoptar_vast.py` existe PRECISAMENTE para recoger una instancia cuyo
+    // vigilante ya murió una vez (pasó el 2026-08-31: el proceso local
+    // desapareció con la sesión que lo lanzó y la máquina siguió facturando con
+    // el entrenamiento dentro). Que él tampoco se cuente sería el mismo fallo
+    // dos veces, y la segunda sin nadie detrás.
+    const m = maquina({ 'adoptar_vast.py': DORMIR });
+    const hijo = lanzar('node', [join(m.fv, 'adoptar_vast.py')], m.fv);
+    try {
+      await esperarEnPs(`${m.fv}/adoptar_vast.py`);
+      const salida = await correr(m);
+      assert.match(salida, /NO CERRAR/);
+      assert.match(salida, /adoptar_vast/,
+        'la línea breve tiene que nombrarlo: es el único que puede destruir la instancia');
+    } finally { hijo.kill('SIGKILL'); }
+  });
+
 test('el SERVICIO no cuenta: un 🔴 permanente se deja de leer', async () => {
   const m = maquina({ 'fv-api': DORMIR });
   const hijo = lanzar('node', [join(m.fv, 'fv-api')], m.fv);
