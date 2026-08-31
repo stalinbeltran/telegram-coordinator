@@ -908,6 +908,18 @@ podría quedar una ganancia, y **5 semillas**, que bajan el `p` mínimo alcanzab
 El rango `{0 · 0,05 · 0,1 · 0,2}` **no se elige ahora**: lo fijó la tabla que el plan escribió
 antes de mirar, y vive en `TABLA_PICO` dentro de `foveal-vision/scripts/estudio_dropout.py`.
 
+### Y en la cola, sin prioridad asignada: `ei-t`, el tanteo de `edge_inputs`
+
+**Añadido el 2026-08-31.** No reordena nada de lo de arriba: `do-v` sigue siendo lo primero.
+Se anota aquí porque el mecanismo ya está en `main` de `foveal-vision` y **el plan con su
+criterio escrito antes de mirar** vive donde se dispara,
+[`foveal-vision/docs/plan-edge-inputs-2026-08-31.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-edge-inputs-2026-08-31.md).
+
+`edge_inputs` le dice a la **cabeza** de la red si la imagen se acaba por cada lado —4
+escalares que **no pasan por las convoluciones**—, porque `pad_mode: edge` replica el borde y
+eso hace un párrafo *pegado* al borde indistinguible de uno *cortado*. Tanteo de **6 runs,
+≈0,4 $ y ~2,5 h estimados**. ⚠ **No se ha medido nada**: que exista y entrene no es que mejore.
+
 ### Y DETRÁS DE `do-v`: el estudio de `patience`, empezando por el tanteo
 
 **Pendiente, anotado el 2026-08-28.** Va **después** de `do-v` y **empieza por un tanteo** — con
