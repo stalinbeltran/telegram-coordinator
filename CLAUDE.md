@@ -908,6 +908,30 @@ podría quedar una ganancia, y **5 semillas**, que bajan el `p` mínimo alcanzab
 El rango `{0 · 0,05 · 0,1 · 0,2}` **no se elige ahora**: lo fijó la tabla que el plan escribió
 antes de mirar, y vive en `TABLA_PICO` dentro de `foveal-vision/scripts/estudio_dropout.py`.
 
+### 🔒 Los pesos de una nn SOLO se guardan si el dueño lo ordena (2026-08-31)
+
+**Regla suya, y aplica a cualquier entrenamiento que se lance desde aquí.** Los pesos de un run
+**no se conservan por defecto**, y **sólo las redes aprobadas** puede usarlas la web app de
+`foveal-vision` para inferir. **Hoy la lista es una: `demo-fov16-optimo`** (`best.pt` + `last.pt`).
+Las demás se añaden **cuando él lo ordene** — «guarda esta nn para inferencia», «guarda sus
+pesos»—, nunca por iniciativa propia ni porque hayan salido bien.
+
+- La lista es un **dato**: `inferencia.json` en la raíz de `foveal-vision-data`.
+- ⚠ Un `.pt` que esté en disco pero no en la lista **no se usa**: servirlo haría inferir con una
+  red que nadie eligió.
+- **Mientras se entrena** los pesos aterrizan en una **antesala** del server dev
+  (`foveal-vision/data/inferencia/<run>/`, **fuera de git**), por
+  `PUT /api/inference/staging/<run>/<best|last>.pt`. **Al terminar**,
+  `POST /api/inference/staging/<run>/promote` los copia al repo de datos **y aprueba** — copiar y
+  aprobar son una sola decisión. No commitea: devuelve el comando, y **el push es parte del
+  encargo**.
+- **Por qué**: 862 runs × 2,7 MB = ~2,3 GB en un repo de 49 MB *(medido 2026-08-31)*, y git guarda
+  **todas** las versiones commiteadas. Y la otra cara también está medida: no guardar **ninguno**
+  costó `fov-optimo-p20` entero.
+
+El detalle vive donde se dispara:
+[`foveal-vision/docs/inferencia.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/inferencia.md).
+
 ### Y en la cola, sin prioridad asignada: `ei-t`, el tanteo de `edge_inputs`
 
 **Añadido el 2026-08-31.** No reordena nada de lo de arriba: `do-v` sigue siendo lo primero.
