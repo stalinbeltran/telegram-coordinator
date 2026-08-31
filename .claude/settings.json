@@ -8,6 +8,12 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/sesiones.mjs\" --registrar --hook",
             "timeout": 15,
             "statusMessage": "¿trabaja alguien más en este workspace?"
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/guardar-conversacion.mjs\" --hook",
+            "timeout": 120,
+            "statusMessage": "archivando conversaciones que quedaron sin guardar"
           }
         ]
       }
@@ -19,6 +25,11 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/sesiones.mjs\" --cerrar",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/guardar-conversacion.mjs\" --hook",
+            "timeout": 120
           }
         ]
       }

@@ -129,6 +129,8 @@ scripts/
   claude-marker.mjs    estado por tema de esa conversación (época + uuid)
   claude-reset.mjs     sube la época: conversación nueva sin cambiar de tema
   shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
+  guardar-conversacion.mjs  archiva las conversaciones de Claude Code en el repo
+                       de DATOS, REDACTADAS. Corre solo en los dos hooks
   notify.mjs           aviso a Telegram desde un proceso desacoplado
   cargar-secretos.mjs  los DOS ficheros de secretos, para lo desacoplado
   desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart
@@ -1552,6 +1554,37 @@ corriendo: esta sesión hizo `--tomar ~/ws/fechado`, se reanudó, y el `--regist
 silencio**, con lo que el registro pasó a avisar del choque equivocado y a callar el bueno. El
 marcador lleva ahora `tomado: true` y **una decisión explícita no la pisa una inferida**; el cwd sí
 se refresca, porque eso es un dato. Tiene test.
+
+### Las conversaciones se archivan solas, y van REDACTADAS
+
+**Pedido por el dueño el 2026-08-31: «contar con data útil en caso de necesitarlo para
+depurar».** `scripts/guardar-conversacion.mjs` corre en los hooks `SessionEnd` **y**
+`SessionStart` y deja cada sesión en `foveal-vision-data/conversaciones/<año>/<mes>/`,
+comprimida (~850 KB por conversación de un día; 3,5 MB crudos *medido 2026-08-31*),
+con su fila en el índice del README. Commitea y empuja **solo esa carpeta**.
+
+**En los DOS hooks a propósito**, y es la regla de caducidad de siempre: `SessionEnd` no
+corre si la sesión muere de golpe (SIGKILL, cerrar la terminal, rehacer la máquina), así
+que el de `SessionStart` recoge lo que se quedó atrás. Nada depende de un cierre limpio.
+
+⚠⚠ **LA PUERTA ES LA REDACCIÓN, y el motivo está escrito arriba en este mismo fichero:**
+*«un mensaje a `c` pidiendo leer `.env` filtró el token una vez»*. **El repo de datos es
+PÚBLICO** (comprobado el 2026-08-31 contra la API de GitHub) y **git no olvida**: un
+secreto que se cuele no se arregla borrándolo, hay que **ROTARLO**. Por eso:
+
+1. se redacta por **valor exacto** (los ficheros de secretos de la máquina) y por
+   **patrón** (`sk-ant-`, `ghp_`, `dop_v1_`, tokens de Telegram, claves privadas);
+2. hay una **rejilla final**: si tras redactar sigue habiendo forma de secreto, esa
+   conversación **no se guarda** y se dice por qué. A medias es peor que nada;
+3. ⚠ **y redactar de MÁS también es un fallo.** Filtrar sólo por longitud borraba
+   `CLAUDE_PERMISSION_MODE` (= `bypassPermissions`) de las 18 veces que sale en una
+   conversación normal — destroza justo el texto que se guarda para poder leerlo. Lo que
+   decide es el **nombre** de la variable (`TOKEN|KEY|SECRET|PASS|…`), y un valor largo
+   con nombre que no lo parece **se avisa** en vez de decidirse en silencio.
+
+Detalle y qué hacer si algún día se cuela algo, en
+[`foveal-vision-data/conversaciones/README.md`](https://github.com/stalinbeltran/foveal-vision-data/blob/main/conversaciones/README.md).
+9 tests en `tests/guardar-conversacion.test.mjs`.
 
 #### Al cerrar: `SessionEnd` suelta el workspace — pero eso es la COMODIDAD, no la regla
 
