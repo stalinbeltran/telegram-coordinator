@@ -117,7 +117,13 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
 // Tampoco están `fv-resize` ni `fv-publish-source`: son cortos y rehacerlos
 // cuesta segundos. `fv-extract` sí, porque lo que produce (`windows.npz`) está
 // MEDIDO que no se re-deriva igual (R9).
-const TRABAJOS = /estudio_flota\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
+// ⚠ `entrenar_vast.py` entró el 2026-08-31 y es el caso que más caro sale si falta:
+// alquila UNA máquina de Vast y la destruye en un `finally` de ESE proceso. La
+// máquina sí se veía por la API de Vast, pero el proceso que la recoge no se
+// contaba — así que el veredicto podía decir «nada corriendo» con un
+// entrenamiento de horas vivo, y apagar el server dejaba la instancia
+// facturando sin nadie que la destruyera.
+const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar

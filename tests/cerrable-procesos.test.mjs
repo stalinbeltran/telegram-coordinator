@@ -124,6 +124,26 @@ test('un entrenamiento por consola impide cerrar', async () => {
   } finally { hijo.kill('SIGKILL'); }
 });
 
+test('un entrenamiento en VAST impide cerrar: quien destruye la instancia es ESTE proceso',
+  async () => {
+    // El caso más caro de los que cuenta esta lista. `entrenar_vast.py` alquila
+    // UNA máquina y la destruye en un `finally` de sí mismo, así que apagar el
+    // server mientras corre deja la instancia facturando sin nadie que la
+    // recoja. La máquina sí se veía por la API de Vast; el proceso que la
+    // recoge NO se contaba — así que el veredicto podía decir «nada corriendo»
+    // con un entrenamiento de horas vivo. Añadido a TRABAJOS el 2026-08-31.
+    const m = maquina({ 'entrenar_vast.py': DORMIR });
+    const hijo = lanzar('node', [join(m.fv, 'entrenar_vast.py')], m.fv);
+    try {
+      await esperarEnPs(`${m.fv}/entrenar_vast.py`);
+      const salida = await correr(m);
+      assert.match(salida, /NO CERRAR/,
+        'un entrenamiento en Vast vivo se pierde con la máquina Y deja la instancia facturando');
+      assert.match(salida, /entrenar_vast/,
+        'la línea breve tiene que NOMBRARLO: es lo único que se lee desde el móvil');
+    } finally { hijo.kill('SIGKILL'); }
+  });
+
 test('el SERVICIO no cuenta: un 🔴 permanente se deja de leer', async () => {
   const m = maquina({ 'fv-api': DORMIR });
   const hijo = lanzar('node', [join(m.fv, 'fv-api')], m.fv);
