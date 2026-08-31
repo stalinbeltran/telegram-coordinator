@@ -137,6 +137,7 @@ if (CASA === null) {
     'si le queda algo sin empujar');
 }
 const limpio = [];    // lo que sí está en orden
+let maquinasMias = [];  // las de Vast de esta máquina, para cruzarlas con los vigilantes
 
 function sh(cmd, cwd, env) {
   try {
@@ -179,6 +180,7 @@ if (!existsSync(lanzador)) {
         largo: `${mias.length} máquina(s) alquilada(s) en Vast${gasto ? ` (${gasto} $/h en total)` : ''}` +
                ` — si este server muere, siguen facturando y nadie las recoge`,
         etiquetas: mias.map((m) => m.etiqueta) });
+      maquinasMias = mias;
     } else if (filas.length) {
       limpio.push(`Vast: nada de esta máquina (${ajenas} instancia(s) de otro server, no cuentan)`);
     }
@@ -249,6 +251,38 @@ if (vivos.length) {
     largo: `${trabajos.length} trabajo(s) vivo(s) (${porQue})${arboles} — morirían con el server` });
 } else {
   limpio.push('nada de trabajo corriendo en esta máquina');
+}
+
+// -------------------------------- 2 ter. una máquina de Vast SIN NADIE que la recoja
+//
+// Las dos cosas de arriba se contaban por separado y por eso este estado no se
+// veía: hay máquina alquilada Y hay proceso vivo daba lo mismo que hay máquina
+// alquilada Y NO hay ninguno. Y son muy distintos — en el segundo, la instancia
+// factura sin que nadie vaya a destruirla NUNCA, ni aunque este server siga
+// encendido. No es "se perdería al cerrar": ya está perdida.
+//
+// Pasó el 2026-08-31, y no por primera vez: el vigilante de `entrenar_vast.py`
+// murió con la sesión que lo lanzó (`desacoplar.sh` da cgroup propio pero no
+// desacopla del padre) y la instancia siguió facturando con el entrenamiento
+// dentro. El freno decía 🔴 por otras razones, así que el estado real —"nadie
+// va a recoger eso"— no se leía por ningún lado.
+//
+// El arreglo es `scripts/desacoplar-persistente.sh` (unidad de systemd, padre
+// PID 1, `Restart=on-failure`); esto es la RED por debajo, para cuando aun así
+// pase. Y dice el comando exacto: quien lee esto desde el móvil no va a deducir
+// que existe `adoptar_vast.py`.
+const VIGILANTES = /entrenar_vast\.py|adoptar_vast\.py|estudio_flota\.py|vigilante_avance\.py/;
+if (maquinasMias.length && !vivos.some((v) => VIGILANTES.test(v.que))) {
+  razones.push({
+    tipo: 'huerfana',
+    breve: `⚠ ${maquinasMias.length} máquina(s) Vast SIN VIGILANTE`,
+    largo: `${maquinasMias.length} máquina(s) de Vast alquilada(s) y NINGÚN proceso que ` +
+           `las recoja: no se van a destruir solas ni aunque este server siga vivo. ` +
+           `Adóptalas o destrúyelas:\n` +
+           maquinasMias.map((m) =>
+             `      cd ~/src/foveal-vision && .venv/bin/python scripts/adoptar_vast.py ` +
+             `--iid ${m.id} --name <run>   (o vast_instance.py destroy ${m.id} --yes)`).join('\n'),
+    etiquetas: maquinasMias.map((m) => m.etiqueta) });
 }
 
 // ------------------------------------------- 2 bis. lo que corre DENTRO de la web app

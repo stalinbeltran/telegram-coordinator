@@ -131,7 +131,10 @@ scripts/
   shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
   notify.mjs           aviso a Telegram desde un proceso desacoplado
   cargar-secretos.mjs  los DOS ficheros de secretos, para lo desacoplado
-  desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart)
+  desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart
+                       del coordinador, NO a que muera su padre)
+  desacoplar-persistente.sh  lo lanza como UNIDAD de systemd (padre PID 1):
+                       sobrevive a las dos cosas. Para lo que alquila/vigila
   workspace.mjs        ¿en qué copia estoy y está sana? · `--nuevo` MONTA una
   sesiones.mjs         ¿quién más trabaja aquí AHORA? (lo corre el hook al abrir)
   workspaces-locales.mjs  qué workspaces hay en ESTA máquina; lo comparten
@@ -295,6 +298,39 @@ reportes/
      `systemd-run --scope`, y cae a `setsid` donde no se pueda (sin sudo, sin systemd,
      Windows). Ya lo usan `claude-watch.mjs` para el resumer y el ejecutor `bench` para la
      flota. Para trabajo largo nuevo, lánzalo por ahí en vez de `setsid` a pelo.
+
+     ⚠⚠ **PERO `--scope` TAMPOCO sobrevive a que muera SU PADRE, y eso costó dinero
+     (2026-08-31).** El cgroup propio lo protege del `systemctl restart`; el proceso **sigue
+     siendo hijo** del que lo lanzó, así que un **tree-kill al padre** se lo lleva entero. Es
+     esta misma regla ("«sobrevive» siempre lleva complemento") incumplida en el fichero que
+     la ilustra.
+
+     Medido: se lanzó `entrenar_vast.py` con `desacoplar.sh` desde una sesión de Claude Code;
+     la sesión terminó, el harness mató el árbol de su comando, y el scope se fue con él. El
+     entrenamiento en la máquina de Vast **siguió vivo** (1 h 38 min de reloj cuando se
+     descubrió) y el proceso que baja los pesos **y destruye la instancia** había
+     desaparecido: trabajo intacto, factura corriendo, nadie mirando. **Y no era la primera
+     vez que moría un vigilante.**
+
+     **Para trabajo largo cuya muerte cuesta dinero: `scripts/desacoplar-persistente.sh`**,
+     que registra una **unidad** de systemd (`systemd-run` SIN `--scope`) — padre **PID 1**,
+     `Restart=on-failure`, `systemctl status <nombre>` y log en `/tmp/<nombre>.log`.
+
+     | | restart del coordinador | muerte de su padre |
+     |---|---|---|
+     | `desacoplar.sh` (scope) | ✅ | ❌ |
+     | `desacoplar-persistente.sh` (unidad) | ✅ | ✅ |
+
+     Cuál usar: **el corto para lo que puede morir con su turno** (la mayoría), **el
+     persistente para cualquier cosa que alquile o vigile una máquina**. Si dudas, el
+     persistente. Y **no cae a `setsid` si no hay systemd: se niega** — caer daría justo la
+     falsa sensación de persistencia que costó la máquina.
+
+     ⚠ **Y la red por debajo, para cuando aun así pase:** `cerrable.mjs` avisa **aparte** de
+     una máquina de Vast viva **sin ningún vigilante** (`⚠ N máquina(s) Vast SIN VIGILANTE`),
+     con el comando de `adoptar_vast.py` para recogerla. Antes «hay máquina» y «hay proceso»
+     se contaban por separado y ese estado —el único en que la instancia **no se destruye
+     nunca**, ni con el server encendido— no se leía por ningún lado. Dos tests.
 
      **No cambies el `KillMode` del unit**, que es la salida obvia y aquí es una trampa: el
      `MainPID` es `npm start` y el que hace polling es un **nieto**, así que

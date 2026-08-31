@@ -60,7 +60,7 @@ function repo(padre, nombre, ficheros = {}) {
  * después, el árbol quedaría sucio y el 🔴 saldría por «sin commitear» — o sea
  * que el test pasaría sin comprobar nada de lo suyo.
  */
-function maquina(programas = {}) {
+function maquina(programas = {}, vastVivo = false) {
   const raiz = mkdtempSync(join(tmpdir(), 'coord-proc-'));
   const casa = join(raiz, 'src');
   mkdirSync(casa, { recursive: true });
@@ -75,7 +75,12 @@ function maquina(programas = {}) {
     ...scripts, 'data/fuentes.json': '{"fuentes":[]}\n',
   });
   repo(casa, 'digital-ocean-dropplet-auto-launching', {
-    'scripts/vast_instance.py': 'print("No hay ninguna instancia viva")\n',
+    'scripts/vast_instance.py': vastVivo
+      // el formato real de `vast_instance.py list`, que es lo que cerrable parsea
+      ? 'print("""        ID  ETIQUETA            ESTADO        vCPU       $/H  SSH\n'
+        + '  49406152  ei-prueba           running        9.3    0.0500  ssh1:1\n\n'
+        + 'Gastando ahora: 0.0500 $/h""")\n'
+      : 'print("No hay ninguna instancia viva")\n',
   });
   const fv = repo(casa, 'foveal-vision', programas);
   return { raiz, coord, fv, casa };
@@ -159,6 +164,37 @@ test('el vigilante de RESCATE también cuenta: si él no se ve, no queda nadie m
       assert.match(salida, /NO CERRAR/);
       assert.match(salida, /adoptar_vast/,
         'la línea breve tiene que nombrarlo: es el único que puede destruir la instancia');
+    } finally { hijo.kill('SIGKILL'); }
+  });
+
+test('una máquina de Vast SIN vigilante se avisa aparte: nadie va a recogerla',
+  async () => {
+    // El estado que no se veía porque las dos mitades se contaban por separado:
+    // "hay máquina" y "hay proceso" daban lo mismo juntos que por separado. Y son
+    // muy distintos — sin vigilante la instancia no se destruye NUNCA, ni aunque
+    // este server siga encendido. No es "se perdería al cerrar": ya está perdida.
+    // Pasó el 2026-08-31 (y no por primera vez).
+    const m = maquina({}, true);        // Vast viva, ningún proceso
+    const salida = await correr(m);
+    assert.match(salida, /NINGÚN proceso que las recoja/,
+      'una instancia sin nadie que la recoja tiene que decirse, no sumarse a la cuenta');
+    assert.match(salida, /adoptar_vast\.py --iid 49406152/,
+      'y con el comando exacto: desde el móvil no se deduce que ese script existe');
+    // y en la línea BREVE, que es la única que se lee desde el móvil
+    const breve = await correr(m, '--breve');
+    assert.match(breve, /SIN VIGILANTE/,
+      'la breve tiene que distinguirlo de una máquina que sí tiene quien la recoja');
+  });
+
+test('con vigilante vivo NO se avisa de huérfana: un aviso que sale siempre se ignora',
+  async () => {
+    const m = maquina({ 'adoptar_vast.py': DORMIR }, true);
+    const hijo = lanzar('node', [join(m.fv, 'adoptar_vast.py')], m.fv);
+    try {
+      await esperarEnPs(`${m.fv}/adoptar_vast.py`);
+      const salida = await correr(m);
+      assert.doesNotMatch(salida, /SIN VIGILANTE/);
+      assert.match(salida, /adoptar_vast/);   // control: sí lo ve como trabajo vivo
     } finally { hijo.kill('SIGKILL'); }
   });
 
