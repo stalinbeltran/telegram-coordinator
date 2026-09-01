@@ -995,6 +995,34 @@ escalares que **no pasan por las convoluciones**—, porque `pad_mode: edge` rep
 eso hace un párrafo *pegado* al borde indistinguible de uno *cortado*. Tanteo de **6 runs,
 ≈0,4 $ y ~2,5 h estimados**. ⚠ **No se ha medido nada**: que exista y entrene no es que mejore.
 
+### Y en la cola, en BORRADOR: `sc-t`/`sp-t`, los strides de rama
+
+**Añadido el 2026-09-01, a petición del dueño**, que observó que el número de features que
+llegan a la cabeza es desproporcionado. Lo es: *medido el 2026-09-01*, la base vigente manda
+**12.800 features a una cabeza de 12 salidas** (1.067 : 1), y esa única `Linear` se lleva el
+**91,1 %** de los 168.652 parámetros. `s_center`/`s_periph` la encogen submuestreando cada
+rama. El plan con su criterio escrito antes de mirar vive donde se dispara,
+[`foveal-vision/docs/plan-strides-rama-2026-09-01.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-strides-rama-2026-09-01.md);
+los recorridos los crea `scripts/estudio_strides.py`. **No adelanta a `do-v`.**
+
+⚠ **Está en BORRADOR: su §0 tiene seis supuestos sin confirmar** (rango, ancla del segundo
+eje, control, épocas, brazo diagonal, prioridad). Congelarlo es responderlos.
+
+Tres cosas medidas sin gastar un céntimo, que valen aunque el estudio no se corra nunca:
+
+1. ⚠⚠ **`"auto"` NO sirve para este eje y falla en SILENCIO.** `check_sweep` lo acepta
+   (está en `GEOMETRY_AUTO`), pero `stride_range(16, n_layers=4)` devuelve **`[1]`**: un
+   sweep con `"s_center": "auto"` entrenaría **N veces la misma red sin avisar** — el mismo
+   fallo que costó `dropout`, por otra puerta. **El rango va explícito.** Detrás hay una
+   incoherencia real entre `builder.py:128` (*«n_layers stays out of stride_range»*) y
+   `fovea/__init__.py:351` (que lo usa como raíz); el plan §3.4 la deja anotada y **no la
+   arregla** — es un cambio de código aparte y pide su test.
+2. **Es el único eje de la cola COST-NEGATIVO**: 0,27× el ms/paso con `s`=2 *(medido en este
+   droplet, sólo el modelo: el dataloader no baja, así que es un techo)*. Un **empate ya
+   paga**, y por eso su criterio no es simétrico como el de `dropout` o `edge_inputs`.
+3. **Las dos ramas producen el mismo mapa 20×20**, así que recortan **lo mismo**: cualquier
+   diferencia entre los dos estudios será de **información**, no de tamaño.
+
 ### Y DETRÁS DE `do-v`: el estudio de `patience`, empezando por el tanteo
 
 **Pendiente, anotado el 2026-08-28.** Va **después** de `do-v` y **empieza por un tanteo** — con
