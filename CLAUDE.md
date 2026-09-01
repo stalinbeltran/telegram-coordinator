@@ -444,9 +444,22 @@ La máquina se rehace sin aviso y de ella solo sobrevive lo que está en el remo
 Por eso el push no es el cierre del encargo, es parte de cada cambio: **cambio o
 documentación terminada → commit → push**, el mismo día, sin acumular.
 
-Y hay que mirar **a qué rama llega**: un clon limpio saca `main`, así que un commit
-parado en `dev` es invisible para la máquina siguiente. Mientras el merge esté
-pendiente, el trabajo no existe para nadie más.
+### La rama por defecto es `main`, y no es una preferencia
+
+**Todo va a `main`**, en los seis repos. No es estilo: un server nuevo hace un **clon
+limpio**, y un clon limpio saca `main`. Lo que esté en otra rama **no existe** para la
+máquina siguiente, ni para la flota, ni para los ejecutores de Telegram —que se descubren
+con `git pull` a `main`—. No hay paso intermedio que esperar ni merge que proponer.
+
+⚠ **La ÚNICA excepción son los trabajos paralelos**: otras sesiones de Claude, con sus
+propias conversaciones, en **workspaces separados** del mismo dev. Ésas **no escriben en
+`main`** —usan la rama de su workspace— y el motivo es que dos líneas de trabajo que tocan
+los mismos ficheros a la vez se pisarían. **Si no estás dentro de `~/ws/<algo>`, no es tu
+caso: vas a `main`.**
+
+⚠ **Y esa excepción tiene una deuda que hay que pagar**: mientras la rama del workspace no
+llegue a `main`, su trabajo es invisible para el server siguiente — que es exactamente el
+fallo de abajo, sólo que con otro nombre de rama.
 
 Medido el 2026-08-14: el droplet apareció recién restaurado (clon limpio, sin
 `.venv` ni datos). El procedimiento para reconstruir el dato del benchmark del
@@ -1444,7 +1457,7 @@ de la cuenta, y cada uno necesita su regla:
 | Recurso | Por qué es compartido | La regla |
 |---|---|---|
 | **La cuenta de Vast/DO** | Un token, una factura | **`--prefijo <pfx>` obligatorio** en toda flota. Es lo que hace que `vigilante_avance.py` diga *«ajena: no la toco»* en vez de destruir máquinas de otro |
-| **El remoto de git** | Los cuatro repos empujan al mismo GitHub | **Rama propia por workspace.** A `main` sólo empuja el workspace que lo tenga declarado. **Nunca `--force`** sobre una rama compartida |
+| **El remoto de git** | Los cinco repos empujan al mismo GitHub | ⚠ Aquí **y sólo aquí** se usa rama propia: la del workspace (`WORKSPACE.json` → `rama`), para que dos líneas de trabajo no se pisen. **Fuera de un workspace la regla es `main`** (ver § «Estos servidores son efímeros»). **Nunca `--force`** sobre una rama compartida. Y **lo que no acabe en `main` es invisible** para el server siguiente: la rama de un workspace es un aparcamiento, no un destino |
 | **Los procesos de la máquina** | `pgrep`/`pkill` casan por cadena de comando, no por ruta | Filtra **siempre** por la ruta de tu workspace antes de matar nada |
 | **El descubrimiento del coordinador** | `data/fuentes.json` es un patrón con comodín | Que apunte **a tu workspace y sólo a él** (ver abajo) |
 
