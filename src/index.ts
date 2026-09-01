@@ -21,6 +21,8 @@ import {
 import { processIncoming } from './orchestrator.js';
 import { runCommand } from './runner.js';
 import { COORD_HOME } from './config.js';
+// @ts-expect-error: modulo JS sin tipos (ver orchestrator.ts)
+import { registrar } from '../scripts/errores.mjs';
 
 const TELEGRAM_LIMIT = 4000; // margen bajo el límite real de 4096
 /** Clonar los cinco repos tardó 6 s medido el 2026-08-28; el margen es por si
@@ -323,6 +325,10 @@ async function main(): Promise<void> {
       }
     } catch (err) {
       console.error('❌ Error inesperado del coordinador:', err);
+      // lo INESPERADO: nadie lo declaró y sin log se pierde al reiniciar
+      registrar('coordinador_inesperado', String(err),
+                { origen: 'coordinador', donde: 'processIncoming',
+                  traza: err instanceof Error ? err.stack : String(err) });
       await send(ctx, `❌ Error inesperado del coordinador:\n${String(err)}`);
     }
   });
@@ -330,6 +336,8 @@ async function main(): Promise<void> {
   // Evita que cualquier error tumbe el proceso.
   bot.catch((err) => {
     console.error('Error en el bot:', err);
+    registrar('bot_error', String(err), { origen: 'coordinador', donde: 'grammY',
+      traza: err instanceof Error ? err.stack : String(err) });
   });
 
   console.log('🚀 Coordinador arrancando (long polling)...');

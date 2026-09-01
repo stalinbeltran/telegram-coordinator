@@ -3,10 +3,25 @@ import { runCommand } from './runner.js';
 import { parseCommands } from './protocol.js';
 import { COMMAND_TIMEOUT_MS, COORD_HOME, DATA_DIR } from './config.js';
 import { getWorkspace, cwdEnWorkspace } from './workspaces.js';
+// @ts-expect-error: modulo JS sin tipos, a proposito -- lo usan tambien
+// los scripts sueltos y anadirle un .d.ts seria una segunda definicion
+import { registrar } from '../scripts/errores.mjs';
 
-/** Registra el error en la terminal y lo devuelve para enviarlo por Telegram. */
-function fail(message: string): string {
+/** Registra el error en la terminal, en el LOG y lo devuelve para Telegram.
+ *
+ * Los tres sitios, y cada uno cubre un agujero del otro: la terminal se pierde
+ * al reiniciar, Telegram lo ve quien esté mirando en ese momento, y el log es el
+ * único que sigue ahí mañana. El dueño lo pidió por eso mismo: «si algo ocurre
+ * hoy y no salta a la vista nunca me entero».
+ *
+ * ⚠ `registrar` NUNCA lanza (lo garantiza `scripts/errores.mjs`), que es lo que
+ * permite llamarlo desde aquí: si el registrador pudiera fallar, un fallo de un
+ * ejecutor se convertiría en una caída del coordinador — justo la regla 3 de
+ * CLAUDE.md al revés.
+ */
+function fail(message: string, donde = ''): string {
   console.error(message);
+  registrar('ejecutor_fallo', message, { origen: 'coordinador', donde });
   return message;
 }
 
