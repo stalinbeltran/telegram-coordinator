@@ -320,6 +320,7 @@ reportes/
 
      | | restart del coordinador | muerte de su padre |
      |---|---|---|
+     | `Bash(run_in_background)` del **harness** de Claude Code | ❌ | ❌ |
      | `desacoplar.sh` (scope) | ✅ | ❌ |
      | `desacoplar-persistente.sh` (unidad) | ✅ | ✅ |
 
@@ -416,6 +417,45 @@ reportes/
   principio del turno siguiente: el aviso puede fallar —red caída, hilo borrado— y `notify.mjs`
   solo puede dejar constancia del fallo en su propio log, que nadie está mirando. El aviso es
   una comodidad; el artefacto en disco es la fuente de verdad.
+
+  ### ⚠⚠ Al lanzar algo largo desde una sesión de Claude Code: el `run_in_background` del harness NO vale
+
+  **No sobrevive a nada de esto: ni el trabajo, ni el aviso.** Es la regla de esta misma sección
+  con otra víctima, y la trampa está en el nombre: *background* suena a «sigue por su cuenta», y
+  lo que hace es **atarse al proceso de la sesión**. En una sesión de Telegram —que es un
+  `claude -p` por mensaje— eso significa que **cada** `run_in_background` muere al acabar el
+  turno, sin excepción y sin que nadie lo diga a tiempo.
+
+  **Medido el 2026-09-01**, dos veces seguidas y con la misma tarea (una demostración en CPU de
+  `foveal-vision`, ~5 min):
+
+  | Lanzada con | Qué pasó |
+  |---|---|
+  | `Bash(run_in_background: true)` | las 4 tareas volvieron como `stopped` —*«no completion record … may have been running when the previous Claude Code process exited»*—, el directorio de salida quedó **vacío** y su fichero de salida decía `[killed]` |
+  | `desacoplar-persistente.sh demo-contrafactico …` | la unidad siguió `active` **a través del final de la sesión**, terminó sola y dejó sus 3 PNG y su log |
+
+  O sea que **no es sólo que el aviso llegue tarde: el trabajo muere también**, y el síntoma que
+  se ve desde Telegram es *«nunca me respondiste»* — indistinguible de que no se hubiera hecho
+  nada. El mismo síntoma que ya costó el resumer del 2026-08-23.
+
+  **Qué hacer en su lugar. Son dos cosas separadas porque son dos fallos separados:**
+
+  1. **El trabajo** → `scripts/desacoplar-persistente.sh <nombre> <comando>` (padre PID 1). No
+     `desacoplar.sh`: el fin del turno es exactamente «muere su padre», que es la columna donde
+     el scope pierde.
+  2. **El aviso** → `node "$COORD_HOME/scripts/notify.mjs" "…"` **dentro** del comando
+     desacoplado. La notificación del harness **no** es un sustituto: vive en el proceso de la
+     sesión, que es justo el que se muere.
+
+  ⚠ **Y no prometas «te aviso cuando termine» apoyándote en la notificación del harness.** Se
+  promete un aviso que el mecanismo no puede dar. Di **dónde queda el resultado** (fichero, log,
+  unidad) y compruébalo al principio del turno siguiente — la regla de arriba, que aquí no es
+  una recomendación sino lo único que funciona.
+
+  ⚠ **Un log vacío NO significa que no haya arrancado.** `python` bufferiza su salida cuando no
+  es un tty, así que el log de una unidad se queda en blanco hasta que el proceso sale. Se
+  comprueba con `systemctl is-active <nombre>`, no con `tail`. Y si quieres ver el progreso,
+  `python -u` (o `PYTHONUNBUFFERED=1`).
 - **Modelo y esfuerzo de claude son DATO, no código:** `claude-session.mjs`
   acepta `--model <alias|nombre>` y `--effort <low|medium|high|xhigh|max>` y los
   reenvía a `claude`. Se declaran en la plantilla del ejecutor (`c` trae
