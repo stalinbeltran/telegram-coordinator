@@ -902,6 +902,12 @@ respuesta. Hazlo desde otro tema con `shell`, o desde la máquina.
 **Si estás en un server recién lanzado, esto es lo primero.** El server anterior se descartó con
 el tanteo ya hecho y el estudio completo **creado, commiteado y sin lanzar**. Es un comando.
 
+✅ **RE-VERIFICADO el 2026-09-01**, porque se dudó de si se había corrido y perdido:
+`estudio_progreso.py --sweep do-v --tabla` da **0/20 runs terminados, 0 épocas escritas**, y
+`state.json` sigue en `queued` desde el 2026-08-31 20:54. **No hay ni un run con
+`dropout=0.05`**, que es el valor que sólo existe aquí. O sea: **no se perdió, no se corrió**.
+Lo que sí se corrió es el tanteo `do-t`, y tiene su reporte (#17).
+
 Va aquí y no en la memoria de Claude a propósito: `~/.claude/` se destruye con la máquina, así que
 una nota allí no sobrevive justo al evento que tiene que sobrevivir. **Lo que no está empujado, no
 existe.**
@@ -1005,8 +1011,11 @@ rama. El plan con su criterio escrito antes de mirar vive donde se dispara,
 [`foveal-vision/docs/plan-strides-rama-2026-09-01.md`](https://github.com/stalinbeltran/foveal-vision/blob/main/docs/plan-strides-rama-2026-09-01.md);
 los recorridos los crea `scripts/estudio_strides.py`. **No adelanta a `do-v`.**
 
-⚠ **Está en BORRADOR: su §0 tiene seis supuestos sin confirmar** (rango, ancla del segundo
-eje, control, épocas, brazo diagonal, prioridad). Congelarlo es responderlos.
+✅ **CONGELADO el 2026-09-01**: de los seis supuestos de su §0, el dueño confirmó cinco
+(rango `{1,2,3,4}`, ancla independiente, `epochs` 300, **sí al brazo diagonal**, prioridad).
+Queda abierto sólo el **control iso-features**, que condiciona una regla del criterio (R5) y
+nada más. Son **tres recorridos de 8 runs** —`sc-t`, `sp-t` y `sd-t`— ≈0,7 $ y ~4 h
+*estimados*.
 
 Tres cosas medidas sin gastar un céntimo, que valen aunque el estudio no se corra nunca:
 
@@ -1022,6 +1031,15 @@ Tres cosas medidas sin gastar un céntimo, que valen aunque el estudio no se cor
    paga**, y por eso su criterio no es simétrico como el de `dropout` o `edge_inputs`.
 3. **Las dos ramas producen el mismo mapa 20×20**, así que recortan **lo mismo**: cualquier
    diferencia entre los dos estudios será de **información**, no de tamaño.
+4. ⚠ **Un stride en UNA sola rama apenas acelera** (0,50× como mucho): la otra se queda a
+   resolución entera y domina el reloj. Sólo la **diagonal** baja de verdad (0,24× con
+   `s`=2). Por eso el tercer recorrido, con los mismos 8 runs, cuesta **0,63×** lo que
+   cuesta un simple.
+5. **`merge: sum` es el competidor directo, y ya está medido a medias.** Deja 6.400 features
+   y **0,545×** los parámetros **sin tocar la resolución** — otra vía para lo mismo. En disco
+   hay `mrg-t` (gana `sum`) y `mrg-v` (gana `concat`, y **nunca terminó: 4/6**): se dan la
+   vuelta, ninguno declara, y las cuatro medidas son del dataset anterior. Detalle en el §7
+   del plan.
 
 ### Y DETRÁS DE `do-v`: el estudio de `patience`, empezando por el tanteo
 
