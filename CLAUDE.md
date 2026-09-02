@@ -924,36 +924,67 @@ puede reiniciar desde un mensaje de Telegram**: el servicio es `KillMode=control
 `claude` que atiende el mensaje vive en ese cgroup, así que se mataría a sí mismo a media
 respuesta. Hazlo desde otro tema con `shell`, o desde la máquina.
 
-## ⚠ PENDIENTE AHORA MISMO (dejado el 2026-08-28): lanzar `do-v`, el estudio de `dropout`
+## ✅ HECHO el 2026-09-02: `do-v` corrido y CERRADO — y con él los strides de rama
 
-**Si estás en un server recién lanzado, esto es lo primero.** El server anterior se descartó con
-el tanteo ya hecho y el estudio completo **creado, commiteado y sin lanzar**. Es un comando.
+**Ya no hay nada que lanzar aquí.** Se corrió el 2026-09-01 21:43 → 2026-09-02 01:57 UTC en una
+sola flota junto a los tres tanteos de strides: **44 runs, 23 instancias alquiladas (11
+entrenaron), 4 h 13 min, 1,8656 $ reales.**
 
-✅ **RE-VERIFICADO el 2026-09-01**, porque se dudó de si se había corrido y perdido:
-`estudio_progreso.py --sweep do-v --tabla` da **0/20 runs terminados, 0 épocas escritas**, y
-`state.json` sigue en `queued` desde el 2026-08-31 20:54. **No hay ni un run con
-`dropout=0.05`**, que es el valor que sólo existe aquí. O sea: **no se perdió, no se corrió**.
-Lo que sí se corrió es el tanteo `do-t`, y tiene su reporte (#17).
+**Veredicto de `do-v` ([reporte #20](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/estudios/2026/09-septiembre/2026-09-02-dropout-completo.md)):
+el vigente `dropout = 0,0` se queda, y esta vez CON capacidad de declarar.** 5 semillas dan 252
+arreglos (`p` mínimo alcanzable 0,008) y **ninguno de los tres valores llega a `p` < 0,05** — el
+más bajo es 0,151. ⚠ Y el punto **`0,05`**, que era la única razón de coste del estudio, resulta
+ser **el peor de los cuatro** (0,9248 contra 0,9341 del vigente). **El eje `dropout` queda
+CERRADO** y no hay nada que aplicar.
+
+**Y los strides ([reporte #21](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/estudios/2026/09-septiembre/2026-09-02-strides-rama-tanteo.md)):
+el brazo DIAGONAL `s`=2 da el mejor f1 de los 24 runs** (0,9358 contra 0,9315) con el **31,7 %
+de los parámetros** y 0,72× el reloj. ⚠ Es un **tanteo de 2 semillas: acota, NO declara** (`p`
+mínimo 0,333). Lo siguiente sería `sd-v` con 5 semillas, y **nada se ha aplicado a la base
+vigente**.
+
+⚠ **Y un hallazgo que no se buscaba:** el brazo `s`=1 es la MISMA red en los tres recorridos —una
+réplica técnica gratuita— y **la semilla 2 divergió en uno de los tres** (0,9319 contra 0,9326, y
+otra época de parada). **No es la familia de CPU**: un E5-2670 v3 y un E5-2697 v4 coincidieron
+entre sí. Contradice el *«idéntico bit a bit dentro de E5-26»* con el que se justifica `--cpu`, y
+de paso da un suelo de ruido (**~0,0007**) mucho más útil que el SE de 2 semillas — que en `sd-t`
+salió 0,0001, tan pequeño que deja fuera a cualquier punto.
+
+⚠ **Y una limitación de la herramienta, para quien vuelva a lanzar así:** una flota con varios
+`--sweep` escribe el coste **TOTAL** en el `flota.json` de cada recorrido, así que **el coste no se
+puede atribuir por estudio**. Los reportes lo reparten por minutos-máquina y lo marcan como
+derivado, en vez de dar un número que parezca medido.
+
+<details>
+<summary>El comando con el que se lanzó (para repetir el patrón: UNA flota, varios <code>--sweep</code>)</summary>
+
+⚠ Se usó **`desacoplar-persistente.sh`**, no el `desacoplar.sh` del bloque de abajo: esto alquila
+máquinas, y la regla de este mismo fichero dice que para eso va el persistente. **Funcionó**: el
+proceso de Claude Code salió a mitad y la flota siguió (PPID 1, 0 reinicios, `Result=success`).
+
+```bash
+cd ~/src/foveal-vision
+COORD_HOME="$HOME/src/telegram-coordinator" \
+"$HOME/src/telegram-coordinator/scripts/desacoplar-persistente.sh" flota-strides-dropout \
+  sh -c 'set -a
+[ -f "$HOME/src/telegram-coordinator/.env" ] && . "$HOME/src/telegram-coordinator/.env"
+[ -f "$HOME/.config/dev-secrets.env" ] && . "$HOME/.config/dev-secrets.env"
+set +a
+.venv/bin/python scripts/estudio_flota.py \
+    --sweep do-v --sweep sc-t --sweep sp-t --sweep sd-t \
+    --cpu E5-26 --sin-cpu v2 --criba 2 --git --horas-max 6 --prefijo dr- --yes
+node "$HOME/src/telegram-coordinator/scripts/notify.mjs" "flota terminada"'
+```
+</details>
 
 Va aquí y no en la memoria de Claude a propósito: `~/.claude/` se destruye con la máquina, así que
 una nota allí no sobrevive justo al evento que tiene que sobrevivir. **Lo que no está empujado, no
 existe.**
 
-```bash
-node scripts/bench-preflight.mjs --fix     # el venv de foveal-vision NUNCA está en un dev nuevo
-cd ~/src/foveal-vision
-.venv/bin/python scripts/estudio_progreso.py --sweep do-v --tabla   # ¿queda algo por correr?
-"$COORD_HOME/scripts/desacoplar.sh" sh -c '
-set -a; [ -f "$COORD_HOME/.env" ] && . "$COORD_HOME/.env"
-[ -f "$HOME/.config/dev-secrets.env" ] && . "$HOME/.config/dev-secrets.env"; set +a
-.venv/bin/python scripts/estudio_flota.py --sweep do-v --cpu E5-26 --criba 2 \
-    --git --horas-max 8 --prefijo dr- --yes > /tmp/estudio-dropout-completo.log 2>&1
-node "$COORD_HOME/scripts/notify.mjs" "estudio completo de dropout (do-v) terminado"' &
-```
-
-**20 runs · ≈1,1 $ · ~3,5 h** al ritmo real medido (53 s/época; los 40 estimados se quedaron
-cortos). Al terminar: `estudio_informe.py --sweep do-v --vigente 0.0`, y el reporte a
-`estudios-redes-neuronales/reportes/estudios/2026/08-agosto/` con su fila (regla de siempre).
+⚠ **Lo estimado contra lo real, que es lo que sirve para la próxima:** se estimó `do-v` en
+**≈1,1 $ y ~3,5 h**; los cuatro recorridos juntos salieron por **1,8656 $ y 4 h 13 min**, dentro
+de la horquilla de `estudio_flota.py --estimar` en coste (1,43–2,05 $) pero **casi al doble en
+reloj** (estimaba 2,2 h). El reloj lo estira el lote más lento, no la media.
 
 ### Los valores del tanteo `do-t`, ya medidos — **no hay que repetirlos**
 
@@ -1028,7 +1059,16 @@ escalares que **no pasan por las convoluciones**—, porque `pad_mode: edge` rep
 eso hace un párrafo *pegado* al borde indistinguible de uno *cortado*. Tanteo de **6 runs,
 ≈0,4 $ y ~2,5 h estimados**. ⚠ **No se ha medido nada**: que exista y entrene no es que mejore.
 
-### Y en la cola, en BORRADOR: `sc-t`/`sp-t`, los strides de rama
+### ✅ CORRIDOS el 2026-09-02: `sc-t`/`sp-t`/`sd-t`, los strides de rama
+
+**Resultado y qué queda, arriba** (§ «HECHO el 2026-09-02») y en el
+[reporte #21](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/estudios/2026/09-septiembre/2026-09-02-strides-rama-tanteo.md).
+Lo de abajo es **por qué se diseñaron así**, que sigue valiendo para leer los números y para
+`sd-v` si se corre.
+
+<details>
+<summary>El plan original (los tres recorridos, sus supuestos y lo medido sin gastar)</summary>
+
 
 **Añadido el 2026-09-01, a petición del dueño**, que observó que el número de features que
 llegan a la cabeza es desproporcionado. Lo es: *medido el 2026-09-01*, la base vigente manda
@@ -1068,9 +1108,13 @@ Tres cosas medidas sin gastar un céntimo, que valen aunque el estudio no se cor
    vuelta, ninguno declara, y las cuatro medidas son del dataset anterior. Detalle en el §7
    del plan.
 
-### Y DETRÁS DE `do-v`: el estudio de `patience`, empezando por el tanteo
+</details>
 
-**Pendiente, anotado el 2026-08-28.** Va **después** de `do-v` y **empieza por un tanteo** — con
+### AHORA LO PRIMERO (`do-v` ya está hecho): el estudio de `patience`, por el tanteo
+
+**Pendiente, anotado el 2026-08-28.** Iba **después** de `do-v`, que se cerró el 2026-09-02, así
+que **es lo siguiente de la cola** junto a `sd-v` (la validación del diagonal) y `ei-t`. **Empieza
+por un tanteo** — con
 la expectativa explícita de que **lo más probable es que se quede ahí**. Por qué, y qué habría que
 mirar exactamente:
 
