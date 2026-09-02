@@ -638,7 +638,7 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    anterior (los otros dos fijan lo que ya funcionaba: que el servicio no cuente, y que lo de otra
    máquina no cuente).
 
-### ⚠ Hallazgo ABIERTO (2026-09-01): el freno dejó de contar una flota VIVA
+### ⏳ PENDIENTE (desbloqueado el 2026-09-02): reparar los prefijos del freno
 
 **Medido en vivo, con 11 máquinas facturando.** El freno pasó de `13 máquinas Vast
 (0.8126 $/h)` a **`ok Vast: nada de esta máquina (11 instancia(s) de otro server, no
@@ -662,8 +662,21 @@ reclama es una **duda** y no «de otro server»—, los tres escenarios medidos,
 arrastra (`IGNORA_AL_MONTAR` silenciaría `data/fuentes.json` en casa) y los cinco tests que
 pide, en **[`docs/freno-prefijos-2026-09-01.md`](docs/freno-prefijos-2026-09-01.md)**.
 
-⚠ **Y se implementa con la cuenta de Vast VACÍA**: tocar el freno con una flota viva pone el
-error justo sobre lo único que vigila el gasto.
+**Qué falta, concretamente** (§4 del documento): **P1** — los prefijos salen del `--prefijo`
+de los `estudio_flota.py` **vivos**, no de los `WORKSPACE.json`; y **P2** — una instancia que no
+casa con ningún prefijo conocido **y que nadie reclama** pasa a `NO SÉ`, en vez de a `limpio`
+como «de otro server», que es una pertenencia que el script no ha comprobado. Van con los cinco
+tests del §5, **tres de los cuales fallan con el código de hoy**.
+
+⚠ **Se implementa con la cuenta de Vast VACÍA**, porque tocar el freno con una flota viva pone
+el error justo sobre lo único que vigila el gasto. **Esa condición se cumple desde el 2026-09-02
+01:57 UTC**, cuando la flota de `do-v` + strides destruyó sus 23 instancias — o sea que **ya se
+puede hacer**. Compruébalo otra vez antes de empezar, que entre escribir esto y leerlo cabe otra
+flota:
+
+```bash
+cd ~/src/digital-ocean-dropplet-auto-launching && python3 scripts/vast_instance.py list
+```
 
 ⚠ **El ejecutor lo llama con `--exit0`** porque el coordinador lee cualquier código ≠ 0 como
 «el ejecutor falló» y entonces no corre los encargados: la respuesta no llegaría a Telegram.

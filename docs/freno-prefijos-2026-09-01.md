@@ -1,9 +1,19 @@
 # El freno dejó de contar una flota viva, y dijo que era «de otro server»
 
-**Hallazgo ABIERTO, 2026-09-01.** Estado: **diagnosticado y medido, NO arreglado.** Este
-documento existe porque el fallo toca `scripts/cerrable.mjs`, que es lo único que impide
-destruir un server con máquinas facturando — y porque la salida que parecía obvia (dar
-identidad al árbol de casa) **empeora el fallo**, cosa que sólo se ve midiéndola.
+**PENDIENTE — diagnosticado y medido el 2026-09-01, NO arreglado.** Este documento existe
+porque el fallo toca `scripts/cerrable.mjs`, que es lo único que impide destruir un server con
+máquinas facturando — y porque la salida que parecía obvia (dar identidad al árbol de casa)
+**empeora el fallo**, cosa que sólo se ve midiéndola.
+
+> ## ⏳ Estado: PENDIENTE, y desde el 2026-09-02 **DESBLOQUEADO**
+>
+> La única condición para tocarlo era **tener la cuenta de Vast vacía** (§5). La flota de
+> `do-v` + strides terminó el **2026-09-02 01:57:10 UTC** y destruyó sus 23 instancias;
+> *comprobado ese mismo día con `vast_instance.py list`: «No hay ninguna instancia viva»*.
+>
+> **Ya se puede implementar.** Lo que falta es P1 y P2 (§4) con los cinco tests del §5. Antes
+> de empezar, **volver a comprobar que la cuenta sigue vacía**: entre que se escribe esto y
+> que alguien lo lea puede haberse lanzado otra flota.
 
 ---
 
@@ -187,7 +197,13 @@ tres de los cuales fallan con el código de hoy**:
 
 ⚠ **Y el freno se prueba con el freno parado:** tocar `cerrable.mjs` mientras hay una flota
 viva significa que, si el cambio se rompe, el error cae justo sobre lo único que vigila el
-gasto. Se implementa **con la cuenta de Vast vacía**.
+gasto. Se implementa **con la cuenta de Vast vacía** — condición que **se cumple desde el
+2026-09-02 01:57 UTC**, y que hay que **volver a comprobar** justo antes de empezar:
+
+```bash
+cd ~/src/digital-ocean-dropplet-auto-launching && python3 scripts/vast_instance.py list
+# tiene que decir: "No hay ninguna instancia viva en Vast.ai"
+```
 
 ## 6. Mientras tanto — cómo se comprueba a mano
 
