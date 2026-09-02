@@ -15,7 +15,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -169,4 +169,75 @@ test('archivar dos veces no reescribe lo que no cambió', () => {
   correr(m);
   const { salida } = correr(m);
   assert.match(salida, /0 guardada\(s\), 1 sin cambios/);
+});
+
+// ------------------- 4. el índice describe EL DISCO, no los transcripts vivos
+//
+// El fallo, medido el 2026-09-02 en la máquina real: 7 ficheros archivados y 4
+// filas. El índice se construía de `~/.claude/projects/`, así que un transcript
+// que desaparece —y aquí desaparecen: la máquina se rehace— dejaba su `.gz` en
+// git sin nada que lo nombrara. Guardado e inencontrable, sin un solo error.
+
+/** Las filas del índice: [{fecha, sesion, rel}] */
+function indice(m) {
+  const readme = readFileSync(join(m.datos, 'conversaciones', 'README.md'), 'utf8');
+  return [...readme.matchAll(/^\| (\d{4}-\d{2}-\d{2}) \| \[`([0-9a-f]{8})`\]\(([^)]+)\)/gm)]
+    .map(([, fecha, sesion, rel]) => ({ fecha, sesion, rel }));
+}
+
+/** Deja un .gz archivado a mano, como si lo hubiera escrito una máquina anterior. */
+function archivar(m, fecha, sesion, mensajes) {
+  const dir = join(m.datos, 'conversaciones', fecha.slice(0, 4), '09-septiembre');
+  mkdirSync(dir, { recursive: true });
+  const texto = mensajes.map((t) => JSON.stringify(MSG(t))).join('\n') + '\n';
+  writeFileSync(join(dir, `${fecha}-${sesion}.jsonl.gz`), gzipSync(Buffer.from(texto)));
+  return join('2026', '09-septiembre', `${fecha}-${sesion}.jsonl.gz`);
+}
+
+test('una conversación archivada SIN transcript vivo conserva su fila', () => {
+  // El caso de verdad: la máquina se rehizo y `~/.claude/projects` está vacío,
+  // pero el repo de datos sigue trayendo lo de antes.
+  const m = maquina({ lineas: [MSG('la sesión de hoy')] });
+  const rel = archivar(m, '2026-09-01', 'deadbeef', ['lo de una máquina anterior']);
+  correr(m);
+  const filas = indice(m);
+  const vieja = filas.find((f) => f.sesion === 'deadbeef');
+  assert.ok(vieja, 'la conversación archivada desapareció del índice');
+  assert.equal(vieja.rel, rel);
+  assert.ok(existsSync(join(m.datos, 'conversaciones', vieja.rel)), 'enlace roto');
+  assert.equal(filas.length, 2, 'y la sesión viva sigue teniendo la suya');
+});
+
+test('el resumen de una archivada sale del propio fichero, no del transcript', () => {
+  const m = maquina({ lineas: [MSG('la sesión de hoy')] });
+  archivar(m, '2026-09-01', 'deadbeef', ['de qué iba aquella', 'y una segunda']);
+  correr(m);
+  const readme = readFileSync(join(m.datos, 'conversaciones', 'README.md'), 'utf8');
+  const fila = readme.split('\n').find((l) => l.includes('deadbeef'));
+  assert.match(fila, /de qué iba aquella/, 'el titular no sale del fichero archivado');
+  assert.match(fila, /\| 2 \|/, 'no cuenta los mensajes del fichero archivado');
+});
+
+test('un .gz borrado del disco PIERDE su fila: el índice no acumula', () => {
+  // La otra mitad: describir el disco significa describirlo entero, también
+  // cuando algo se quita a propósito (p. ej. una conversación con un secreto).
+  const m = maquina({ lineas: [MSG('la sesión de hoy')] });
+  const rel = archivar(m, '2026-09-01', 'deadbeef', ['esto se va a borrar']);
+  correr(m);
+  assert.ok(indice(m).some((f) => f.sesion === 'deadbeef'));
+  execFileSync('rm', ['-f', join(m.datos, 'conversaciones', rel)]);
+  correr(m);
+  assert.ok(!indice(m).some((f) => f.sesion === 'deadbeef'),
+    'el índice enlaza a un fichero que ya no está');
+});
+
+test('dos snapshots del MISMO id dan dos filas, no una', () => {
+  // Los ids se DERIVAN de `<tema>#<época>`: al rehacer la máquina el tema vuelve
+  // a la época 0 y el mismo id sale otra vez para otra conversación. Agrupar por
+  // id escondería una de las dos.
+  const m = maquina({ lineas: [MSG('la sesión de hoy')] });
+  archivar(m, '2026-09-01', 'deadbeef', ['la primera']);
+  archivar(m, '2026-09-02', 'deadbeef', ['la primera', 'la segunda']);
+  correr(m);
+  assert.equal(indice(m).filter((f) => f.sesion === 'deadbeef').length, 2);
 });

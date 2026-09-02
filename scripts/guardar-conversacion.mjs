@@ -46,7 +46,7 @@
 // borra del historial y se hace como que no pasó.
 
 import { execFileSync } from 'node:child_process';
-import { gzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { homedir } from 'node:os';
@@ -109,6 +109,38 @@ function transcripts() {
   return out;
 }
 
+/**
+ * Lo que YA está archivado, leído del DISCO — que es lo que el índice describe.
+ *
+ * ⚠ Antes el índice se construía sólo de los transcripts vivos de
+ * `~/.claude/projects/`, y eso lo hacía mentir en silencio: un transcript que
+ * desaparece —sesión borrada, `~/.claude` limpiado, o la máquina rehecha, que
+ * aquí es lo NORMAL y es justo el motivo por el que este script existe— dejaba
+ * su `.gz` en git **sin ninguna fila que lo nombrara**. El fichero seguía ahí y
+ * era inencontrable desde el único sitio que lo lista. Medido el 2026-09-02:
+ * 7 ficheros archivados, 4 filas.
+ */
+function archivadas(datos) {
+  const raiz = join(datos, 'conversaciones');
+  const out = [];
+  for (const anio of readdirSync(raiz)) {
+    const da = join(raiz, anio);
+    if (!/^\d{4}$/.test(anio) || !statSync(da).isDirectory()) continue;
+    for (const mes of readdirSync(da)) {
+      const dm = join(da, mes);
+      if (!statSync(dm).isDirectory()) continue;
+      for (const f of readdirSync(dm)) {
+        const m = /^(\d{4}-\d{2}-\d{2})-([0-9a-f]{8})\.jsonl\.gz$/.exec(f);
+        if (!m) continue;
+        out.push({ ruta: join(dm, f), rel: join(anio, mes, f),
+                   fecha: m[1], sesion: m[2], bytes: statSync(join(dm, f)).size });
+      }
+    }
+  }
+  return out;
+}
+
+
 function destinoDe(t, datos) {
   const m = statSync(t.ruta).mtime;
   const fecha = `${m.getUTCFullYear()}-${String(m.getUTCMonth() + 1).padStart(2, '0')}-${String(m.getUTCDate()).padStart(2, '0')}`;
@@ -131,8 +163,9 @@ function main() {
     console.error('⚠ no pude leer ningún fichero de secretos: sólo redacto por patrón');
   }
 
-  const filas = [];
-  let guardadas = 0, saltadas = 0, rechazadas = 0;
+  // Una fila por FICHERO archivado, indexada por su ruta relativa.
+  const filas = new Map();
+  let guardadas = 0, saltadas = 0, rechazadas = 0, recuperadas = 0;
 
   for (const t of transcripts()) {
     const { dir, fichero, fecha } = destinoDe(t, datos);
@@ -159,10 +192,10 @@ function main() {
     }
     const gz = gzipSync(Buffer.from(texto, 'utf8'), { level: 9 });
     const r = resumir(texto);
-    filas.push({ fecha, sesion: t.sesion.slice(0, 8), proyecto: t.proyecto,
-                 kb: Math.round(gz.length / 1024), ...r,
-                 // relativo AL README, que vive dentro de `conversaciones/`
-                 rel: fichero.slice(join(datos, 'conversaciones').length + 1) });
+    // relativo AL README, que vive dentro de `conversaciones/`
+    const rel = fichero.slice(join(datos, 'conversaciones').length + 1);
+    filas.set(rel, { fecha, sesion: t.sesion.slice(0, 8), proyecto: t.proyecto,
+                     kb: Math.round(gz.length / 1024), ...r, rel });
 
     // Si ya está y no ha cambiado de tamaño, no se reescribe: una conversación
     // en curso se archiva muchas veces y cada versión sería un objeto de git.
@@ -178,8 +211,23 @@ function main() {
     writeFileSync(fichero, gz);
   }
 
-  if (!SECO && filas.length) escribirIndice(datos, filas);
+  // Segunda pasada: los ficheros archivados que NINGÚN transcript vivo explica.
+  // Normalmente cuesta cero (todo lo de disco tiene su transcript); cuando cuesta
+  // algo es justo el caso que antes se perdía, y entonces vale lo que sea.
+  // ⚠ Si algún día duele, la caché va aquí y su clave es (rel, bytes) — la misma
+  // regla que ya decide más arriba si un fichero se reescribe.
+  // La pasada SÍ corre en seco: `--seco` dice qué haría, y cuántas filas se
+  // recuperan es justo lo que hay que poder mirar antes de escribir nada.
+  for (const a of archivadas(datos)) {
+    if (filas.has(a.rel)) continue;
+    const r = resumir(gunzipSync(readFileSync(a.ruta)).toString('utf8'));
+    filas.set(a.rel, { fecha: a.fecha, sesion: a.sesion, proyecto: '(sin transcript)',
+                       kb: Math.round(a.bytes / 1024), ...r, rel: a.rel });
+    recuperadas++;
+  }
+  if (!SECO) escribirIndice(datos, [...filas.values()]);
   console.log(`\n${guardadas} ${SECO ? 'se guardaría(n)' : 'guardada(s)'}, ${saltadas} sin cambios` +
+    (recuperadas ? `, ${recuperadas} ya archivada(s) sin transcript vivo` : '') +
     (rechazadas ? `, ⛔ ${rechazadas} RECHAZADA(S) por posible secreto` : ''));
 
   if (!SECO && !SIN_GIT && guardadas) empujar(datos);
@@ -187,6 +235,20 @@ function main() {
   return HOOK ? 0 : (rechazadas ? 2 : 0);
 }
 
+/**
+ * Una fila por FICHERO, nunca por sesión — y el motivo es de este proyecto:
+ * el id de una conversación del bot no es aleatorio, se DERIVA de `<tema>#<época>`
+ * (`claude-marker.mjs`). Al rehacer la máquina se pierde el marker, el tema
+ * vuelve a la época 0 y **el mismo id vuelve a salir** para una conversación
+ * completamente distinta. Agrupar por id daría una sola fila y escondería una de
+ * las dos.
+ *
+ * El precio: mientras una conversación sigue viva deja un fichero por día (el
+ * nombre lleva el mtime del transcript), así que salen varias filas del mismo id
+ * que son SNAPSHOTS de lo mismo — comprobado el 2026-09-02: el fichero del día
+ * siguiente contiene al anterior como prefijo exacto. Se ven porque comparten
+ * titular, y la cabecera del README lo explica.
+ */
 function escribirIndice(datos, filas) {
   filas.sort((a, b) => (a.fecha + a.sesion).localeCompare(b.fecha + b.sesion));
   const cab = readFileSync(join(datos, 'conversaciones', 'README.md'), 'utf8')

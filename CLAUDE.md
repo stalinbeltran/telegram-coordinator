@@ -1752,9 +1752,26 @@ secreto que se cuele no se arregla borrándolo, hay que **ROTARLO**. Por eso:
    decide es el **nombre** de la variable (`TOKEN|KEY|SECRET|PASS|…`), y un valor largo
    con nombre que no lo parece **se avisa** en vez de decidirse en silencio.
 
+⚠ **Y el ÍNDICE describe la carpeta, no las sesiones vivas** — desde el 2026-09-02, que
+es cuando dejó de mentir. Se construía sólo de los transcripts de `~/.claude/projects/`,
+así que un transcript que desaparece —sesión borrada, o **la máquina rehecha, que es lo
+normal aquí y el motivo por el que este archivo existe**— dejaba su `.gz` en git **sin
+ninguna fila que lo nombrara**: guardado e inencontrable, sin un solo error. Medido ese
+día: **7 ficheros, 4 filas**. Ahora las filas salen de los ficheros y las que no tienen
+transcript vivo se recuperan leyéndolos (1,3 s con 7,6 MB archivados; si algún día duele,
+la caché va ahí y su clave es `(rel, bytes)`).
+
+⚠ **Una fila por FICHERO, nunca por sesión**, aunque eso repita filas del mismo id: los
+ids se **derivan** de `<tema>#<época>`, así que al rehacer la máquina el tema vuelve a la
+época 0 y **el mismo id sale otra vez** para otra conversación. Agrupar escondería una de
+las dos. Lo que sí son snapshots de lo mismo —el mismo id en días distintos, porque el
+nombre lleva el *mtime*— lo explica la cabecera del README, y se comprobó que el fichero
+del día siguiente **contiene al anterior como prefijo exacto**.
+
 Detalle y qué hacer si algún día se cuela algo, en
 [`foveal-vision-data/conversaciones/README.md`](https://github.com/stalinbeltran/foveal-vision-data/blob/main/conversaciones/README.md).
-9 tests en `tests/guardar-conversacion.test.mjs`.
+13 tests en `tests/guardar-conversacion.test.mjs` (los 4 del índice fallan con el
+código anterior).
 
 #### Al cerrar: `SessionEnd` suelta el workspace — pero eso es la COMODIDAD, no la regla
 
