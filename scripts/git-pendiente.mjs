@@ -67,21 +67,37 @@ export function razonesGit(repo, { ignorar = [] } = {}) {
   const rama = sh('git branch --show-current', repo);
   if (!rama) return { duda: false, razones };   // detached HEAD: no hay rama que perder
 
-  const sinEmpujar = sh(`git log --oneline origin/${rama}..${rama}`, repo);
-  if (sinEmpujar === null) {
-    // El comando falla si no existe `origin/<rama>`: la rama entera es local.
-    if (!sh(`git rev-parse --verify origin/${rama}`, repo)) {
-      // ...pero sólo se pierde algo si tiene commits que no estén en NINGÚN
-      // remoto. Una rama recién creada no tiene ninguno: es `main` con otro
-      // nombre.
-      const propios = sh(`git log --oneline ${rama} --not --remotes`, repo);
-      if (propios) {
-        razones.push({ n: propios.split('\n').length, texto: `la rama "${rama}" no está en el remoto` });
-      }
-    }
-  } else if (sinEmpujar) {
-    const n = sinEmpujar.split('\n').length;
-    razones.push({ n, texto: `${n} commit(s) sin empujar en "${rama}"` });
+  // Lo que se pierde son los commits que no están en NINGÚN remoto, y esa
+  // pregunta se hace IGUAL exista o no `origin/<rama>`. Hasta el 2026-09-02 se
+  // hacía de dos formas distintas —`--not --remotes` sólo cuando la rama remota
+  // no existía, y `origin/<rama>..<rama>` cuando sí— y esa asimetría es un
+  // FALSO POSITIVO: contra una rama remota VIEJA, todo lo que main ha avanzado
+  // desde entonces se lee como «se perdería», aunque esté en `origin/main`.
+  //
+  // Medido ese día en ~/ws/tema-2: `origin/tema-2` se había quedado en un commit
+  // de agosto, la rama local se puso al día con main, y el freno decía
+  // «foveal-vision [tema-2]: 5 commit(s) sin empujar» con los cinco ya en
+  // `origin/main`. Es justo el 🔴 permanente que este fichero existe para no
+  // producir: un aviso que sale siempre se deja de leer, y el día que sea real
+  // estará igual de rojo que los treinta anteriores.
+  //
+  // ⚠ NO es aflojar la regla, que sería la dirección cara: `--not --remotes` es
+  // una PRUEBA de que el commit sobrevive a la máquina, no una excepción para
+  // una clase de ramas. Un commit que no esté en ningún remoto sigue avisando,
+  // esté su rama en el remoto o no.
+  const propios = sh(`git log --oneline ${rama} --not --remotes`, repo);
+  if (propios === null) return { duda: true, razones };   // el git no se deja leer
+  if (propios) {
+    const n = propios.split('\n').length;
+    // La rama remota no cambia QUÉ se pierde, sólo qué hay que teclear para
+    // salvarlo (`git push` contra `git push -u`), así que va en el texto.
+    const hayRemota = sh(`git rev-parse --verify -q origin/${rama}`, repo) !== null;
+    razones.push({
+      n,
+      texto: hayRemota
+        ? `${n} commit(s) sin empujar en "${rama}"`
+        : `la rama "${rama}" no está en el remoto`,
+    });
   }
   return { duda: false, razones };
 }

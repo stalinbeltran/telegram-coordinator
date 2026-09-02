@@ -877,6 +877,18 @@ Y dos cosas que la lista no pedía y ahora están medidas:
 
 ### Lo que hay que saber la próxima vez que se monte un workspace
 
+- ⚠ **«Se perdería» se decide contra TODOS los remotos, no contra `origin/<rama>`** — desde el
+  2026-09-02, que es cuando dejó de mentir. `git-pendiente.mjs` preguntaba de dos formas
+  distintas: `--not --remotes` si la rama remota no existía, y `origin/<rama>..<rama>` si sí. Esa
+  asimetría es un falso positivo: contra una rama remota **vieja**, todo lo que `main` ha
+  avanzado desde entonces se lee como trabajo en riesgo. Medido ese día con `~/ws/tema-2`, cuyas
+  ramas remotas se habían quedado en agosto: el freno decía **«foveal-vision [tema-2]: 5
+  commit(s) sin empujar»** con los cinco ya en `origin/main`, y **no había forma de bajar del
+  🔴** — el aviso permanente que este script existe para no dar.
+  **No es aflojar la regla**, que es la dirección cara: `--not --remotes` es una **prueba** de que
+  el commit sobrevive a la máquina, no una excepción para una clase de ramas. Un commit que no
+  esté en ningún remoto sigue avisando, esté su rama en el remoto o no. Tres tests en
+  `tests/git-pendiente.test.mjs`; **dos de los tres fallan con el código anterior**.
 - **Un workspace montado ya NO fija el `🔴 NO CERRAR`.** Esto fue verdad hasta el automontaje y
   dejó de serlo con él: `git-pendiente.mjs` no cuenta como pérdida una rama **sin commits propios**,
   y el `data/fuentes.json` que reescribe `--nuevo` se ignora **dentro** de un workspace (en el árbol

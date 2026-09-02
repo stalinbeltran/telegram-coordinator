@@ -122,3 +122,59 @@ test('lo que no se puede leer es DUDA, nunca «todo bien»', async () => {
   const r = razonesGit(mkdtempSync(join(tmpdir(), 'coord-nogit-')));
   assert.equal(r.duda, true, 'sin git no se sabe qué se perdería: eso NO es cerrable');
 });
+
+// ---------------------------------------------- la rama remota VIEJA (2026-09-02)
+//
+// El falso positivo que hacía imposible bajar del 🔴: si `origin/<rama>` se
+// quedó atrás, compararse sólo contra ella cuenta como «se perdería» todo lo que
+// `main` ha avanzado desde entonces — aunque esté a salvo en `origin/main`.
+// Medido en ~/ws/tema-2 con los cinco repos: 5 + 1 commits «sin empujar» que ya
+// estaban los seis en el remoto.
+
+/** Una rama que está en el remoto pero cuya copia remota se quedó vieja. */
+function ramaRemotaVieja(repo) {
+  sh(`${G} checkout -q -b tema-2`, repo);
+  sh(`${G} push -q -u origin tema-2`, repo);          // origin/tema-2 == main de hoy
+  sh(`${G} checkout -q main`, repo);
+  writeFileSync(join(repo, 'avance.md'), 'trabajo hecho en main y EMPUJADO\n');
+  sh(`${G} add -A`, repo);
+  sh(`${G} commit -qm "avance en main"`, repo);
+  sh(`${G} push -q origin main`, repo);               // ...y main avanza
+  sh(`${G} checkout -q tema-2`, repo);
+  sh(`${G} merge -q --ff-only main`, repo);           // el workspace se pone al día
+}
+
+test('una rama al día con main NO se pierde, aunque su copia remota esté vieja', async () => {
+  const { razonesGit } = await mod();
+  const repo = repoClonado();
+  ramaRemotaVieja(repo);
+  const r = razonesGit(repo);
+  assert.equal(r.duda, false);
+  assert.deepEqual(r.razones, [],
+    'ese commit está en origin/main: apagar la máquina no lo pierde');
+});
+
+test('...pero un commit propio ENCIMA de esa rama vieja sí avisa, y cuenta UNO', async () => {
+  const { razonesGit } = await mod();
+  const repo = repoClonado();
+  ramaRemotaVieja(repo);
+  writeFileSync(join(repo, 'medido.md'), 'esto sí es trabajo de este workspace\n');
+  sh(`${G} add -A`, repo);
+  sh(`${G} commit -qm "lo medido aquí"`, repo);
+  const r = razonesGit(repo);
+  assert.equal(r.razones.length, 1);
+  assert.match(r.razones[0].texto, /1 commit\(s\) sin empujar en "tema-2"/);
+  assert.equal(r.razones[0].n, 1, 'sólo el propio, no el que ya está en origin/main');
+});
+
+test('una rama SIN remoto y con trabajo sigue diciendo que no está en el remoto', async () => {
+  const { razonesGit } = await mod();
+  const repo = repoClonado();
+  sh(`${G} checkout -q -b suelta`, repo);
+  writeFileSync(join(repo, 'x.md'), 'x\n');
+  sh(`${G} add -A`, repo);
+  sh(`${G} commit -qm x`, repo);
+  const r = razonesGit(repo);
+  assert.equal(r.razones.length, 1);
+  assert.match(r.razones[0].texto, /rama "suelta" no está en el remoto/);
+});
