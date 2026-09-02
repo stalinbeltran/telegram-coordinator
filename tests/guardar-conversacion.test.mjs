@@ -241,3 +241,79 @@ test('dos snapshots del MISMO id dan dos filas, no una', () => {
   correr(m);
   assert.equal(indice(m).filter((f) => f.sesion === 'deadbeef').length, 2);
 });
+
+// ------------------- 5. UN fichero por conversación, fechado cuando EMPEZÓ
+//
+// Antes la fecha era el mtime del transcript, así que una conversación que
+// duraba tres días dejaba tres ficheros, cada uno conteniendo entero al
+// anterior. Medido el 2026-09-02: 7 ficheros para 4 conversaciones.
+
+/** Un mensaje con su instante, para poder simular días distintos. */
+const MSG_EN = (t, iso) => ({ type: 'user', timestamp: iso, message: { content: t } });
+
+/** Todos los .gz archivados, con su ruta relativa. */
+function ficheros(m) {
+  const raiz = join(m.datos, 'conversaciones');
+  const out = [];
+  for (const a of readdirSync(raiz)) {
+    if (!/^\d{4}$/.test(a)) continue;
+    for (const mes of readdirSync(join(raiz, a))) {
+      for (const f of readdirSync(join(raiz, a, mes))) out.push(join(a, mes, f));
+    }
+  }
+  return out.sort();
+}
+
+test('una conversación de varios días es UN fichero, con la fecha en que empezó', () => {
+  const m = maquina({ lineas: [MSG_EN('el primer día', '2026-09-01T09:00:00.000Z')] });
+  correr(m);
+  assert.deepEqual(ficheros(m), [join('2026', '09-septiembre', '2026-09-01-aaaaaaaa.jsonl.gz')]);
+
+  // al día siguiente la misma conversación sigue, y el transcript crece
+  writeFileSync(join(m.proy, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl'),
+    [MSG_EN('el primer día', '2026-09-01T09:00:00.000Z'),
+     MSG_EN('y el segundo', '2026-09-02T09:00:00.000Z')].map((l) => JSON.stringify(l)).join('\n') + '\n');
+  correr(m);
+
+  assert.deepEqual(ficheros(m), [join('2026', '09-septiembre', '2026-09-01-aaaaaaaa.jsonl.gz')],
+    'la conversación se partió en un fichero por día');
+  assert.equal(indice(m).length, 1, 'y en el índice sale una vez, no dos');
+  assert.match(guardado(m), /y el segundo/, 'el fichero no se actualizó con lo nuevo');
+});
+
+test('el índice dice cuándo fue la ÚLTIMA actividad, que el nombre ya no dice', () => {
+  const m = maquina({ lineas: [MSG_EN('hola', '2026-09-01T09:00:00.000Z'),
+                               MSG_EN('adiós', '2026-09-03T18:30:00.000Z')] });
+  correr(m);
+  const readme = readFileSync(join(m.datos, 'conversaciones', 'README.md'), 'utf8');
+  assert.match(readme, /\| 2026-09-01 \|/, 'la fila va fechada por el inicio');
+  assert.match(readme, /2026-09-03 18:30/, 'no dice cuándo se tocó por última vez');
+});
+
+test('sin ningún timestamp cae al mtime, y lo DICE', () => {
+  // No es un caso hipotético: es el fallback, y un fichero fechado por mtime sí
+  // puede duplicarse mañana. Callarlo sería el fallo silencioso de siempre.
+  const m = maquina({ lineas: [{ type: 'user', message: { content: 'sin instante' } }] });
+  const { salida } = correr(m);
+  assert.match(salida, /sin ningún timestamp/);
+  assert.match(salida, /mtime/);
+  assert.equal(ficheros(m).length, 1);
+});
+
+test('dos conversaciones DISTINTAS con el mismo id y el mismo inicio no se pisan', () => {
+  // El id se deriva de `<tema>#<época>`: al rehacer la máquina el tema vuelve a
+  // la época 0 y el mismo id puede empezar otra conversación el mismo día.
+  const m = maquina({ lineas: [MSG_EN('la primera de todas', '2026-09-01T09:00:00.000Z')] });
+  correr(m);
+  // otra conversación, mismo id y mismo día, primera línea distinta
+  writeFileSync(join(m.proy, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jsonl'),
+    JSON.stringify(MSG_EN('otra cosa completamente', '2026-09-01T11:00:00.000Z')) + '\n');
+  const { salida } = correr(m);
+
+  assert.match(salida, /otra conversación distinta/, 'no avisó de la colisión');
+  assert.equal(ficheros(m).length, 2, 'una pisó a la otra');
+  const textos = ficheros(m).map((f) =>
+    gunzipSync(readFileSync(join(m.datos, 'conversaciones', f))).toString('utf8'));
+  assert.ok(textos.some((t) => t.includes('la primera de todas')), 'se perdió la primera');
+  assert.ok(textos.some((t) => t.includes('otra cosa completamente')), 'se perdió la segunda');
+});

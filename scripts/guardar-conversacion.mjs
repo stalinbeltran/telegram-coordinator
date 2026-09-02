@@ -130,7 +130,7 @@ function archivadas(datos) {
       const dm = join(da, mes);
       if (!statSync(dm).isDirectory()) continue;
       for (const f of readdirSync(dm)) {
-        const m = /^(\d{4}-\d{2}-\d{2})-([0-9a-f]{8})\.jsonl\.gz$/.exec(f);
+        const m = /^(\d{4}-\d{2}-\d{2})-([0-9a-f]{8})(?:-\d+)?\.jsonl\.gz$/.exec(f);
         if (!m) continue;
         out.push({ ruta: join(dm, f), rel: join(anio, mes, f),
                    fecha: m[1], sesion: m[2], bytes: statSync(join(dm, f)).size });
@@ -141,11 +141,56 @@ function archivadas(datos) {
 }
 
 
-function destinoDe(t, datos) {
-  const m = statSync(t.ruta).mtime;
+/**
+ * Dónde va una conversación: UN fichero, fechado el día en que EMPEZÓ.
+ *
+ * ⚠ Antes la fecha era el **mtime** del transcript, y eso partía una misma
+ * conversación en un fichero por cada día que durase — cada uno conteniendo
+ * entero al anterior. Medido el 2026-09-02: 7 ficheros para 4 conversaciones.
+ * La fecha de inicio es un hecho del CONTENIDO (su primer `timestamp`) y no
+ * cambia nunca; el mtime cambia cada vez que se escribe.
+ *
+ * Sin ningún `timestamp` en el transcript no hay fecha de inicio que leer: se
+ * cae al mtime —que es lo que se hacía siempre— y se DICE, porque ese fichero
+ * sí puede duplicarse al día siguiente.
+ */
+function destinoDe(t, datos, desde) {
+  const d = desde ? new Date(desde) : null;
+  const m = d && !Number.isNaN(d.getTime()) ? d : statSync(t.ruta).mtime;
   const fecha = `${m.getUTCFullYear()}-${String(m.getUTCMonth() + 1).padStart(2, '0')}-${String(m.getUTCDate()).padStart(2, '0')}`;
   const dir = join(datos, 'conversaciones', String(m.getUTCFullYear()), MESES[m.getUTCMonth()]);
-  return { dir, fichero: join(dir, `${fecha}-${t.sesion.slice(0, 8)}.jsonl.gz`), fecha };
+  return { dir, fichero: join(dir, `${fecha}-${t.sesion.slice(0, 8)}.jsonl.gz`), fecha,
+           derivada: !(d && !Number.isNaN(d.getTime())) };
+}
+
+/** La primera línea, que trae el uuid del primer mensaje. Identifica la conversación. */
+const primeraLinea = (txt) => txt.slice(0, txt.indexOf('\n') + 1 || txt.length);
+
+/**
+ * El fichero libre para esta conversación, y si hay que avisar de una colisión.
+ *
+ * ⚠ `(id, fecha de inicio)` NO es único, y por una razón de este proyecto: el id
+ * se DERIVA de `<tema>#<época>` (`claude-marker.mjs`), así que al rehacer la
+ * máquina se pierde el marker, el tema vuelve a la época 0 y **el mismo id puede
+ * empezar otra conversación** — el mismo día, incluso. Sin esta comprobación la
+ * segunda pisaría a la primera **en silencio**, que es justo lo que este archivo
+ * existe para que no pase.
+ *
+ * La identidad se decide por la PRIMERA LÍNEA (idéntica sólo si es la misma
+ * conversación), no por «es prefijo»: un cambio en las reglas de redacción
+ * cambia el texto entero y daría una colisión falsa.
+ */
+function sitioLibre(fichero, texto) {
+  if (!existsSync(fichero)) return { fichero, colision: false, ya: null };
+  const ya = gunzipSync(readFileSync(fichero)).toString('utf8');
+  if (primeraLinea(ya) === primeraLinea(texto)) return { fichero, colision: false, ya };
+  for (let i = 2; i < 100; i++) {
+    const alt = fichero.replace(/\.jsonl\.gz$/, `-${i}.jsonl.gz`);
+    if (!existsSync(alt)) return { fichero: alt, colision: basename(fichero), ya: null };
+    const otra = gunzipSync(readFileSync(alt)).toString('utf8');
+    if (primeraLinea(otra) === primeraLinea(texto)) return { fichero: alt, colision: false, ya: otra };
+  }
+  return { fichero, colision: basename(fichero), ya };   // 99 colisiones: algo va muy mal
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +213,6 @@ function main() {
   let guardadas = 0, saltadas = 0, rechazadas = 0, recuperadas = 0;
 
   for (const t of transcripts()) {
-    const { dir, fichero, fecha } = destinoDe(t, datos);
     const crudo = readFileSync(t.ruta, 'utf8');
     const { texto, n } = redactar(crudo, secretos);
     // Lo dudoso NO se redacta (su nombre no dice que sea credencial) pero se
@@ -192,14 +236,31 @@ function main() {
     }
     const gz = gzipSync(Buffer.from(texto, 'utf8'), { level: 9 });
     const r = resumir(texto);
+    // El destino se decide DESPUÉS de resumir: la fecha sale del contenido.
+    const d0 = destinoDe(t, datos, r.desde);
+    const { fichero, colision, ya } = sitioLibre(d0.fichero, texto);
+    const { dir, fecha, derivada } = d0;
+    if (colision) {
+      console.error(`  ⚠ ${basename(fichero)}: otra conversación distinta ya ocupaba ` +
+        `${colision} (mismo id y misma fecha de inicio). Las dos se guardan.`);
+    }
+    if (derivada) {
+      console.error(`  ⚠ ${t.sesion.slice(0, 8)}: sin ningún timestamp; la fecho por su ` +
+        `mtime, así que puede duplicarse mañana.`);
+    }
     // relativo AL README, que vive dentro de `conversaciones/`
     const rel = fichero.slice(join(datos, 'conversaciones').length + 1);
     filas.set(rel, { fecha, sesion: t.sesion.slice(0, 8), proyecto: t.proyecto,
                      kb: Math.round(gz.length / 1024), ...r, rel });
 
-    // Si ya está y no ha cambiado de tamaño, no se reescribe: una conversación
-    // en curso se archiva muchas veces y cada versión sería un objeto de git.
-    if (existsSync(fichero) && Math.abs(statSync(fichero).size - gz.length) < 64) {
+    // Si ya está y no ha cambiado, no se reescribe: una conversación en curso se
+    // archiva muchas veces y cada versión sería un objeto de git para siempre.
+    // ⚠ Se compara el TEXTO, no el tamaño del .gz. El tamaño era una heurística
+    // con tolerancia de 64 bytes, y dos versiones distintas de una conversación
+    // corta comprimen casi igual: la segunda no se guardaba. Aquí no cuesta
+    // nada porque `sitioLibre` ya ha tenido que descomprimir para saber si es la
+    // misma conversación.
+    if (ya === texto) {
       saltadas++;
       continue;
     }
@@ -253,9 +314,14 @@ function escribirIndice(datos, filas) {
   filas.sort((a, b) => (a.fecha + a.sesion).localeCompare(b.fecha + b.sesion));
   const cab = readFileSync(join(datos, 'conversaciones', 'README.md'), 'utf8')
     .split('<!-- INDICE -->')[0];
+  // La fecha de la fila es la de INICIO. `hasta` va aparte porque, desde que un
+  // fichero es UNA conversación entera, la fecha del nombre ya no dice cuándo se
+  // tocó por última vez — y eso es lo primero que se mira para depurar.
   const tabla = ['<!-- INDICE -->', '',
-    '| fecha | sesión | mensajes | tamaño | de qué fue |', '|---|---|---:|---:|---|',
-    ...filas.map((f) => `| ${f.fecha} | [\`${f.sesion}\`](${f.rel}) | ${f.mensajes} | ` +
+    '| empezó | sesión | última actividad | mensajes | tamaño | de qué fue |',
+    '|---|---|---|---:|---:|---|',
+    ...filas.map((f) => `| ${f.fecha} | [\`${f.sesion}\`](${f.rel}) | ` +
+      `${(f.hasta ?? '').slice(0, 16).replace('T', ' ') || '—'} | ${f.mensajes} | ` +
       `${f.kb} KB | ${f.primero.replace(/\|/g, '\\|')} |`)].join('\n');
   writeFileSync(join(datos, 'conversaciones', 'README.md'), cab + tabla + '\n');
 }

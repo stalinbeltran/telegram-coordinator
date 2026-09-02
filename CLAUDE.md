@@ -1774,17 +1774,31 @@ día: **7 ficheros, 4 filas**. Ahora las filas salen de los ficheros y las que n
 transcript vivo se recuperan leyéndolos (1,3 s con 7,6 MB archivados; si algún día duele,
 la caché va ahí y su clave es `(rel, bytes)`).
 
-⚠ **Una fila por FICHERO, nunca por sesión**, aunque eso repita filas del mismo id: los
-ids se **derivan** de `<tema>#<época>`, así que al rehacer la máquina el tema vuelve a la
-época 0 y **el mismo id sale otra vez** para otra conversación. Agrupar escondería una de
-las dos. Lo que sí son snapshots de lo mismo —el mismo id en días distintos, porque el
-nombre lleva el *mtime*— lo explica la cabecera del README, y se comprobó que el fichero
-del día siguiente **contiene al anterior como prefijo exacto**.
+⚠ **UN fichero por conversación, fechado el día en que EMPEZÓ** — desde el 2026-09-02.
+Antes el nombre llevaba el **mtime** del transcript, así que una conversación que duraba
+tres días dejaba **tres** ficheros, cada uno conteniendo entero al anterior (7 ficheros
+para 4 conversaciones). La fecha de inicio es un hecho del **contenido** (su primer
+`timestamp`) y no cambia; el mtime cambia en cada escritura. Cuándo se tocó por última vez
+lo dice ahora la columna **«última actividad»** del índice. Sin ningún `timestamp` se cae
+al mtime **y se dice**, porque ese fichero sí puede duplicarse mañana.
+
+⚠ **Y `(id, fecha de inicio)` NO es único, así que hay que comprobarlo.** El id se
+**deriva** de `<tema>#<época>`, de modo que al rehacer la máquina el tema vuelve a la
+época 0 y **el mismo id puede empezar otra conversación** — el mismo día, incluso. Se
+compara la **primera línea** (trae el uuid del primer mensaje): si no coincide, es otra
+conversación, se avisa en voz alta y se guarda como `-2`. Nunca se pisa una con otra.
+La identidad va por la primera línea y no por «es prefijo» porque un cambio en las reglas
+de redacción cambia el texto entero y daría una colisión falsa.
+
+⚠ **Y «no ha cambiado» se decide por el TEXTO, no por el tamaño del `.gz`.** Era una
+heurística con 64 bytes de tolerancia, y dos versiones distintas de una conversación corta
+comprimen casi igual: la segunda no se guardaba. No cuesta nada porque para saber si es la
+misma conversación ya hay que descomprimir.
 
 Detalle y qué hacer si algún día se cuela algo, en
 [`foveal-vision-data/conversaciones/README.md`](https://github.com/stalinbeltran/foveal-vision-data/blob/main/conversaciones/README.md).
-13 tests en `tests/guardar-conversacion.test.mjs` (los 4 del índice fallan con el
-código anterior).
+17 tests en `tests/guardar-conversacion.test.mjs`; los 8 de estos dos arreglos
+fallan con el código anterior.
 
 #### Al cerrar: `SessionEnd` suelta el workspace — pero eso es la COMODIDAD, no la regla
 
