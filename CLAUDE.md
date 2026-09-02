@@ -598,6 +598,33 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    anterior (los otros dos fijan lo que ya funcionaba: que el servicio no cuente, y que lo de otra
    máquina no cuente).
 
+### ⚠ Hallazgo ABIERTO (2026-09-01): el freno dejó de contar una flota VIVA
+
+**Medido en vivo, con 11 máquinas facturando.** El freno pasó de `13 máquinas Vast
+(0.8126 $/h)` a **`ok Vast: nada de esta máquina (11 instancia(s) de otro server, no
+cuentan)`** sin que la flota cambiara. Lo que cambió fue que **se automontó `~/ws/tema-2`**,
+y su `WORKSPACE.json` trae `prefijo: "t2-"`.
+
+`cerrable.mjs:173` cae en la rama segura *«sin ningún prefijo conocido, cuentan todas»* — y
+en cuanto existe **uno solo**, pasa a filtrar. La flota se había lanzado con `--prefijo dr-`
+desde una sesión sin workspace, así que dejó de casar. **El dato que falta no es un fichero:
+es el prefijo con el que se alquiló**, que es un argumento libre de `estudio_flota.py` y por
+tanto un hecho del **proceso** — deducirlo del disco es el antipatrón de la **R4** que la
+propia cabecera del script cita.
+
+⚠⚠ **Y la salida obvia —dar `WORKSPACE.json` a `~/src`— EMPEORA el fallo**, cosa que sólo se
+ve midiéndola: hoy la falta de identidad mete un `NO SÉ` que **impide el verde**; con
+identidad y un prefijo que no case, el veredicto sería **🟢 CERRABLE con la flota
+facturando**. Hoy falla ruidosamente; así fallaría en silencio.
+
+Las dos propuestas —los prefijos salen de los **procesos vivos**, y una instancia que nadie
+reclama es una **duda** y no «de otro server»—, los tres escenarios medidos, la regresión que
+arrastra (`IGNORA_AL_MONTAR` silenciaría `data/fuentes.json` en casa) y los cinco tests que
+pide, en **[`docs/freno-prefijos-2026-09-01.md`](docs/freno-prefijos-2026-09-01.md)**.
+
+⚠ **Y se implementa con la cuenta de Vast VACÍA**: tocar el freno con una flota viva pone el
+error justo sobre lo único que vigila el gasto.
+
 ⚠ **El ejecutor lo llama con `--exit0`** porque el coordinador lee cualquier código ≠ 0 como
 «el ejecutor falló» y entonces no corre los encargados: la respuesta no llegaría a Telegram.
 El veredicto va en el **texto**, que es donde se lee. Fuera de Telegram el código de salida
