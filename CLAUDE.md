@@ -50,7 +50,7 @@ incluyendo conversar con `claude` con memoria por conversación.
 
 ```
 Tú (Telegram; un TEMA del grupo = una SESIÓN)
-  → Coordinador  ── ¿comando de control? (/use /end /who /ws /executors /whoami) → responde
+  → Coordinador  ── ¿comando de control? (/use /end /who /ws /pegado /executors /whoami) → responde
   → EJECUTOR ligado a la sesión (comando shell)  → una salida de texto
   → cada ENCARGADO del ejecutor recibe esa salida → devuelve "comandos":
         >>USER <texto>   → enviar <texto> al usuario por Telegram
@@ -113,7 +113,11 @@ tocar código.
 
 ```
 src/
-  index.ts         bot, allowlist, comandos de control, logging IN/OUT, troceo
+  index.ts         punto de entrada: llama a arrancar() y nada más
+  bot.ts           bot, allowlist, comandos de control, logging IN/OUT, troceo
+                   de la SALIDA y reensamblado de la ENTRADA. `crearBot()` se
+                   importa sin arrancar nada: por eso este camino SÍ se testea
+  buffer.ts        une los mensajes que Telegram PARTE por su límite de longitud
   config.ts        carga .env (process.loadEnvFile, sin dependencias) + validación
   registry.ts      cargar/guardar ejecutores y encargados + sembrado del kit
   sessions.ts      sesiones por tema (en memoria + persistidas)
@@ -152,6 +156,7 @@ data/
   encargados/*.json     { name, command, timeoutMs?, descripcion?, cwd?,
                          requiere? }
   sessions/*.json       (efímero, ignorado por git)
+  buffer/*.json         (pegado a medias por tema, ignorado por git)
   claude-sessions/*.json (markers de claude por sesión, ignorado por git)
   shell-cwd/*.json      (directorio actual por sesión, ignorado por git)
   ws/*.json             (workspace de cada tema, ignorado por git)
@@ -272,6 +277,77 @@ reportes/
   claude pueden desincronizarse en **los dos** sentidos (borrar el marker con
   `~/.claude` intacta, o rehacer `data/` sin rehacer `~/.claude`). Se reporta el
   error del modo que *tocaba*, que es el que explica algo.
+- **Telegram PARTE los mensajes largos, y el coordinador los vuelve a unir.** El
+  límite de la Bot API son 4096 caracteres, así que una instrucción larga pegada
+  desde el móvil llega en varios mensajes. Antes cada trozo disparaba el ejecutor
+  por su cuenta: con `c`, un pegado de 4 trozos eran **4 turnos de claude en
+  serie**, y los 3 primeros actuaban sobre media instrucción (con
+  `bypassPermissions`, actuaban de verdad).
+
+  `src/buffer.ts` los acumula en `data/buffer/<sesión>.json` y los une antes de
+  llamar al ejecutor. **Toda la regla sale de qué se puede observar**: *«no viene
+  nada más»* NO es observable desde aquí; lo único observable es *«este mensaje no
+  viene lleno»*.
+
+      length >= 4096  ⇒ viene lleno ⇒ hay más: se guarda y se espera
+      cualquier otro  ⇒ cierra: se une todo y se manda al ejecutor
+
+  `N` no aparece en ninguna decisión: 2 trozos o 20 se tratan igual, sin caso
+  especial.
+
+  Seis decisiones que hay que respetar si se toca, y todas tienen test:
+
+  1. **Es universal: no hay campo que lo active por ejecutor.** El límite es de
+     Telegram, no de ningún ejecutor — igual que el troceo de la **salida**, que ya
+     se aplica a todos sin que nadie opine. Esto es su simétrico en la entrada.
+  2. **El criterio es la LONGITUD, nunca un temporizador de silencio.** Un
+     temporizador gravaría los mensajes cortos, que son el 99 %, y sobre todo
+     dispararía **fuera** del bucle de updates de grammY —que los procesa en serie
+     (`node_modules/grammy/out/bot.js:189-194`, v1.44.0)—, pudiendo lanzar un
+     ejecutor en paralelo con el mensaje siguiente: dos `claude --resume <mismo
+     uuid>` a la vez. Con la longitud, ese problema no llega a existir.
+  3. **Los dos casos que la regla no puede cerrar sola se ANUNCIAN.** Un pegado que
+     mida múltiplo exacto de 4096, y un mensaje legítimo de exactamente esa
+     longitud, dejan el último trozo lleno y se quedan esperando. Para eso están el
+     acuse de recibo y `/pegado ya`. Y `/pegado` es comando de **control**, como
+     `/ws`: la salida de emergencia no puede vivir dentro de aquello de lo que
+     quieres salir.
+  4. **Se guarda ANTES de avisar**, y del segundo trozo en adelante el aviso se
+     **edita** en vez de mandar otro: 20 trozos serían 20 mensajes en dos segundos
+     contra un límite de ~1/s por chat. Si el aviso falla no se pierde nada, porque
+     el trozo ya está en disco. El buffer es la fuente de verdad; el aviso, una
+     comodidad — la misma regla que rige para `notify.mjs`.
+  5. **Un `/` con pegado a medias es continuación, no un comando fallido.** El
+     `return` mudo de antes descartaba **sin decir nada** cualquier texto que
+     empezara por `/`; con buffer, eso ensamblaba una instrucción **mutilada** y la
+     ejecutaba entera. Ahora se absorbe, y sin nada pendiente además avisa en vez
+     de tragárselo.
+     ⚠ Lo que **no** se puede evitar: un trozo que empiece exactamente por `/use`,
+     `/end`, `/ws`… lo ejecuta grammY antes de que el buffer lo vea.
+  6. **Caduca a los 30 min, y lo vencido se APARTA: ni se pega ni se borra**
+     (`data/buffer/<sesión>.caducado-<ts>.json`). Pegar lo de esta mañana al mensaje
+     de esta tarde es corrupción silenciosa; tirarlo, perder una instrucción larga
+     tecleada desde el móvil.
+
+  ⚠⚠ **El umbral es un número MEDIDO, y todavía NO está medido contra un corte
+  real** (2026-09-03: leído de la doc de la Bot API). Si el cliente corta por
+  palabra **por debajo** de 4096, ningún trozo llega al umbral y esto **no dispara
+  nunca**: no falla a gritos, falla no haciendo nada. Se ajusta con
+  `COORD_INPUT_LIMIT`, y `COORD_INPUT_LIMIT=0` lo apaga entero sin desplegar nada.
+  Se mide pegando un texto largo y mirando el log, que ya lo registra:
+
+  ```bash
+  journalctl -u telegram-coordinator -o cat | grep '^\[IN\]' | sed 's/.*text=//' | awk '{print length($0)}'
+  ```
+
+  ⚠ **Y si tu cliente lo manda como fichero `.txt`** en vez de partirlo, esto no
+  sirve de nada: hoy un documento **no tiene handler** y se descarta sin log. Ése
+  sería otro arreglo, y la medición de arriba es la que distingue los dos casos.
+
+  16 tests: `tests/buffer.test.mjs` (la máquina de estados) y
+  `tests/entrada-telegram.test.mjs` (el camino real de un mensaje: enrutado de
+  grammY, buffer y un ejecutor de verdad). **Cuatro de los siete de integración
+  fallan con `COORD_INPUT_LIMIT=0`**, o sea con el comportamiento anterior.
 - **El `cd` tampoco sobrevive entre mensajes** (cada comando es un `spawn` nuevo;
   un hijo no puede cambiar el cwd de su padre). Mismo patrón de solución: el
   ejecutor `shell` es `scripts/shell-cwd.mjs`, que guarda el directorio por sesión
