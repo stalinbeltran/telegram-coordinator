@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -15,6 +15,8 @@ import { dirname, join } from 'node:path';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NOTIFY = join(ROOT, 'scripts', 'notify.mjs');
 const TOKEN = 'test-token-no-real-123456';
+/** Un `data/` vacío: ver el aviso de `runNotify`. */
+const VACIO = mkdtempSync(join(tmpdir(), 'data-vacio-'));
 
 // Un Telegram de mentira: guarda lo que le mandan y contesta lo que le digan.
 function fakeTelegram(reply = () => ({ status: 200, body: { ok: true } })) {
@@ -48,7 +50,14 @@ function runNotify(args, { env = {}, stdin = '', cwd = ROOT } = {}) {
       //   token en el entorno y hay que cargarlo de disco -- sin esto, el
       //   arnés inyecta BOT_TOKEN siempre y ese camino no se prueba nunca.
       env: Object.fromEntries(Object.entries(
-        { PATH: process.env.PATH, BOT_TOKEN: TOKEN, COORD_CHAT: '-100123', ...env })
+        { PATH: process.env.PATH, BOT_TOKEN: TOKEN, COORD_CHAT: '-100123',
+          // ⚠⚠ DATA_DIR VACÍO POR DEFECTO, y esto es una barrera de seguridad,
+          //    no comodidad. Desde que `notify.mjs` BUSCA destino cuando no se
+          //    lo dan, un test sin COORD_CHAT alcanzaría el `data/` REAL del
+          //    repo, sacaría de ahí el chat de verdad del dueño e intentaría
+          //    enviarle un mensaje. Un test no puede poder hacer eso.
+          //    Quien quiera probar el respaldo pone SU DATA_DIR.
+          DATA_DIR: VACIO, ...env })
         .filter(([, v]) => v !== undefined)),
     });
     let out = '';
@@ -135,6 +144,9 @@ test('notify: un 4xx no se reintenta; un 5xx sí', async () => {
 
 test('notify: sin destino se niega con exit 2 y SIN filtrar el token', async () => {
   // El token se filtró una vez por esta vía; que no vuelva a pasar lo fija aquí.
+  // ⚠ El DATA_DIR por defecto del arnés está VACÍO, así que el respaldo de
+  //   destino no encuentra ningún tema y esto sigue siendo el camino de "no hay
+  //   a dónde avisar". Con temas, lo que pasa lo fijan los tests de más abajo.
   const { code, err, out } = await runNotify(['hola'],
     { env: { COORD_CHAT: '', TELEGRAM_API_BASE: 'http://127.0.0.1:1' } });
 
@@ -199,3 +211,126 @@ test('notify: encuentra el token desde OTRO cwd, que es donde corre lo desacopla
       rmSync(otro, { recursive: true, force: true });
     }
   });
+
+// ---------------------------------------------------------------------------
+// El respaldo de destino (2026-09-04, pedido por el dueño): un proceso que no
+// nace de un mensaje --cron, ssh, script a mano-- no tiene COORD_CHAT, y hasta
+// ahora perdía el aviso entero. El destino está en disco: el coordinador guarda
+// estado POR TEMA y el nombre del fichero ES la identidad del tema.
+// La elección la hace `destino-telegram.mjs` y tiene sus propios tests; aquí se
+// comprueba el cableado, que es donde se puede romper de la forma cara.
+
+/** Un `data/` de mentira con un tema principal y otro atado a un workspace. */
+function datosConTemas(casa) {
+  for (const [dir, sesion, cuerpo] of [
+    ['ws', '-100_main', { ws: null }],
+    ['ws', '-100_2', { ws: '/home/x/ws/tema-2' }],
+    ['claude-sessions', '-100_main', { id: 1 }],
+    ['claude-sessions', '-100_2', { id: 2 }],
+  ]) {
+    mkdirSync(join(casa, 'data', dir), { recursive: true });
+    writeFileSync(join(casa, 'data', dir, `${sesion}.json`), JSON.stringify(cuerpo));
+  }
+}
+
+test('notify: sin COORD_CHAT, busca el tema en el estado del coordinador', async () => {
+  const tg = await fakeTelegram();
+  const casa = mkdtempSync(join(tmpdir(), 'coord-'));
+  datosConTemas(casa);
+  try {
+    const { code, err } = await runNotify(['terminó el barrido'], {
+      env: { TELEGRAM_API_BASE: tg.base, DATA_DIR: join(casa, 'data'),
+             COORD_CHAT: undefined, COORD_THREAD: undefined },
+    });
+    assert.equal(code, 0, `tenía que encontrar destino; salió ${code}: ${err}`);
+    assert.equal(tg.seen.length, 1);
+    assert.equal(tg.seen[0].payload.chat_id, '-100');
+    assert.equal(tg.seen[0].payload.message_thread_id, undefined,
+      'el principal es el tema general: no lleva message_thread_id');
+    // Un mensaje que aparece donde nadie lo dirigió tiene que decir por qué.
+    assert.match(tg.seen[0].payload.text, /^terminó el barrido/);
+    assert.match(tg.seen[0].payload.text, /sin destino explícito/);
+    assert.match(tg.seen[0].payload.text, /principal/);
+  } finally {
+    tg.server.close();
+    rmSync(casa, { recursive: true, force: true });
+  }
+});
+
+test('notify: si SÍ viene COORD_CHAT, el respaldo no se usa ni se menciona', async () => {
+  // La forma cara de romper esto: cambiar un dato por una suposición. Con
+  // destino explícito, el estado del disco no puede opinar.
+  const tg = await fakeTelegram();
+  const casa = mkdtempSync(join(tmpdir(), 'coord-'));
+  datosConTemas(casa);
+  try {
+    const { code } = await runNotify(['listo'], {
+      env: { TELEGRAM_API_BASE: tg.base, DATA_DIR: join(casa, 'data'),
+             COORD_CHAT: '-999', COORD_THREAD: '42' },
+    });
+    assert.equal(code, 0);
+    assert.equal(tg.seen[0].payload.chat_id, '-999', 'manda lo que te dijeron');
+    assert.equal(tg.seen[0].payload.message_thread_id, 42,
+      'el hilo viaja como NÚMERO a la Bot API, no como cadena');
+    assert.equal(tg.seen[0].payload.text, 'listo', 'sin coletilla: no hubo respaldo');
+  } finally {
+    tg.server.close();
+    rmSync(casa, { recursive: true, force: true });
+  }
+});
+
+test('notify: si el elegido es un tema NUMERADO, el hilo llega como número', async () => {
+  // El respaldo saca el hilo del NOMBRE DEL FICHERO, o sea una cadena. La Bot
+  // API quiere un número en `message_thread_id`, y el tema general no lleva
+  // ninguno. Las dos formas tienen que salir bien de la misma ruta.
+  const tg = await fakeTelegram();
+  const casa = mkdtempSync(join(tmpdir(), 'coord-'));
+  mkdirSync(join(casa, 'data', 'ws'), { recursive: true });
+  writeFileSync(join(casa, 'data', 'ws', '-100_7.json'),
+                JSON.stringify({ ws: '/home/x/ws/tema-7' }));
+  try {
+    const { code } = await runNotify(['listo'], {
+      env: { TELEGRAM_API_BASE: tg.base, DATA_DIR: join(casa, 'data'),
+             COORD_CHAT: undefined, COORD_THREAD: undefined },
+    });
+    assert.equal(code, 0);
+    assert.equal(tg.seen[0].payload.chat_id, '-100');
+    assert.equal(tg.seen[0].payload.message_thread_id, 7);
+    assert.match(tg.seen[0].payload.text, /más reciente/,
+      'sin principal, se dice que se eligió por recencia');
+  } finally {
+    tg.server.close();
+    rmSync(casa, { recursive: true, force: true });
+  }
+});
+
+test('notify: --chat gana al respaldo Y a COORD_CHAT', async () => {
+  const tg = await fakeTelegram();
+  const casa = mkdtempSync(join(tmpdir(), 'coord-'));
+  datosConTemas(casa);
+  try {
+    const { code } = await runNotify(['--chat', '-777', 'listo'], {
+      env: { TELEGRAM_API_BASE: tg.base, DATA_DIR: join(casa, 'data'),
+             COORD_CHAT: '-999' },
+    });
+    assert.equal(code, 0);
+    assert.equal(tg.seen[0].payload.chat_id, '-777');
+    assert.equal(tg.seen[0].payload.text, 'listo');
+  } finally {
+    tg.server.close();
+    rmSync(casa, { recursive: true, force: true });
+  }
+});
+
+test('notify: sin destino Y sin ningún tema vivo, sigue negándose con exit 2', async () => {
+  const casa = mkdtempSync(join(tmpdir(), 'coord-'));
+  mkdirSync(join(casa, 'data'), { recursive: true });
+  try {
+    const { code, err } = await runNotify(['listo'], {
+      env: { DATA_DIR: join(casa, 'data'), COORD_CHAT: undefined },
+    });
+    assert.equal(code, 2, 'inventarse un destino es peor que no avisar');
+    assert.match(err, /no hay a dónde avisar/);
+    assert.match(err, /actividad\s+reciente/, 'y dice DÓNDE miró');
+  } finally { rmSync(casa, { recursive: true, force: true }); }
+});

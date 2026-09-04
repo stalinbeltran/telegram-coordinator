@@ -136,6 +136,8 @@ scripts/
   guardar-conversacion.mjs  archiva las conversaciones de Claude Code en el repo
                        de DATOS, REDACTADAS. Corre solo en los dos hooks
   notify.mjs           aviso a Telegram desde un proceso desacoplado
+  destino-telegram.mjs ¿a QUÉ tema avisar si nadie lo dijo? Respaldo: lee el
+                       estado por tema. Principal > más reciente; caduca a 7 días
   cargar-secretos.mjs  los DOS ficheros de secretos, para lo desacoplado
   desacoplar.sh        corre algo en su PROPIO cgroup (sobrevive al restart
                        del coordinador, NO a que muera su padre)
@@ -525,6 +527,56 @@ reportes/
   ```sh
   setsid sh -c '<trabajo>; echo "<qué mirar>" | node scripts/claude-session.mjs | node scripts/notify.mjs' &
   ```
+
+  ⚠⚠ **Y el token se carga POR RUTA ABSOLUTA, no relativo al cwd** — desde el 2026-09-04, que es
+  cuando dejó de perderse el aviso. `notify.mjs` hacía `existsSync('.env')`, o sea `.env` **del
+  directorio actual**, y un trabajo desacoplado corre en el directorio de **su** repo
+  (`desacoplar.sh` conserva el cwd a propósito). Medido cambiando **sólo** el cwd, mismo comando y
+  mismo entorno:
+
+  | desde | |
+  |---|---|
+  | `~/src/foveal-vision` | exit 2, «Falta BOT_TOKEN» — **ni lo intenta** |
+  | `~/src/telegram-coordinator` | exit 1, «fetch failed» — sí tenía token |
+
+  **Y por eso parecía intermitente**, que es lo que más despista: dependía de si la plantilla del
+  ejecutor cargaba `.env` por su cuenta. `bench`, `estudio` y `estudio-stride` hacen
+  `. "$COORD_HOME/.env"` y **sí** avisaban; `entrenar`, `continuar` y `entrenar-vast` no lo hacen y
+  **no** avisaban. Un fallo que depende de qué comando lances se acaba atribuyendo a «cosas de la
+  red». Ahora usa `cargar-secretos.mjs` —que resuelve contra `COORD_HOME` y sabe que son **dos**
+  ficheros— así que arreglar la raíz arregló los tres ejecutores sin tocar sus plantillas.
+
+  ⚠ **Y si NADIE dice a qué tema avisar, se BUSCA** (`scripts/destino-telegram.mjs`, 2026-09-04).
+  Un proceso que no nace de un mensaje —un `cron`, un `ssh`, un script a mano— no tiene
+  `COORD_CHAT`, y antes perdía el aviso entero. Pero el destino **no es un secreto perdido**: el
+  coordinador guarda estado **por tema** y el nombre del fichero **es** la identidad del tema
+  (`data/<sessions|ws|claude-sessions|shell-cwd|buffer>/<chatId>_<threadId>.json`).
+
+  Tres reglas, en este orden, y las tres tienen test:
+
+  1. **Sólo cuentan los temas VIVOS.** «Vivo» no se le puede preguntar a Telegram desde aquí; lo
+     observable es cuándo se tocó por última vez su estado, que el coordinador reescribe en cada
+     mensaje. **Caduca a los 7 días** — su regla de caducidad, escrita al lado, como manda la
+     regla 3 de escritura.
+  2. **Entre los vivos gana el PRINCIPAL**: el que **no** está atado a un workspace
+     (`data/ws/<s>.json` con `ws: null`). Es la misma noción que usa el automontaje.
+  3. **Si no hay principal distinguible, el de actividad MÁS RECIENTE.**
+
+  Y si no queda ninguno vivo, **se falla como siempre** (exit 2): inventarse un destino es peor que
+  no avisar, porque un aviso en el tema equivocado se lee como que el trabajo era de otra cosa.
+
+  ⚠ **Es un RESPALDO, nunca un atajo**: si viene `COORD_CHAT`, manda ése y esto ni se llama.
+  Cambiar un dato por una suposición es la forma cara de romper esto, y tiene su test.
+
+  ⚠ **Y el mensaje DICE que llegó por ahí** (`— sin destino explícito → tema principal (actividad
+  hace 4 min)`). Un mensaje que aparece en un tema al que nadie lo dirigió tiene que explicar por
+  qué está ahí.
+
+  ⚠⚠ **El arnés de los tests fija `DATA_DIR` a un directorio VACÍO, y eso es una barrera de
+  seguridad, no comodidad.** Desde que el avisador **busca** destino, un test sin `COORD_CHAT`
+  alcanzaría el `data/` real, sacaría de ahí el chat de verdad del dueño e intentaría enviarle un
+  mensaje. Un test no puede poder hacer eso. Quien quiera probar el respaldo pone **su**
+  `DATA_DIR`.
 
   Aun así, **di siempre dónde queda el resultado** (fichero, log, directorio) y compruébalo al
   principio del turno siguiente: el aviso puede fallar —red caída, hilo borrado— y `notify.mjs`

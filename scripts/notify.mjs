@@ -48,6 +48,7 @@
 // ubicación de este fichero. Y son DOS ficheros, no uno. No se reimplementa
 // aquí porque dos copias de esa resolución divergen y nadie se entera.
 import { cargarSecretos } from './cargar-secretos.mjs';
+import { elegirDestino, haceCuanto, raizDeDatos } from './destino-telegram.mjs';
 
 cargarSecretos();
 
@@ -91,7 +92,13 @@ function readStdin() {
 
 const USAGE =
   'Uso: node scripts/notify.mjs [--chat <id>] [--thread <id>] "texto"\n' +
-  '     <comando> | node scripts/notify.mjs';
+  '     <comando> | node scripts/notify.mjs\n' +
+  '\n' +
+  'Destino: --chat gana; si no, COORD_CHAT/COORD_THREAD del entorno; y si\n' +
+  'tampoco, se BUSCA en el estado por tema del coordinador (el principal, o el\n' +
+  'de actividad mas reciente, descartando lo de mas de 7 dias). Sin ninguno,\n' +
+  'sale con 2: inventarse un destino es peor que no avisar.\n' +
+  'Salidas: 0 enviado - 1 fallo de envio - 2 mal invocado o sin destino.';
 
 async function sendChunk(token, payload) {
   // Un fallo de red no puede perder el aviso a la primera: reintentamos, que
@@ -139,23 +146,48 @@ async function main() {
   }
 
   const token = process.env.BOT_TOKEN;
-  const chat = args.chat || process.env.COORD_CHAT;
-  const thread = args.thread ?? process.env.COORD_THREAD;
+  let chat = args.chat || process.env.COORD_CHAT;
+  let thread = args.thread ?? process.env.COORD_THREAD;
+
+  // Sin destino explícito, se BUSCA en el estado del coordinador (ver
+  // `destino-telegram.mjs`). Es un respaldo para lo que no nace de un mensaje
+  // --un cron, un ssh, un script a mano--, que antes perdía el aviso entero.
+  // ⚠ Sólo cuando NO viene: si te han dicho a dónde, se va a donde te han dicho.
+  let respaldo = null;
+  if (!chat) {
+    respaldo = elegirDestino();
+    if (respaldo) {
+      chat = respaldo.chat;
+      thread = respaldo.thread;
+    }
+  }
 
   if (!token || !chat) {
     console.error(
       '[notify] Falta ' +
         (!token ? 'BOT_TOKEN' : 'COORD_CHAT') +
         ': no hay a dónde avisar.\n' +
-        '        Hereda el entorno del coordinador, o pasa --chat <id>.',
+        (!token
+          ? '        Hereda el entorno del coordinador, o pasa --chat <id>.'
+          : '        No vino en el entorno y no hay ningún tema con actividad\n' +
+            '        reciente en ' + raizDeDatos() + '. Pasa --chat <id>.'),
     );
     return 2;
   }
 
-  const text = (args.text.length ? args.text.join(' ') : await readStdin()).trim();
+  let text = (args.text.length ? args.text.join(' ') : await readStdin()).trim();
   if (!text) {
     console.error('[notify] No hay texto que enviar (ni argumento ni stdin).\n' + USAGE);
     return 2;
+  }
+
+  // Un mensaje que aparece en un tema al que NADIE lo dirigió tiene que explicar
+  // por qué está ahí. Si no, se lee como que el trabajo era de esta conversación.
+  if (respaldo) {
+    text += `\n\n— sin destino explícito → ${respaldo.porque}` +
+      ` (actividad hace ${haceCuanto(Date.now() - respaldo.visto)}` +
+      (respaldo.candidatos > 1 ? `, de ${respaldo.candidatos} temas` : '') + ')';
+    console.error(`[notify] sin COORD_CHAT: elegido ${respaldo.sesion} (${respaldo.porque}).`);
   }
 
   // El tema puede ser "main" (el General del grupo, sin hilo): ahí no se manda

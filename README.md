@@ -541,16 +541,43 @@ así que se componen con una tubería.
 setsid sh -c '<trabajo>; echo "mira bench.log y resume" | node scripts/claude-session.mjs | node scripts/notify.mjs' &
 ```
 
-Hereda `BOT_TOKEN` y `COORD_CHAT`/`COORD_THREAD` de quien lo lanzó (el
-coordinador los pasa a todo comando); fuera de una sesión, se le indican con
-`--chat` y `--thread`. Salidas: `0` enviado, `1` no se pudo enviar, `2` mal
-invocado o sin configuración. Reintenta los fallos de red y los 5xx, **no** los
-4xx (un chat inexistente no se arregla esperando), y el token no aparece nunca
-en sus mensajes de error.
+Hereda `COORD_CHAT`/`COORD_THREAD` de quien lo lanzó (el coordinador los pasa a
+todo comando); fuera de una sesión, se le indican con `--chat` y `--thread`.
+Salidas: `0` enviado, `1` no se pudo enviar, `2` mal invocado o sin
+configuración. Reintenta los fallos de red y los 5xx, **no** los 4xx (un chat
+inexistente no se arregla esperando), y el token no aparece nunca en sus mensajes
+de error.
+
+**El `BOT_TOKEN` lo carga de disco por ruta absoluta**
+([`cargar-secretos.mjs`](scripts/cargar-secretos.mjs)), no del `.env` del
+directorio actual. ⚠ Hasta el 2026-09-04 lo hacía relativo al cwd, y como un
+trabajo desacoplado corre en el directorio de **su** repo, el aviso moría con
+«Falta BOT_TOKEN» sin llegar a intentarlo — sólo funcionaba si lo llamabas desde
+este repo.
+
+### Si nadie dice a qué tema, lo busca
+
+Un `cron`, un `ssh` o un script a mano no tienen `COORD_CHAT`. Antes eso perdía
+el aviso; ahora [`destino-telegram.mjs`](scripts/destino-telegram.mjs) lo deduce
+del estado que el coordinador guarda **por tema** —el nombre del fichero *es* la
+identidad del tema— con tres reglas en este orden:
+
+1. sólo los **vivos**: su estado se tocó hace menos de **7 días**;
+2. entre ésos gana el **principal**: el que no está atado a un workspace;
+3. y si no se distingue, el de **actividad más reciente**.
+
+Si no queda ninguno, falla con `2` como siempre: **inventarse un destino es peor
+que no avisar**. Es un respaldo, no un atajo — con `--chat` o `COORD_CHAT`, manda
+ése. Y el mensaje **dice** que llegó por esta vía, porque un aviso en un tema al
+que nadie lo dirigió tiene que explicar por qué está ahí.
 
 > **El aviso es una comodidad, no la fuente de verdad.** Puede fallar —red caída,
 > tema borrado— y entonces solo queda constancia en el log del propio trabajo, que
 > nadie está mirando. Di siempre dónde queda el resultado.
+>
+> **Y no puede tumbar el trabajo**: en un comando desacoplado va con `|| true`.
+> Sin eso, una unidad con `Restart=on-failure` convierte un aviso fallido en un
+> bucle (medido: 62 reinicios el 2026-09-04).
 
 ### `barrido`: el patrón entero, aplicado
 
@@ -664,6 +691,7 @@ scripts/
   claude-resumer.mjs   proceso desacoplado que espera, reanuda y avisa por Telegram
   shell-cwd.mjs        shell con directorio de trabajo persistente (ejecutor `shell`)
   notify.mjs           avisa al tema de Telegram desde un proceso desacoplado
+  destino-telegram.mjs a QUE tema, si nadie lo dijo (principal > mas reciente)
   cargar-secretos.mjs  carga .env + ~/.config/dev-secrets.env (procesos desacoplados)
   desacoplar.sh        corre un comando en su propio cgroup (sobrevive al restart)
   vast-sweep.sh        barrido de velocidad en Vast.ai (ejecutor `barrido`)
