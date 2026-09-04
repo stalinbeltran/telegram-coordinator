@@ -126,7 +126,15 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
 // Y `adoptar_vast.py` por lo mismo y con más razón: existe PRECISAMENTE para
 // recoger una instancia cuyo vigilante ya murió una vez, así que si él tampoco
 // se cuenta, no queda nadie mirando.
-const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
+// ⚠ `entrenar_local.py` entró el 2026-09-04, y es el mismo agujero que el de
+// `fv-train` del 2026-08-30 por otra puerta. Los experimentos de
+// `foveal-vision/experimentos/` entrenan con un envoltorio que parchea el modelo
+// en memoria y llama al CLI del repo EN PROCESO (`_cli.main()`), así que la línea
+// de comando dice `entrenar_local.py` y NO contiene `fv-train` por ningún lado.
+// Medido ese día con `plana-1k7sp`: 37 épocas, ~33 min de reloj, y el veredicto
+// no mencionaba ningún trabajo vivo. Casar el CLI no basta cuando alguien lo
+// llama como biblioteca.
+const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar

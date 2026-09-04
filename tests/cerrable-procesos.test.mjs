@@ -129,6 +129,27 @@ test('un entrenamiento por consola impide cerrar', async () => {
   } finally { hijo.kill('SIGKILL'); }
 });
 
+test('un entrenamiento de EXPERIMENTO cuenta: llama al CLI en proceso, no como fv-train',
+  async () => {
+    // El agujero del 2026-09-04, y es el de `fv-train` del 2026-08-30 por otra
+    // puerta. Los envoltorios de `foveal-vision/experimentos/*/nn/` parchean el
+    // modelo en memoria y llaman a `fv.training.cli.main()` COMO BIBLIOTECA, así
+    // que su línea de comando no contiene `fv-train` por ningún lado. Casar el
+    // nombre del ejecutable no basta cuando alguien lo importa.
+    // Medido ese día: `plana-1k7sp` llevaba 37 épocas (~33 min) y el veredicto
+    // no nombraba ningún trabajo vivo.
+    const m = maquina({ 'experimentos/exp/nn/entrenar_local.py': DORMIR });
+    const hijo = lanzar('node', [join(m.fv, 'experimentos/exp/nn/entrenar_local.py')], m.fv);
+    try {
+      await esperarEnPs('entrenar_local\\.py');
+      const salida = await correr(m);
+      assert.match(salida, /NO CERRAR/,
+        'un entrenamiento de experimento se pierde con la máquina igual que un fv-train');
+      assert.match(salida, /entrenar_local\.py/,
+        'y tiene que decir QUÉ corre: un 🔴 que no se puede contrastar se ignora');
+    } finally { hijo.kill('SIGKILL'); }
+  });
+
 test('un entrenamiento en VAST impide cerrar: quien destruye la instancia es ESTE proceso',
   async () => {
     // El caso más caro de los que cuenta esta lista. `entrenar_vast.py` alquila
