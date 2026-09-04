@@ -416,6 +416,24 @@ reportes/
      `KillMode=process` dejaría vivo al viejo mientras arranca el nuevo → dos instancias
      haciendo polling → **error 409**, justo el fallo que rompe la comunicación.
 
+     ⚠⚠ **Y por eso el aviso NUNCA puede poder tumbar el trabajo: `|| true`, siempre.**
+     Medido el 2026-09-04. Un entrenamiento se lanzó con `desacoplar-persistente.sh` y el comando
+     acababa en `node notify.mjs "…"`. La cadena **terminó bien** —37 épocas y sus cinco
+     evaluaciones—, y entonces `notify.mjs` salió con ≠ 0 (*«Falta BOT_TOKEN: no hay a dónde
+     avisar»*, que es exactamente lo que la regla de abajo dice que va a pasar). Con `set -e` eso
+     tumbó la cadena entera, y una unidad de systemd es `Restart=on-failure`: la relanzó **62
+     veces**, cada una re-evaluando desde cero hasta chocar con `run_exists`.
+
+     No corrompió nada de milagro —re-evaluar es idempotente y `fv-train` se niega a
+     sobrescribir—, pero es la regla *«el aviso es una comodidad, la fuente de verdad es el
+     artefacto en disco»* incumplida por el lado que no se ve venir: **si el aviso puede matar el
+     trabajo, ya no es una comodidad**. Y en una unidad con `Restart=on-failure`, un fallo al
+     final no es un fallo: es un **bucle**.
+
+     ```sh
+     node "$COORD_HOME/scripts/notify.mjs" "…" || true
+     ```
+
      **Y no le pases secretos**: `sudo` escribe la lista entera de `--preserve-env` en claro
      en el journal, así que `BOT_TOKEN`/`DO_TOKEN` por ahí acaban en disco en cada
      lanzamiento. Solo viaja lo que no es credencial (`COORD_*`, `HOME`, `PATH`) y el
