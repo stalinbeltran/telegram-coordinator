@@ -434,6 +434,25 @@ reportes/
      node "$COORD_HOME/scripts/notify.mjs" "…" || true
      ```
 
+     ⚠⚠ **Y ARREGLADO EN CÓDIGO el 2026-09-04, porque el `|| true` ya había fallado como
+     arreglo.** Esto mismo pasó el **2026-09-02** con la sonda L1 —terminó bien, el aviso falló,
+     la unidad se quedó reiniciándose cada 30 s— y se resolvió poniendo `|| true` **en aquel
+     sitio de llamada**. Dos días después volvió a morder en otro. Un arreglo que hay que
+     recordar en cada sitio nuevo no es un arreglo: es una nota.
+
+     La causa raíz estaba en `desacoplar-persistente.sh`. El limitador de systemd por defecto es
+     `StartLimitBurst=5` en `StartLimitIntervalSec=10s`, y con `RestartSec=30` **nunca caben 5
+     arranques en 10 s**: el limitador no salta jamás y `on-failure` es un bucle infinito. Por
+     eso fueron 62 y no 5. Ahora la ventana es de **30 min** —alcanzable— así que un trabajo que
+     falla 5 veces **se rinde y queda en `failed`**, visible en `systemctl status`, en vez de
+     reintentar para siempre.
+
+     **Las dos capas hacen falta y son distintas**: el `|| true` evita que un aviso marque el
+     trabajo como fallido; el límite acota **cualquier** bucle, incluido el que nadie ha previsto.
+     Dos tests en `tests/desacoplar-persistente.test.mjs` —uno mide el comportamiento real
+     (lanzar algo que siempre falla y comprobar que se rinde), el otro fija la relación
+     `ventana > RestartSec × burst`—; **los dos fallan con el código anterior**.
+
      **Y no le pases secretos**: `sudo` escribe la lista entera de `--preserve-env` en claro
      en el journal, así que `BOT_TOKEN`/`DO_TOKEN` por ahí acaban en disco en cada
      lanzamiento. Solo viaja lo que no es credencial (`COORD_*`, `HOME`, `PATH`) y el
@@ -1132,7 +1151,7 @@ set +a
 .venv/bin/python scripts/estudio_flota.py \
     --sweep do-v --sweep sc-t --sweep sp-t --sweep sd-t \
     --cpu E5-26 --sin-cpu v2 --criba 2 --git --horas-max 6 --prefijo dr- --yes
-node "$HOME/src/telegram-coordinator/scripts/notify.mjs" "flota terminada"'
+node "$HOME/src/telegram-coordinator/scripts/notify.mjs" "flota terminada" || true'
 ```
 </details>
 

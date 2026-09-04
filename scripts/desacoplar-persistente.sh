@@ -24,6 +24,28 @@
 #   - `Restart=on-failure` lo levanta si se cae por un fallo. Para un vigilante
 #     que puede volver a engancharse --como `adoptar_vast.py`-- eso es la
 #     diferencia entre "hay que rescatarlo a mano" y "se arregla solo".
+#     ⚠⚠ ...Y POR ESO EL LIMITE DE REINICIOS TIENE QUE SER DE VERDAD. El de
+#     systemd por defecto es `StartLimitBurst=5` en `StartLimitIntervalSec=10s`,
+#     y con `RestartSec=30` NUNCA CABEN 5 ARRANQUES EN 10 s: el limitador no
+#     salta jamas y `on-failure` es un bucle infinito.
+#
+#     Medido dos veces, con el mismo mecanismo y dos meses de diferencia:
+#       2026-09-02  la sonda L1 termino bien, `notify.mjs` fallo al final, y la
+#                   unidad quedo reiniciandose cada 30 s -- 12 h de rejilla
+#                   relanzadas por un aviso.
+#       2026-09-04  un entrenamiento de 37 epocas termino bien, `notify.mjs`
+#                   salio con 2 ("Falta BOT_TOKEN", que es lo que TIENE que pasar
+#                   aqui: los secretos no viajan a una unidad, a proposito), y
+#                   systemd la relanzo 62 VECES.
+#     Las dos se "arreglaron" poniendo `|| true` en AQUEL sitio de llamada. Dos
+#     veces el mismo arreglo puntual, y a la tercera volvio a morder: la trampa
+#     no estaba en quien llama, estaba aqui.
+#
+#     La ventana pasa a 30 min, que es > `RestartSec` x `StartLimitBurst` (150 s)
+#     y por tanto ALCANZABLE. Un trabajo que falla 5 veces en media hora se rinde
+#     y se queda en `failed` -- visible en `systemctl status` -- en vez de
+#     reintentar para siempre. Un vigilante que necesite mas de 5 reinicios en
+#     media hora no se esta recuperando: esta roto.
 #   - `systemctl status <nombre>` y `journalctl -u <nombre>` dicen que paso, que
 #     con un scope anonimo (`--collect`) no se podia mirar.
 #   - el log va a `/tmp/<nombre>.log`, que es donde se mira desde el movil.
@@ -95,7 +117,9 @@ exec sudo -n systemd-run \
   --setenv=COORD_CHAT="${COORD_CHAT:-}" \
   --setenv=COORD_THREAD="${COORD_THREAD:-}" \
   --property=Restart=on-failure \
-  --property=RestartSec=30 \
+  --property=RestartSec="${DESACOPLAR_ESPERA:-30}" \
+  --property=StartLimitIntervalSec="${DESACOPLAR_LIMITE_VENTANA:-1800}" \
+  --property=StartLimitBurst="${DESACOPLAR_LIMITE_ARRANQUES:-5}" \
   --property=StandardOutput="append:$LOG" \
   --property=StandardError="append:$LOG" \
   "$@"
