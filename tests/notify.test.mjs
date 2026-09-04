@@ -7,11 +7,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const NOTIFY = join('scripts', 'notify.mjs');
+const NOTIFY = join(ROOT, 'scripts', 'notify.mjs');
 const TOKEN = 'test-token-no-real-123456';
 
 // Un Telegram de mentira: guarda lo que le mandan y contesta lo que le digan.
@@ -34,13 +36,20 @@ function fakeTelegram(reply = () => ({ status: 200, body: { ok: true } })) {
   });
 }
 
-function runNotify(args, { env = {}, stdin = '' } = {}) {
+function runNotify(args, { env = {}, stdin = '', cwd = ROOT } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [NOTIFY, ...args], {
-      cwd: ROOT,
+    const child = spawn(process.execPath, [args[0] === undefined ? NOTIFY : NOTIFY, ...args], {
+      cwd,
       windowsHide: true,
       // Entorno mínimo y explícito: el .env real no debe entrar en los tests.
-      env: { PATH: process.env.PATH, BOT_TOKEN: TOKEN, COORD_CHAT: '-100123', ...env },
+      // ⚠ Una clave con valor `undefined` se QUITA, no se pasa: `spawn` la
+      //   convertiría en la cadena "undefined", que para `notify.mjs` es un
+      //   token válido. Hace falta para poder probar el camino en que NO hay
+      //   token en el entorno y hay que cargarlo de disco -- sin esto, el
+      //   arnés inyecta BOT_TOKEN siempre y ese camino no se prueba nunca.
+      env: Object.fromEntries(Object.entries(
+        { PATH: process.env.PATH, BOT_TOKEN: TOKEN, COORD_CHAT: '-100123', ...env })
+        .filter(([, v]) => v !== undefined)),
     });
     let out = '';
     let err = '';
@@ -148,3 +157,45 @@ test('notify: sin texto se niega con exit 2', async () => {
   assert.equal(code, 2);
   assert.match(err, /No hay texto/);
 });
+
+// ---------------------------------------------------------------------------
+// El fallo del 2026-09-04: el aviso sólo salía si lo llamabas DESDE el repo del
+// coordinador.
+//
+// `notify.mjs` cargaba `.env` con `existsSync('.env')`, o sea relativo al CWD.
+// Un trabajo desacoplado corre en el directorio de SU repo --`desacoplar.sh`
+// conserva el cwd a propósito-- así que ahí no hay `.env` y el aviso moría con
+// «Falta BOT_TOKEN» (exit 2) sin llegar a intentarlo.
+//
+// Se veía desde fuera como que los ejecutores `entrenar`, `continuar` y
+// `entrenar-vast` dejaron de avisar al terminar, mientras que `bench`,
+// `estudio` y `estudio-stride` seguían avisando -- porque ésos SÍ hacen
+// `. "$COORD_HOME/.env"` en su plantilla. Un fallo que depende de qué comando
+// lances es de los que se atribuyen a "cosas de la red".
+test('notify: encuentra el token desde OTRO cwd, que es donde corre lo desacoplado',
+  async () => {
+    const tg = await fakeTelegram();
+    // un COORD_HOME de mentira con su .env, y se llama desde un cwd cualquiera
+    const casa = mkdtempSync(join(tmpdir(), 'coord-'));
+    writeFileSync(join(casa, '.env'), `BOT_TOKEN=${TOKEN}\n`);
+    const otro = mkdtempSync(join(tmpdir(), 'otro-repo-'));
+    try {
+      const { code, err } = await runNotify(['listo'], {
+        cwd: otro,
+        // ⚠ BOT_TOKEN fuera: es el camino que se quiere probar. Y HOME apunta a
+        //   un temporal para que `cargarSecretos` no encuentre los secretos
+        //   REALES de la máquina (~/.config/dev-secrets.env) y el test pase por
+        //   el motivo equivocado.
+        env: { TELEGRAM_API_BASE: tg.base, COORD_HOME: casa, HOME: otro,
+               BOT_TOKEN: undefined, COORD_CHAT: '-100', COORD_THREAD: '5' },
+      });
+      assert.equal(code, 0,
+        `desde otro cwd tiene que poder avisar; salió ${code}: ${err}`);
+      assert.equal(tg.seen.length, 1, 'tenía que haber mandado el mensaje');
+      assert.equal(tg.seen[0].payload.text, 'listo');
+    } finally {
+      tg.server.close();
+      rmSync(casa, { recursive: true, force: true });
+      rmSync(otro, { recursive: true, force: true });
+    }
+  });

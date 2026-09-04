@@ -26,15 +26,30 @@
 //
 // Salidas: 0 enviado · 1 fallo de envío · 2 mal invocado o sin configuración.
 
-import { existsSync } from 'node:fs';
+// ⚠⚠ LOS SECRETOS SE CARGAN POR RUTA ABSOLUTA, NUNCA RELATIVOS AL CWD.
+// Aquí había `existsSync('.env')`, o sea `.env` **del directorio actual** — y
+// eso convierte al avisador en algo que sólo funciona si lo llamas desde el
+// repo del coordinador. Un trabajo desacoplado corre en el directorio de SU
+// repo (`desacoplar.sh` conserva el cwd a propósito), así que ahí no hay
+// ningún `.env` y el aviso moría con «Falta BOT_TOKEN» sin llegar a intentarlo.
+//
+// Medido el 2026-09-04, mismo comando y mismo entorno, sólo cambiando el cwd:
+//   desde ~/src/foveal-vision        -> exit 2, "Falta BOT_TOKEN"  (ni lo intenta)
+//   desde ~/src/telegram-coordinator -> exit 1, "fetch failed"     (sí tenía token)
+//
+// Qué se veía desde fuera: los ejecutores `entrenar`, `continuar` y
+// `entrenar-vast` —que NO hacen `. "$COORD_HOME/.env"` en su plantilla— dejaron
+// de avisar al terminar. Los que sí lo hacen (`bench`, `estudio`,
+// `estudio-stride`) seguían funcionando, y por eso el fallo era intermitente
+// según qué comando lanzaras.
+//
+// `cargarSecretos()` resuelve contra `COORD_HOME` (que el coordinador pasa a
+// TODO comando y `desacoplar.sh` deja viajar) o, si no viniera, contra la
+// ubicación de este fichero. Y son DOS ficheros, no uno. No se reimplementa
+// aquí porque dos copias de esa resolución divergen y nadie se entera.
+import { cargarSecretos } from './cargar-secretos.mjs';
 
-if (!process.env.BOT_TOKEN && existsSync('.env')) {
-  try {
-    process.loadEnvFile('.env');
-  } catch {
-    /* sin .env: seguimos con lo que haya en el entorno */
-  }
-}
+cargarSecretos();
 
 const TG_LIMIT = 4000; // Telegram corta en 4096; dejamos margen.
 const ATTEMPTS = 3;
