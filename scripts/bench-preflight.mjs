@@ -33,6 +33,13 @@ const HOME = homedir();
 const SRC = dirname(resolve(dirname(fileURLToPath(import.meta.url)), '..'));
 const LANZADOR = join(SRC, 'digital-ocean-dropplet-auto-launching');
 const DO_API = 'https://api.digitalocean.com/v2';
+// Se puede apuntar a otro sitio para poder probar esto sin red y sin token real
+// (R17: una comprobación que no corre sola no existe). Es la misma salida que
+// `FV_WEB_PORT` le da al freno de la web app.
+const GITHUB_API = process.env.GITHUB_API || 'https://api.github.com';
+// Dónde se guarda lo que se mide. Es el repo cuyo push importa: si no se puede
+// empujar ahí, un estudio corre entero y su resultado se va con la máquina.
+const REPO_DATOS = 'stalinbeltran/foveal-vision-data';
 const VOLUMEN = process.env.BENCH_VOLUME || 'bench-data';
 const MNT = `/mnt/${VOLUMEN}`;
 
@@ -60,6 +67,25 @@ function intenta(cmd, opts = {}) {
     return { ok: true, salida: sh(cmd, opts) };
   } catch (e) {
     return { ok: false, salida: ((e.stdout || '') + (e.stderr || '')).trim() || String(e.message) };
+  }
+}
+
+/** Igual que `api`, pero contra GitHub y devolviendo el estado en vez de lanzar.
+ *
+ * Devuelve el estado además del cuerpo a propósito: aquí la diferencia entre
+ * 401 (el token no vale) y 404 (vale, pero no ve ese repo) es justo lo que hay
+ * que distinguir, y un `throw` con el texto del error las junta.
+ */
+async function ghApi(ruta) {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+  try {
+    const r = await fetch(`${GITHUB_API}${ruta}`, {
+      headers: { Authorization: `Bearer ${token}`, 'user-agent': 'bench-preflight' },
+      signal: AbortSignal.timeout(15000),
+    });
+    return { estado: r.status, cuerpo: await r.json().catch(() => ({})) };
+  } catch (e) {
+    return { estado: 0, cuerpo: {}, error: String(e.message || e) };
   }
 }
 
@@ -128,6 +154,76 @@ async function main() {
     } catch (e) {
       anota('FALTA', 'DO_TOKEN', `presente pero la API lo rechaza: ${e.message}`,
         'Rótalo desde la lanzadora: python scripts/do_droplet.py push-do-token <droplet>');
+    }
+  }
+
+  // 2 bis. El token de GitHub. Es el que salva el trabajo cuando esta máquina
+  //    se destruya, y el único de los tres que fallaba sin que nadie lo notara.
+  //
+  //    ⚠ NO se comprueba que ESTÉ, se comprueba que SIRVA (regla 5). Medido el
+  //    2026-09-06 en esta máquina, recién lanzada con `lanzar launch dev`: el
+  //    token venía en `~/.config/dev-secrets.env` —o sea que el envío del
+  //    lanzador funcionó— y GitHub lo rechazaba con 401. `DO_TOKEN` y
+  //    `VAST_AI_API_TOKEN` del mismo fichero daban 200: el transporte estaba
+  //    bien, el token estaba muerto.
+  //
+  //    Qué costó, y por qué bloquea:
+  //      · `foveal-vision-data` no se clonó (pide credenciales). Ése es
+  //        exactamente el agujero del punto 5 de la tabla del CLAUDE.md: sin él
+  //        un estudio corre entero y sus resultados no se commitean en ninguna
+  //        parte. `provision` lo avisó con un `AVISO: no pude clonar` y siguió
+  //        con código 0.
+  //      · Y no se puede empujar NADA. En una máquina que se rehace sin aviso,
+  //        eso es «lo que no está empujado, no existe» sin red debajo.
+  //
+  //    ⚠⚠ Y la pista que despista: `credential.helper store` BORRA la
+  //    credencial rechazada en el primer 401, así que `~/.git-credentials`
+  //    aparece con 0 bytes. Eso se lee como «el lanzador nunca envió el token»,
+  //    que es la conclusión contraria a la verdadera. Comprobado el 2026-09-06
+  //    con un `git ls-remote` contra un repo inexistente: 54 bytes → 0.
+  const ghToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+  const ROTAR_GH =
+    'No se arregla desde aquí: el token viaja desde la máquina LANZADORA.\n' +
+    '    1. crea uno en https://github.com/settings/personal-access-tokens\n' +
+    '       con Contents: read and write sobre los repos de stalinbeltran\n' +
+    '    2. ponlo en el mini, en ~/.config/dev-secrets.env Y en el .env del bot\n' +
+    '    3. reenvíalo:  python scripts/do_droplet.py provision <droplet>\n' +
+    '    ⚠ ~/.git-credentials con 0 bytes NO significa que no se enviara: git\n' +
+    '      borra la credencial en cuanto GitHub la rechaza una vez.';
+
+  if (!ghToken) {
+    anota('FALTA', 'GITHUB_TOKEN',
+      'no está en el entorno (debería venir de ~/.config/dev-secrets.env)', ROTAR_GH);
+  } else {
+    const quien = await ghApi('/user');
+    if (quien.estado === 0) {
+      // Sin red no se puede decir que el token esté mal. Igual que el `NO SÉ`
+      // de `cerrable.mjs`: no saber no puede leerse como que va bien.
+      anota('AVISO', 'GITHUB_TOKEN',
+        `presente, pero no pude preguntarle a GitHub: ${quien.error}`,
+        'Reintenta cuando haya red. Hasta entonces no está comprobado.');
+    } else if (quien.estado !== 200) {
+      anota('FALTA', 'GITHUB_TOKEN',
+        `presente pero GitHub lo rechaza (HTTP ${quien.estado}: ` +
+        `${quien.cuerpo.message || 'sin mensaje'}). Ni se clona lo privado ni se empuja nada`,
+        ROTAR_GH);
+    } else {
+      // Válido no es suficiente: un token de grano fino puede autenticar y no
+      // tener permiso de escritura donde hace falta. Lo que importa es si se
+      // puede EMPUJAR lo medido, así que se pregunta por ese repo en concreto.
+      const datos = await ghApi(`/repos/${REPO_DATOS}`);
+      const login = quien.cuerpo.login || '?';
+      if (datos.estado === 200 && datos.cuerpo?.permissions?.push) {
+        anota('OK', 'GITHUB_TOKEN', `válido · ${login} · puede empujar a ${REPO_DATOS}`);
+      } else if (datos.estado === 200) {
+        anota('FALTA', 'GITHUB_TOKEN',
+          `válido (${login}) pero SIN permiso de escritura en ${REPO_DATOS}: ` +
+          'lo medido se podría leer y no guardar', ROTAR_GH);
+      } else {
+        anota('FALTA', 'GITHUB_TOKEN',
+          `válido (${login}) pero no ve ${REPO_DATOS} (HTTP ${datos.estado}): ` +
+          'sin acceso no se clona ni se empuja lo medido', ROTAR_GH);
+      }
     }
   }
 

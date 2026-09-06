@@ -1511,6 +1511,7 @@ la única que no: el token, que lo tiene que enviar la máquina lanzadora.
 | # | Qué | Quién lo pone | Si falta |
 |---|---|---|---|
 | 1 | `DO_TOKEN` en el entorno | el lanzador, con `--make-launcher` o `push-do-token` | **no se puede** crear ni destruir droplets. Es lo único que no se arregla desde dentro |
+| 1 bis | `GITHUB_TOKEN` **que GitHub siga aceptando** | el lanzador, en `provision` (lo envía solo si él lo tiene) | no se clona lo que pida credenciales (`foveal-vision-data`) y **no se empuja nada**: en una máquina efímera, eso es perder el trabajo. Tampoco se arregla desde dentro |
 | 2 | Repo `~/src/digital-ocean-dropplet-auto-launching` | `--make-launcher`, o `--fix` | no hay con qué hablar con la API |
 | 3 | Par de claves `~/.ssh/do_droplet` **registrado en la cuenta** | `--make-launcher`, o `--fix` | se crean droplets en los que no se puede entrar: existen, facturan y no sirven |
 | 4 | Repos `~/src/foveal-vision` y `~/src/image-text-sample-generator` | `--repo` al lanzar, o `--fix` | no hay benchmark ni generador |
@@ -1530,6 +1531,64 @@ un solo error. Medido el 2026-08-27 en esta misma máquina, recién rehecha.
 Por eso el preflight lo trata como bloqueante, y por eso `estudio_flota.py --git` **aborta antes
 de alquilar** si no encuentra dónde commitear. El detalle está donde se dispara, en
 [`foveal-vision/CLAUDE.md` § «Dónde caen los datos de un estudio»](https://github.com/stalinbeltran/foveal-vision/blob/main/CLAUDE.md#dónde-caen-los-datos-de-un-estudio-en-foveal-vision-data).
+
+#### El punto 1 bis: un token CADUCADO no se parece en nada a un token que falta
+
+⚠ **Medido el 2026-09-06 en esta máquina, recién lanzada con `lanzar launch dev`.** El
+envío funciona y hay que decirlo primero, porque la sospecha natural es la contraria: el
+coordinador pasa **todo** `process.env` a cada comando (`src/runner.ts:68`) y su unit
+arranca con `bash -lc`, que carga `~/.config/dev-secrets.env`; `do_droplet.py` lee de ahí
+`GITHUB_TOKEN` y lo escribe en el `dev-secrets.env` **de la máquina nueva** y en su
+`~/.git-credentials`. La prueba de que la cadena entera funcionó es que el token **llegó**.
+
+Lo que pasó es que el token que llegó **estaba muerto**, y los tres de la misma máquina no
+se comportan igual:
+
+| token | `GET` de su API |
+|---|---|
+| `DO_TOKEN` | **200** |
+| `VAST_AI_API_TOKEN` | **200** |
+| `GITHUB_TOKEN` | **401 Bad credentials** |
+
+**Qué costó, sin un solo error a la vista:** `foveal-vision-data` **no se clonó**, y hoy no
+está en `~/src`. `provision` lo dijo con un `AVISO: no pude clonar` y **siguió con código
+0**. O sea el agujero del punto 5 de la tabla, abierto por una puerta distinta: la máquina
+nace sin el sitio donde se guarda lo medido.
+
+⚠ **Y de paso, un dato de este fichero que ya no cuadra.** Más abajo se afirma que ese repo
+es **público** («comprobado el 2026-08-31 contra la API de GitHub»). El 2026-09-06,
+anónimamente, `GET /repos/stalinbeltran/foveal-vision-data` devuelve **404**, y un `git
+clone` sin credenciales pide usuario. Eso significa que **algo cambió**, pero **no dice
+qué**: 404 anónimo es lo mismo para «pasó a privado» que para «lo renombraron o lo
+borraron», y con el token muerto no se puede distinguir desde aquí. **No se ha tocado esa
+afirmación**, porque corregirla pide comprobarla con un token que funcione — y sustituir un
+dato por una suposición es peor que dejarlo señalado. Es lo primero que hay que mirar
+cuando haya token.
+
+⚠⚠ **Y la pista engaña, que es lo peor de este fallo.** `credential.helper store` **borra**
+la credencial en cuanto GitHub la rechaza una vez, así que `~/.git-credentials` queda con
+**0 bytes**. Eso se lee como *«el lanzador nunca envió el token»* — la conclusión contraria
+a la verdadera, y manda a depurar el envío, que es lo único que sí funciona. Comprobado ese
+día con un `git ls-remote` contra un repo inexistente: 54 bytes → **0**.
+
+**Desde el 2026-09-06 el preflight lo comprueba**, y comprueba que **sirva**, no que esté
+(regla 5). Son tres preguntas, porque válido tampoco basta: ¿está? · ¿lo acepta GitHub? ·
+¿tiene **escritura** sobre el repo donde se guarda lo medido? Un token de grano fino puede
+autenticar y no poder empujar, y entonces se mide y se pierde igual.
+
+```
+[ FALTA] GITHUB_TOKEN   presente pero GitHub lo rechaza (HTTP 401: Bad credentials)
+```
+
+**Bloquea** —como `DO_TOKEN`— porque lo que se pierde es trabajo ya pagado, y el remedio
+que imprime apunta **fuera de la máquina**, que es donde está: crear el token, ponerlo en
+los **dos** ficheros del mini y reenviarlo con `provision`. Seis tests en
+`tests/preflight-github.test.mjs`, y **los seis fallan con el código anterior**.
+
+⚠ **Lo que este arreglo NO hace:** `provision` sigue saliendo con **0** con el token
+rechazado, así que una máquina nueva sigue naciendo rota — sólo que ahora `/use preflight`
+lo dice en una línea en vez de descubrirse al primer `git push`. Arreglarlo de raíz es del
+lado del lanzador y no está hecho.
 
 El punto 3 es el que se olvida siempre: **el token deja CREAR droplets, pero no
 ENTRAR en ellos**. Un droplet acepta las claves registradas en la cuenta en el
