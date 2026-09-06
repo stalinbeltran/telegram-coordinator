@@ -1560,10 +1560,18 @@ es **público** («comprobado el 2026-08-31 contra la API de GitHub»). El 2026-
 anónimamente, `GET /repos/stalinbeltran/foveal-vision-data` devuelve **404**, y un `git
 clone` sin credenciales pide usuario. Eso significa que **algo cambió**, pero **no dice
 qué**: 404 anónimo es lo mismo para «pasó a privado» que para «lo renombraron o lo
-borraron», y con el token muerto no se puede distinguir desde aquí. **No se ha tocado esa
-afirmación**, porque corregirla pide comprobarla con un token que funcione — y sustituir un
-dato por una suposición es peor que dejarlo señalado. Es lo primero que hay que mirar
-cuando haya token.
+borraron», y con el token muerto no se puede distinguir desde aquí.
+
+✅ **RESUELTO ese mismo 2026-09-06, ya con un token que GitHub acepta: pasó a PRIVADO.** El
+mismo `GET` **autenticado** devuelve **200 con `"private": true`**, así que el 404 anónimo
+era visibilidad, y no un renombrado ni un borrado. La afirmación de más abajo queda
+corregida donde vive. ⚠ **Y la redacción de las conversaciones no se afloja por esto**: el
+motivo, allí mismo.
+
+```bash
+curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://api.github.com/repos/stalinbeltran/foveal-vision-data | grep '"private"'
+```
 
 ⚠⚠ **Y la pista engaña, que es lo peor de este fallo.** `credential.helper store` **borra**
 la credencial en cuanto GitHub la rechaza una vez, así que `~/.git-credentials` queda con
@@ -1988,8 +1996,15 @@ que el de `SessionStart` recoge lo que se quedó atrás. Nada depende de un cier
 
 ⚠⚠ **LA PUERTA ES LA REDACCIÓN, y el motivo está escrito arriba en este mismo fichero:**
 *«un mensaje a `c` pidiendo leer `.env` filtró el token una vez»*. **El repo de datos es
-PÚBLICO** (comprobado el 2026-08-31 contra la API de GitHub) y **git no olvida**: un
-secreto que se cuele no se arregla borrándolo, hay que **ROTARLO**. Por eso:
+PRIVADO** (`"private": true`, comprobado el 2026-09-06 contra la API de GitHub con el token
+vivo; el 2026-08-31 era **público**, o sea que esto **cambió** — y lo que cambió una vez
+vuelve a cambiar) y **git no olvida**: un secreto que se cuele no se arregla borrándolo, hay
+que **ROTARLO**.
+
+⚠ **Que hoy sea privado NO es la barrera, y confundir las dos cosas es lo caro.** El
+histórico de un repo privado sobrevive a que mañana lo hagan público, a que lo lea un
+colaborador y a que se clone en una máquina alquilada; la visibilidad se cambia con un clic
+y la rotación de un token, no. **La barrera sigue siendo la redacción.** Por eso:
 
 1. se redacta por **valor exacto** (los ficheros de secretos de la máquina) y por
    **patrón** (`sk-ant-`, `ghp_`, `dop_v1_`, tokens de Telegram, claves privadas);
