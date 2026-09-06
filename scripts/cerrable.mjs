@@ -91,9 +91,18 @@ const EXIT0 = process.argv.includes('--exit0');
 // contabilidad de lo que costó cada barrido.
 // Este bucle salta los repos que no están en disco, así que añadirlo no rompe
 // ninguna máquina que no lo tenga.
+//
+// ⚠ Y `experimentos-cnn` es el SÉPTIMO desde el 2026-09-06. No es un repo de
+// código más: sus experimentos commitean sus PESOS y sus métricas dentro (la
+// excepción con tope de ~5 MB, heredada de `foveal-vision/experimentos/`), o sea
+// que ahí vive resultado, no sólo fuente. Y entrena en esta máquina: el
+// `entrenar_local.py` de la lista `TRABAJOS` de abajo entró el 2026-09-04
+// precisamente por esos experimentos, así que el freno ya cuenta sus PROCESOS
+// desde antes de que existiera el repo. Faltaba la otra mitad, que es la que se
+// pierde en silencio: su git.
 const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
                'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator',
-               'estudios-redes-neuronales'];
+               'estudios-redes-neuronales', 'experimentos-cnn'];
 // Lo que, si está vivo, significa que hay trabajo en curso que se perdería.
 //
 // ⚠ Los `fv-*` entraron el 2026-08-30, y faltaban desde el principio. Un

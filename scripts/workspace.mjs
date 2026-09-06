@@ -43,9 +43,14 @@ const WS = process.env.COORD_WS ? resolve(process.env.COORD_WS) : dirname(COORD)
 // central, donde viven los reportes y `ESTADO.md`, o sea el veredicto de todo lo
 // que ya se pago. Sin el, nadie puede comprobar si un estudio que se va a pagar
 // ya se pago una vez -- y eso es dinero, no comodidad.
+//
+// ⚠ Y `experimentos-cnn` es el SÉPTIMO desde el 2026-09-06: sus experimentos
+// pueden reusar `fv`, y lo encuentran por el hermano `../foveal-vision`. Un
+// workspace que lo clone sin clonar el otro es justo la copia parcial que falla
+// a mitad -- los repos hermanos viajan juntos o no viajan.
 const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
                'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator',
-               'estudios-redes-neuronales'];
+               'estudios-redes-neuronales', 'experimentos-cnn'];
 
 const RAIZ_WS = process.env.COORD_WS_RAIZ ?? join(process.env.HOME ?? '', 'ws');
 
