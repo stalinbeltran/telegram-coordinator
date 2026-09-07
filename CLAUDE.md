@@ -621,6 +621,49 @@ reportes/
   es un tty, así que el log de una unidad se queda en blanco hasta que el proceso sale. Se
   comprueba con `systemctl is-active <nombre>`, no con `tail`. Y si quieres ver el progreso,
   `python -u` (o `PYTHONUNBUFFERED=1`).
+
+  #### ✅ Medido el 2026-09-07: las DOS mitades a la vez, y el lanzador se COMMITEA
+
+  Hasta hoy las medidas eran de trabajos que **morían**. Ésta es la primera en que se ve lo que
+  sobrevive y lo que no **en el mismo suceso**, y por eso vale como comprobación del mecanismo y
+  no sólo como aviso.
+
+  Un barrido de `experimentos-cnn` (5 redes × 300 épocas, ~20 min) se lanzó con
+  `desacoplar-persistente.sh` como unidad **`esq2d-barrido`** a las 14:11:32 UTC. A mitad, el
+  proceso de Claude Code que la lanzó terminó:
+
+  | | qué pasó |
+  |---|---|
+  | la **unidad** (padre PID 1) | siguió `active`, `Result=success`, **`NRestarts=0`**, y un brazo entero terminó sus 300 épocas **después** de que muriera la sesión ✅ |
+  | los **vigilantes** del harness (`Bash(run_in_background)`, un `until systemctl is-active…; do sleep 30; done`) | los dos quedaron marcados **`stopped` sin registro de finalización** ❌ |
+
+  ⚠ El propio harness dice que no puede distinguir «lo pararon» de «estaba corriendo cuando el
+  proceso salió», así que lo que queda **probado** es que se pararon sin reportar — y que el
+  trabajo no. Para lo que se decide con esto, es lo mismo: **un vigilante que vive en la sesión
+  no sirve para vigilar**.
+
+  **Y una tercera cosa, que no estaba escrita y cuesta turnos hasta que se sabe: un `sleep` en
+  una tarea en segundo plano NO hace esperar al modelo.** Las llamadas del turno vuelven al
+  instante, así que «esperar» encadenando `sleep`s no espera nada: gasta turnos y el reloj no
+  avanza. La única espera real es **terminar el turno** — y como la notificación del harness
+  muere con la sesión, lo que de verdad contesta *«¿cómo va?»* es **leer el disco**.
+
+  **Qué hacer, entonces, y es una obligación y no un consejo:**
+
+  1. **El lanzador va en git, no en la terminal.** Tecleado no deja rastro de *qué* se lanzó: si
+     el resultado sale raro, no hay forma de saber si se corrió eso o algo parecido. Commiteado,
+     *«¿cuál se usó?»* es una pregunta con respuesta y `git log` la fecha. El de este barrido es
+     [`experimentos-cnn/2026-09-07-esquinas-diagonales/nn/lanzar_barrido.sh`](https://github.com/stalinbeltran/experimentos-cnn/blob/main/2026-09-07-esquinas-diagonales/nn/lanzar_barrido.sh).
+  2. **Ese lanzador trae su `--estado`**, que lee del **disco** —no del log— y contesta de una
+     vez: qué unidad, si está activa, `Result`, **`NRestarts`**, por qué época va cada brazo y
+     qué salidas existen ya. Sin eso, «cómo va» se responde con cuatro comandos que hay que
+     recordar, y no se responde.
+  3. **`NRestarts` se mira siempre.** Una unidad que falló y se relanzó sola **parece
+     «corriendo»** y está repitiendo trabajo desde cero. Es el fallo del 2026-09-02 y del
+     2026-09-04 (62 relanzamientos), y sin ese número no se ve.
+  4. **El lanzador se niega a lanzar dos veces.** Dos procesos escribiendo los mismos pesos y el
+     mismo `metrics.jsonl` los corrompen, y el segundo lanzamiento es lo más fácil de hacer por
+     error justo cuando no sabes si el primero sigue vivo.
 - **Modelo y esfuerzo de claude son DATO, no código:** `claude-session.mjs`
   acepta `--model <alias|nombre>` y `--effort <low|medium|high|xhigh|max>` y los
   reenvía a `claude`. Se declaran en la plantilla del ejecutor (`c` trae
