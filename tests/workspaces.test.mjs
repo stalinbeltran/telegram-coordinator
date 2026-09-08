@@ -160,3 +160,78 @@ test('workspacesLocales incluye los árboles extra aunque no tengan identidad', 
   assert.ok(s, 'el árbol del coordinador cuenta aunque no sea un workspace formal');
   assert.equal(s.prefijo, null, 'y sin prefijo, para que cerrable lo declare como duda');
 });
+
+// ---------------------------------------------------------------------------
+// El comando necesita FICHEROS, no sólo el repo (2026-09-08).
+//
+// Medido: el ejecutor `repetir` se commiteó a `main` en casa; el tema estaba
+// atado a `~/ws/tema-2`, cuya copia iba dos commits atrás. `existsSync(repo)`
+// pasó —el repo SÍ estaba clonado— y el comando murió a mitad con un
+// `MODULE_NOT_FOUND` de Node en vez de con una de las dos salidas que esta
+// función sabe explicar. R2: o degrada, o falla ANTES de empezar.
+//
+// La causa no es de `repetir`: la DEFINICIÓN de un ejecutor se descubre en un
+// sitio y su COMANDO corre en N árboles, así que todo script nuevo del
+// coordinador es invisible para cualquier tema atado hasta que se sincronice.
+
+/** Un repo dentro de un workspace, con los ficheros que se le pidan. */
+function repoEn(base, repo, ficheros = []) {
+  const d = join(base, repo);
+  mkdirSync(d, { recursive: true });
+  for (const f of ficheros) {
+    mkdirSync(join(d, f.split('/').slice(0, -1).join('/')), { recursive: true });
+    writeFileSync(join(d, f), '// test\n');
+  }
+  return d;
+}
+
+test('se NIEGA si el comando usa un fichero que la copia del workspace no tiene', async () => {
+  const { cwdEnWorkspace } = await mod();
+  const casa = repoEn(join(raiz, 'src-a'), 'telegram-coordinator', ['scripts/repetir.mjs']);
+  const ws = workspace('tema-2b');
+  repoEn(ws, 'telegram-coordinator', []);          // clonado, pero SIN el script
+  const r = cwdEnWorkspace(casa, casa, ws, 'node scripts/repetir.mjs --con "x"');
+  assert.ok(r.error, 'tiene que negarse antes de correr, no dejar que falle a mitad');
+  assert.match(r.error, /scripts\/repetir\.mjs/, 'dice QUÉ falta');
+  assert.match(r.error, /pull origin main/, 'da la salida de sincronizar');
+  assert.match(r.error, /\/ws off/, 'y la de soltarse');
+});
+
+test('no molesta si el fichero está en las DOS copias', async () => {
+  const { cwdEnWorkspace } = await mod();
+  const casa = repoEn(join(raiz, 'src-b'), 'telegram-coordinator', ['scripts/shell-cwd.mjs']);
+  const ws = workspace('tema-3b');
+  repoEn(ws, 'telegram-coordinator', ['scripts/shell-cwd.mjs']);
+  const r = cwdEnWorkspace(casa, casa, ws, 'node scripts/shell-cwd.mjs');
+  assert.deepEqual(r, { cwd: join(ws, 'telegram-coordinator') });
+});
+
+test('un fichero que no está en NINGUNA copia no bloquea: no es una divergencia', async () => {
+  const { cwdEnWorkspace } = await mod();
+  // El caso real: rutas que el comando crea al vuelo, o que apuntan fuera. Si no
+  // está en el origen tampoco, esta función no tiene nada que decir -- y avisar
+  // ahí convertiría la heurística en un freno con falsos positivos.
+  const casa = repoEn(join(raiz, 'src-c'), 'telegram-coordinator', []);
+  const ws = workspace('tema-4b');
+  repoEn(ws, 'telegram-coordinator', []);
+  const r = cwdEnWorkspace(casa, casa, ws, 'node scripts/lo-que-sea.mjs');
+  assert.deepEqual(r, { cwd: join(ws, 'telegram-coordinator') });
+});
+
+test('la heurística ignora lo que no es una ruta relativa del repo', async () => {
+  const { ficherosDelComando } = await mod();
+  assert.deepEqual(ficherosDelComando('node scripts/repetir.mjs'), ['scripts/repetir.mjs']);
+  assert.deepEqual(
+    ficherosDelComando('. "$COORD_HOME/.env" && /usr/bin/python3 ~/otro/x.py {{input}}/y.sh'),
+    [], 'ni $VAR, ni absolutas, ni ~, ni lo que lleva {{…}}');
+  // varias en un comando compuesto, y sin repetir
+  assert.deepEqual(
+    ficherosDelComando('scripts/desacoplar.sh sh scripts/vast-sweep.sh; node scripts/desacoplar.sh').sort(),
+    ['scripts/desacoplar.sh', 'scripts/vast-sweep.sh']);
+});
+
+test('sin workspace atado no se comprueba nada: es el camino de siempre', async () => {
+  const { cwdEnWorkspace } = await mod();
+  const casa = repoEn(join(raiz, 'src-d'), 'telegram-coordinator', ['scripts/x.mjs']);
+  assert.deepEqual(cwdEnWorkspace(casa, casa, undefined, 'node scripts/x.mjs'), { cwd: casa });
+});

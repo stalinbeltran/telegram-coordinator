@@ -272,6 +272,7 @@ export function cwdEnWorkspace(
   cwd: string | undefined,
   raizDeclarante: string | undefined,
   ws: string | undefined,
+  comando?: string,
 ): { cwd?: string } | { error: string } {
   if (!ws || !raizDeclarante) return { cwd };
   // Ya está dentro: el comando lo declaró un repo de este mismo workspace.
@@ -291,5 +292,63 @@ export function cwdEnWorkspace(
   }
   const sub = cwd && cwd !== raizDeclarante ? relative(raizDeclarante, cwd) : '';
   const destino = sub && !sub.startsWith('..') ? join(destinoRepo, sub) : destinoRepo;
+
+  // ⚠⚠ Y AHORA EL FICHERO, no sólo el repo. Medido el 2026-09-08: el ejecutor
+  // `repetir` se commiteó a `main` en casa, el tema estaba atado a `~/ws/tema-2`
+  // —cuya copia iba dos commits atrás— y `existsSync(destinoRepo)` pasó, porque
+  // el repo SÍ estaba clonado. Lo que faltaba era `scripts/repetir.mjs` dentro.
+  //
+  // El comando corrió igual y murió a mitad con un `MODULE_NOT_FOUND` de Node:
+  // un stack en vez de una de las dos salidas que esta función sabe explicar.
+  // Eso es exactamente lo que la R2 prohíbe —«o degrada, o falla ANTES de
+  // empezar»— y se colaba porque la comprobación era de una granularidad más
+  // gruesa que el fallo.
+  //
+  // ⚠ La causa NO es de `repetir`, es de la forma: la DEFINICIÓN de un ejecutor
+  // se descubre en un sitio (casa, fuente 0) y su COMANDO se ejecuta en N
+  // árboles. Todo script nuevo del coordinador es invisible para cualquier tema
+  // atado hasta que su copia se sincronice.
+  const faltan = comando
+    ? ficherosDelComando(comando).filter(
+        (f) => existsSync(join(cwd ?? raizDeclarante, f)) && !existsSync(join(destino, f)))
+    : [];
+  if (faltan.length) {
+    return {
+      error:
+        `Este tema trabaja en el workspace "${ws}", y a esa copia de "${repo}" le falta ` +
+        `lo que el comando necesita:\n` +
+        faltan.map((f) => `  · ${f}`).join('\n') + '\n\n' +
+        `Está en ${raizDeclarante} pero no en ${destinoRepo}: esa copia va por otra rama ` +
+        `o sin actualizar. Correrlo en el original mezclaría dos workspaces sin decírtelo.\n\n` +
+        `  · sincroniza:  git -C ${destinoRepo} pull origin main\n` +
+        `  · o suéltalo:  /ws off   (este tema vuelve al árbol del coordinador)`,
+    };
+  }
   return { cwd: destino };
+}
+
+/**
+ * Los ficheros del repo que un comando menciona. Es una HEURÍSTICA a propósito:
+ * un comando es una plantilla de shell arbitraria y aquí no se parsea shell.
+ *
+ * Sólo se miran tokens que son inequívocamente una ruta relativa a un fichero de
+ * código: llevan `/`, terminan en una extensión conocida, y no empiezan por `/`,
+ * `~` ni `$` ni traen `{{…}}` (que se sustituye en tiempo de ejecución).
+ *
+ * ⚠ Y el filtro de verdad no está aquí, está en quien la usa: sólo se avisa de
+ * lo que EXISTE en el árbol declarante y NO en el destino. Así un falso positivo
+ * de esta función no puede bloquear nada — una ruta inventada no está en ninguno
+ * de los dos lados, y un fichero que el comando crea al vuelo, tampoco. Lo que
+ * queda es únicamente la divergencia real entre las dos copias.
+ */
+export function ficherosDelComando(comando: string): string[] {
+  const tokens = comando.split(/[\s"'`;|&()<>]+/);
+  const vistos = new Set<string>();
+  for (const t of tokens) {
+    if (!t || !t.includes('/')) continue;
+    if (t.startsWith('/') || t.startsWith('~') || t.includes('$') || t.includes('{{')) continue;
+    if (!/\.(mjs|cjs|js|ts|sh|py)$/.test(t)) continue;
+    vistos.add(t.replace(/^\.\//, ''));
+  }
+  return [...vistos];
 }

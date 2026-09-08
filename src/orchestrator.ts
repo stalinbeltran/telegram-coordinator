@@ -64,7 +64,7 @@ export async function processIncoming(
     DATA_DIR,
   };
 
-  const dirEjecutor = cwdEnWorkspace(executor.cwd, executor.origen?.raiz, ws);
+  const dirEjecutor = cwdEnWorkspace(executor.cwd, executor.origen?.raiz, ws, executor.command);
   if ('error' in dirEjecutor) {
     return [fail(`❌ Ejecutor "${executor.name}": ${dirEjecutor.error}`)];
   }
@@ -93,7 +93,7 @@ export async function processIncoming(
       continue;
     }
 
-    const dirEnc = cwdEnWorkspace(enc.cwd, enc.origen?.raiz, ws);
+    const dirEnc = cwdEnWorkspace(enc.cwd, enc.origen?.raiz, ws, enc.command);
     if ('error' in dirEnc) {
       replies.push(fail(`❌ Encargado "${encName}": ${dirEnc.error}`));
       continue;

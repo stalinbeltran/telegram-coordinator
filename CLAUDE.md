@@ -2014,6 +2014,29 @@ Atado el tema, **todo comando corre en el repo equivalente de ese árbol** y rec
    sería correr con otra rama y otro prefijo **sin decirlo** — el fallo silencioso caro. El error
    dice las dos salidas: clonar el repo, o `/ws off`.
 
+   ⚠⚠ **Y desde el 2026-09-08 también se comprueba el FICHERO, no sólo el repo** — porque la
+   comprobación era de una granularidad más gruesa que el fallo. Medido ese día: el ejecutor
+   `repetir` se commiteó a `main` en casa, el tema estaba atado a `~/ws/tema-2` (copia dos commits
+   atrás), `existsSync(destinoRepo)` **pasó** —el repo sí estaba clonado— y el comando murió a mitad
+   con un `MODULE_NOT_FOUND` de Node: un stack, en vez de una de las dos salidas que esta función
+   sabe explicar. O sea la R2 incumplida **por el propio código que existe para cumplirla**.
+
+   ⚠ **Y la causa NO es de `repetir`, es de la forma**, así que vuelve con cualquier script nuevo:
+   la **definición** de un ejecutor se descubre en **un** sitio (`data/` de casa, fuente 0 — es la
+   decisión 5 de esta lista) y su **comando** se ejecuta en **N árboles**. Todo script nuevo del
+   coordinador es invisible para cualquier tema atado hasta que su copia se sincronice. Es la deuda
+   del § «la rama de un workspace es un aparcamiento» **leída al revés**: no es que lo del workspace
+   no llegue a `main`, es que lo de `main` no llega al workspace.
+
+   Cómo se comprueba, y por qué así: `ficherosDelComando()` saca del comando los tokens que son
+   inequívocamente una ruta relativa de código (llevan `/`, extensión conocida, y ni `/` ni `~` ni
+   `$` ni `{{…}}` al principio). **Es una heurística, y el filtro de verdad no está en ella**: sólo
+   se avisa de lo que **existe en el árbol declarante y falta en el destino**, así que un falso
+   positivo no puede bloquear nada — una ruta inventada no está en ninguno de los dos lados, y un
+   fichero que el comando crea al vuelo, tampoco. Queda únicamente la divergencia real entre copias.
+   Cinco tests en `tests/workspaces.test.mjs`; **uno falla con el código anterior** (los otros
+   cuatro fijan que no moleste, que es el riesgo de meter un freno nuevo).
+
 3. **La atadura sobrevive a `/end`**, y por eso no vive en `data/sessions/` —que `/end` borra— sino
    en `data/ws/`. Cerrar la sesión suelta el **ejecutor**, no te muda de árbol. Igual que el `cd` de
    `shell` y la conversación de `claude`. Tiene test.
