@@ -1011,12 +1011,14 @@ excepción se anota con su motivo** donde se aplique. Y el documento **crece con
 un preflight: una decisión de estructura que salga mal deja allí su regla en el mismo commit que
 el arreglo.
 
-## Cómo se escribe aquí (y por qué estas cinco reglas y no otras)
+## Cómo se escribe aquí (y por qué estas seis reglas y no otras)
 
-Salen de repasar los commits de agosto de 2026 en este repo y en el del lanzador:
-cada una es una vuelta que se dio **más de una vez**, con lo que costó anotado. El
-repaso entero está en [`docs/revision-2026-08-22.md`](docs/revision-2026-08-22.md);
-aquí queda sólo lo que hay que respetar al escribir.
+Las **cinco primeras** salen de repasar los commits de agosto de 2026 en este repo y
+en el del lanzador: cada una es una vuelta que se dio **más de una vez**, con lo que
+costó anotado. El repaso entero está en
+[`docs/revision-2026-08-22.md`](docs/revision-2026-08-22.md); aquí queda sólo lo que
+hay que respetar al escribir. La **sexta** no viene de ahí: la pidió el dueño el
+2026-09-08, y su procedencia va escrita en ella.
 
 1. **«Sobrevive» siempre lleva complemento.** Nunca escribas que algo sobrevive sin
    decir **a qué** y **por qué mecanismo**. «`setsid` le da grupo propio y sobrevive»
@@ -1049,6 +1051,43 @@ aquí queda sólo lo que hay que respetar al escribir.
    `bench-preflight.mjs` en el mismo commit que el arreglo. «El repo está» ≠ «el repo
    puede correr» — faltaban los venvs, y eso se supo media hora después de escribir
    el preflight.
+
+6. **Un comando se enseña con una SESIÓN de ejemplo, no con una tabla de comandos.**
+   La tabla dice **qué existe**; la sesión dice **en qué orden**, **qué se ve entre
+   paso y paso** y **cómo sabes que va bien**. Lo que se olvida documentar nunca es el
+   nombre del comando: es la **secuencia** y el **estado intermedio**.
+
+   Se escribe como un diálogo, en orden, con la salida pegada a lo que se teclea:
+
+   ```
+   tú → /use latido
+   bot ← Sesión abierta con "latido". Escribe `ver`, `seco …` o `cada …`.
+
+   tú → seco 30m x8 revisa el barrido y sigue con lo que falte
+   bot ← 🧪 SECO — no he llamado a claude ni he arrancado nada.
+         Disparos: 14:12 · 14:42 · 15:12 · …
+         Para arrancarlo de verdad, repite el mensaje con `cada` en vez de `seco`.
+
+     (14:12) bot ← 🔁 latido 1/8 → <la respuesta de claude>
+
+   tú → off
+   bot ← ⏹️ Latido cortado en la vuelta 2 de 8. No escribirá más.
+   ```
+
+   **Lo que cuesta no tenerlo, medido aquí.** La verificación de `/ws` del 2026-08-28
+   está escrita como ocho pasos sueltos: se **saltó el paso 3** (atar el tema) y
+   entonces el 4 se leyó como **roto** cuando funcionaba — está anotado más arriba,
+   § «Las dos trampas de la verificación». Con la salida de cada turno a la vista, un
+   paso que falta se nota solo, porque el turno siguiente no empieza como debería.
+
+   ⚠ **Una sesión inventada envejece PEOR que una tabla**, porque parece una
+   transcripción y se lee como medida. Si el diálogo no se ha ejecutado, **se marca**
+   (`ejemplo, NO ejecutado`): es la regla 2 aplicada a la salida en vez de a los
+   números. El diálogo de arriba es exactamente eso — el ejecutor `latido` **no
+   existe todavía**, y se escribió para acordar la interfaz antes de implementarla.
+
+   No sustituye a la tabla: la tabla es para **buscar** cuando ya sabes, la sesión es
+   para **aprender** la primera vez. La que falta casi siempre es la segunda.
 
 Y dos sobre **dónde** se escribe, porque documentar no basta si no llega:
 

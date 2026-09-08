@@ -23,7 +23,7 @@ repiten aquí**:
 | Si tu duda es… | Está en |
 |---|---|
 | documentar, desacoplar procesos, secretos, preflights, frenos | [`revision-2026-08-22.md` § 3, los ocho patrones A–H](revision-2026-08-22.md#3-los-ocho-patrones) |
-| cómo se redacta (procedencia de los números, «sobrevive» con complemento, caducidad de cerrojos) | [`../CLAUDE.md` § «Cómo se escribe aquí»](../CLAUDE.md) |
+| cómo se redacta (procedencia de los números, «sobrevive» con complemento, caducidad de cerrojos) · **cómo se enseña un comando nuevo** | [`../CLAUDE.md` § «Cómo se escribe aquí»](../CLAUDE.md) |
 | la evidencia concreta de este proyecto, con sus medidas | [`estudios-redes-neuronales/reportes/arquitectura/…/2026-08-28-analisis-arquitectura.md`](https://github.com/stalinbeltran/estudios-redes-neuronales/blob/main/reportes/arquitectura/2026/08-agosto/2026-08-28-analisis-arquitectura.md) |
 
 ⚠ **Las reglas de aquí son las que quedaron en pie tras mirar qué funcionó y qué costó.** Las que
