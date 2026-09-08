@@ -72,6 +72,14 @@
 # comando carga los suyos de disco (`. ~/.config/dev-secrets.env`), y para eso se
 # conservan el cwd y HOME.
 #
+# ⚠ `DATA_DIR` SI viaja, y hace falta: no es una credencial, es DONDE vive el estado
+# por tema. El coordinador lo pasa ABSOLUTO a todo comando justo para que atar un
+# tema a un workspace no le mude el `cd` ni la conversacion (CLAUDE.md, decision 4
+# de `/ws`). Sin reenviarlo, un trabajo lanzado desde un tema atado caia a `data/`
+# RELATIVO a su cwd -- o sea al `data/` de la COPIA -- y escribia su estado donde
+# nadie lo lee. Lo mismo que mordio a `notify.mjs` con `.env` el 2026-09-04, por la
+# otra puerta.
+#
 # ⚠ SIN sudo/systemd NO hay unidad posible, y entonces esto se NIEGA en vez de
 # caer a `setsid`: caer daria exactamente la falsa sensacion de persistencia que
 # costo la maquina. Quien no pueda, que use `desacoplar.sh` sabiendo lo que no da.
@@ -116,6 +124,7 @@ exec sudo -n systemd-run \
   --setenv=COORD_SESSION="${COORD_SESSION:-}" \
   --setenv=COORD_CHAT="${COORD_CHAT:-}" \
   --setenv=COORD_THREAD="${COORD_THREAD:-}" \
+  --setenv=DATA_DIR="${DATA_DIR:-}" \
   --property=Restart=on-failure \
   --property=RestartSec="${DESACOPLAR_ESPERA:-30}" \
   --property=StartLimitIntervalSec="${DESACOPLAR_LIMITE_VENTANA:-1800}" \

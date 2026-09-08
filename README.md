@@ -514,6 +514,71 @@ Ajustes (todos opcionales, en `.env`):
 | `CLAUDE_RETRY_MARGIN_SECONDS` | `30` | margen extra tras la hora de reinicio. |
 | `CLAUDE_RETRY_FALLBACK_HOURS` | `5` | espera si no se logra leer la hora. |
 
+## Ejecutor `repetir`: que claude siga solo, cada N y con tope
+
+`claude -p` da **un** paso por mensaje. `repetir` le escribe una frase tuya a la
+conversación de `c` de **este tema** —el mismo hilo, o sea el turno siguiente— cada N y un
+número acotado de veces, sin que tengas que estar delante.
+
+**Configurable, nunca automático**: no hay hook ni cron del sistema. Existe mientras lo
+tengas armado, y `off` lo corta.
+
+```
+tú → /use repetir
+tú → ver
+bot ← Nada armado en este tema.
+      `cada 30m x8 <frase>` para armar · `seco …` para ver el plan sin arrancar.
+
+tú → seco 30m x8 revisa el barrido y sigue con lo que falte
+bot ← 🧪 SECO — no he llamado a claude ni he arrancado nada.
+      Frase:    «revisa el barrido y sigue con lo que falte»
+      Cadencia: cada 30 min · 8 vuelta(s) · 4 h en total
+      Hilo:     la conversación de `c` de ESTE tema
+      Disparos: 17:16 · 17:46 · 18:16 · 18:46 · 19:16 · 19:46 · 20:16 · 20:46 UTC
+
+      Para arrancarlo de verdad, repite el mensaje con `cada` en vez de `seco`.
+
+tú → cada 30m x8 revisa el barrido y sigue con lo que falte
+bot ← ▶️ Armada. Primera vuelta a las 17:16 UTC (en 30 min).
+      Tienes ese rato para `off` antes de que escriba nada.
+      unidad: `repetir--100…_2` · log `/tmp/repetir--100…_2.log`
+
+  (17:16) bot ← 🔁 vuelta 1/8 → <la respuesta de claude>
+  (17:46) bot ← 🔁 vuelta 2/8 → <la respuesta de claude>
+
+tú → ver
+bot ← 🔁 Viva · vuelta 2 de 8 hecha(s)
+      cada 30 min · próxima 18:16 UTC
+      «revisa el barrido y sigue con lo que falte»
+
+tú → off
+bot ← ⏹️ Cortada en la vuelta 2 de 8. No escribirá más en este tema.
+```
+
+| Escribes | Pasa |
+|---|---|
+| `ver` (o nada) | qué hay armado aquí, cuántas vueltas quedan y cuándo la próxima |
+| `seco <cad> x<N> <frase>` | el plan y las horas exactas. **No llama a claude ni arranca nada** |
+| `cada <cad> x<N> <frase>` | lo arranca |
+| `ya [frase]` | una escritura **ahora**, suelta: no cuenta como vuelta |
+| `off` | corta y limpia |
+
+Cadencia: `90s`, `30m`, `2h`. **Topes duros: 20 vueltas y 10 h, el que llegue primero** —
+el bot corre con `bypassPermissions`, así que cada vuelta puede alquilar máquinas.
+
+Tres cosas que conviene saber:
+
+- **La primera vuelta espera la cadencia completa**, siempre. Ahí tienes la ventana para
+  `off` antes de que escriba nada.
+- **Si estás hablando en el tema, la vuelta se salta y te lo dice.** Dos `claude --resume`
+  del mismo hilo a la vez se pisan.
+- **Sobrevive a que reinicies el bot** (es una unidad de systemd). Si el bot está caído y
+  quieres cortar: `sudo systemctl stop repetir-<tema>`.
+
+El detalle —las siete decisiones de diseño y qué está verificado— en
+[`CLAUDE.md` § «`repetir`»](CLAUDE.md).
+
+
 ## Avisar cuando termine algo largo (`notify.mjs`)
 
 **Un mensaje es un proceso que muere al responder**, y se lleva todo lo que lanzó.

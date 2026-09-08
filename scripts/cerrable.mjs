@@ -26,7 +26,7 @@
 // con 2. Nunca dice "cerrable" por no haber podido mirar: un fallo silencioso
 // que se lee como permiso es exactamente el que cuesta dinero.
 
-import { readFileSync, existsSync, readlinkSync } from 'node:fs';
+import { readFileSync, existsSync, readlinkSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
 import { dentroDe, workspacesLocales } from './workspaces-locales.mjs';
 import { razonesGit, IGNORA_AL_MONTAR } from './git-pendiente.mjs';
@@ -268,6 +268,67 @@ if (vivos.length) {
     largo: `${trabajos.length} trabajo(s) vivo(s) (${porQue})${arboles} — morirían con el server` });
 } else {
   limpio.push('nada de trabajo corriendo en esta máquina');
+}
+
+// ------------------------------------- 2 bis 2. repeticiones armadas (`repetir`)
+//
+// Una repetición le escribe a la conversación de `c` cada N minutos, y este bot
+// corre con CLAUDE_PERMISSION_MODE=bypassPermissions: cada vuelta puede alquilar
+// máquinas de Vast sin que nadie mire. Es exactamente lo que la R11 exige contar
+// -- «quien puede encender tiene que poder apagar», y para apagar hay que saber
+// que está encendido.
+//
+// ⚠ NO basta con la fila de procesos de arriba. El motor corre como UNIDAD de
+// systemd, cuyo cgroup no cuelga de este árbol, y su línea de comando
+// (`node scripts/repetir-bucle.mjs`) no está en TRABAJOS -- que casa scripts de
+// `foveal-vision`, no del coordinador. Sin este bloque, `repetir` sería un
+// trabajo vivo invisible: el falso verde que este script existe para no dar.
+//
+// ⚠ Y se cuentan las de TODOS los temas, no la del que pregunta: el estado por
+// tema NO se muda con el workspace (DATA_DIR absoluto), así que están todas en
+// `<casa>/data/repeticiones/`. Es la decisión 2 de esta lista -- la pregunta es
+// «¿se puede apagar este SERVER?».
+//
+// ⚠ Y se contesta SIEMPRE, aunque no haya directorio: callar cuando no hay nada
+// hace que «no lo miré» y «miré y no hay» se lean igual. Mismo criterio que la
+// pregunta 4 de `workspace.mjs`.
+//
+// ⚠⚠ Y OJO CON LA RUTA, que aquí ya falló una vez (2026-09-08, al escribirlo):
+// `CASA` es el WORKSPACE, o sea el PADRE del coordinador (`dirname(COORD_HOME)`),
+// porque lo que agrupa `LOCALES` son árboles de repos. El estado por tema vive en
+// el `data/` DEL COORDINADOR, un nivel más abajo. Mirando en `CASA/data/` esto
+// decía «ninguna repetición armada» con una viva y facturando — el falso verde,
+// que es el único fallo de este script que cuesta dinero. Lo pilló una prueba en
+// vivo, no la lectura.
+const CASA_COORD = process.env.COORD_HOME ? resolve(process.env.COORD_HOME) : (enCopia ? null : COORD);
+if (!CASA_COORD) {
+  // Misma regla que arriba: desde una copia y sin que nadie diga dónde está casa,
+  // no se inventa. Un «no hay repeticiones» falso es permiso para apagar.
+  dudas.push('no sé dónde está el `data/` de casa: no puedo mirar si hay repeticiones armadas');
+} else {
+  const DIR_REPES = join(CASA_COORD, 'data', 'repeticiones');
+  const vivas = [];
+  let restos = 0;
+  for (const f of (existsSync(DIR_REPES) ? readdirSync(DIR_REPES) : []).filter((n) => n.endsWith('.json'))) {
+    let e;
+    try { e = JSON.parse(readFileSync(join(DIR_REPES, f), 'utf8')); } catch { continue; }
+    if (!e || !e.vueltas) continue;
+    // La verdad de «sigue corriendo» la tiene systemd, no el fichero: la unidad
+    // es hija de PID 1 y sobrevive al reinicio del bot, así que un estado en
+    // disco sin unidad viva es un RESTO, no un trabajo. Y se nombra igual, porque
+    // un resto hace que `ver` diga «armada» de algo que no va a escribir nunca.
+    const viva = e.unidad && (sh(`systemctl is-active --quiet ${e.unidad} && echo si`) ?? '') === 'si';
+    if (viva) vivas.push(`${e.vueltas - e.hechas} vuelta(s) por escribir`);
+    else restos += 1;
+  }
+  if (vivas.length) {
+    razones.push({ tipo: 'repetir',
+      breve: `${vivas.length} repetición(es) viva(s): ${vivas.join(', ')}`,
+      largo: `${vivas.length} repetición(es) viva(s) de \`repetir\` (${vivas.join(', ')}) — le escriben a claude solas, y con bypassPermissions eso puede alquilar` });
+  } else {
+    limpio.push('ninguna repetición armada');
+  }
+  if (restos) limpio.push(`${restos} resto(s) de repetición sin unidad viva (\`off\` los limpia)`);
 }
 
 // -------------------------------- 2 ter. una máquina de Vast SIN NADIE que la recoja

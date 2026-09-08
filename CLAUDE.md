@@ -675,6 +675,115 @@ reportes/
   suele bloquear en `-p`), `acceptEdits`, o `bypassPermissions` (⚠️ autonomía
   total). Tras cambiarlo, reiniciar el bot.
 
+## `repetir`: escribirle a claude solo, cada N y con tope
+
+**Por qué existe.** `claude -p` da **un** paso por mensaje: le dices algo, lo hace, se
+acaba. Encadenar pasos exigía un mensaje humano por paso. `repetir` reinyecta una frase
+tuya a la conversación de `c` de **este tema** —el mismo uuid, o sea el **turno
+siguiente** del mismo hilo— cada N y un número acotado de veces.
+
+Pedido por el dueño el 2026-09-08, y **configurable a propósito, nunca automático**: no
+hay hook, ni cron del sistema, ni nada que se encienda solo. Existe mientras tú lo tengas
+armado.
+
+### Cómo se usa — sesión REAL, ejecutada el 2026-09-08 (salvo donde se marca)
+
+```
+tú → /use repetir
+tú → ver
+bot ← Nada armado en este tema.
+      `cada 30m x8 <frase>` para armar · `seco …` para ver el plan sin arrancar.
+
+tú → seco 30m x8 revisa el barrido y sigue con lo que falte
+bot ← 🧪 SECO — no he llamado a claude ni he arrancado nada.
+      Frase:    «revisa el barrido y sigue con lo que falte»
+      Cadencia: cada 30 min · 8 vuelta(s) · 4 h en total
+      Hilo:     la conversación de `c` de ESTE tema
+      Disparos: 17:16 · 17:46 · 18:16 · 18:46 · 19:16 · 19:46 · 20:16 · 20:46 UTC
+
+      Para arrancarlo de verdad, repite el mensaje con `cada` en vez de `seco`.
+
+tú → cada 1h x20 lo que sea
+bot ← ❌ Tope: 10 h como máximo, y 20 × 1 h son 20 h.
+      Con esa cadencia caben 10 vueltas (`x10`).
+
+tú → cada 60s x2 <la frase>
+bot ← ▶️ Armada. Primera vuelta a las 16:47 UTC (en 1 min).
+      Tienes ese rato para `off` antes de que escriba nada.
+      …
+      unidad: `repetir-latido-prueba` · log `/tmp/repetir-latido-prueba.log`
+
+tú → ver
+bot ← 🔁 Viva · vuelta 1 de 2 hecha(s)
+      cada 1 min · próxima 16:48 UTC
+      «<la frase>»
+
+  (16:47) bot ← 🔁 vuelta 1/2 → <la respuesta de claude>
+  (16:48) bot ← 🔁 vuelta 2/2 → <la respuesta de claude>
+          bot ← ✅ Repetición terminada: 2 vuelta(s).
+
+tú → off                                    ← ejemplo, NO ejecutado en vivo (sí en test)
+bot ← ⏹️ Cortada en la vuelta 2 de 8. No escribirá más en este tema.
+```
+
+⚠ Las horas del `seco` son de una corrida real de ese comando; el **`cada`** que se
+ejecutó en vivo fue `60s x2`, no `30m x8` — no se pagan 4 h para documentar. Es la regla 6
+de escritura aplicada a sí misma: **el diálogo se marca donde no está ejecutado**.
+
+### Los topes son DUROS y los fijó el dueño
+
+**20 vueltas · 10 h, el que se alcance primero.** No es estilo: el bot corre con
+`CLAUDE_PERMISSION_MODE=bypassPermissions`, así que cada vuelta puede alquilar máquinas de
+Vast sin nadie mirando. Y el de 10 h se mide **desde que se armó**, no como
+`cadencia × vueltas`: el tope de cada llamada a claude es *lo que queda* hasta él, así que
+ninguna vuelta puede empujar la repetición más allá — y ninguna se corta antes de tiempo
+por un reloj inventado aparte, que es lo que costó la entrega del 2026-08-23.
+
+### Las siete decisiones que hay que respetar si se toca
+
+1. **El motor es una UNIDAD de systemd, no un `setsid` ni un scope.** El fin del turno es
+   exactamente «muere su padre», que es la columna donde `desacoplar.sh` pierde. Va por
+   `desacoplar-persistente.sh`, padre PID 1.
+2. **`off` hace las DOS cosas**: `systemctl stop` y borrar el estado. Cada una cubre el
+   fallo de la otra — el stop necesita sudo, y el borrado sólo se nota cuando el bucle
+   despierta (duerme a trozos de 5 s). Si el stop falla, se **dice** y se da el comando.
+3. **Una vuelta se SALTA si hay alguien más en el hilo**, y se avisa. Dos señales, porque
+   miden cosas distintas: `pgrep` del uuid (un turno **en curso**, que el marker no delata
+   porque sólo se escribe al acabar) y el mtime del marker dentro de una ventana de 3 min
+   (uno recién terminado, contigo probablemente aún escribiendo). Sin esto habría dos
+   `claude --resume <mismo uuid>`, que es justo lo que `src/buffer.ts` evita en la entrada
+   — y esto dispara **fuera** del bucle serial de grammY, donde esa protección no llega.
+4. **Una vuelta saltada CONSUME vuelta.** El tope es de intentos y de tiempo, no de
+   escrituras logradas: si no, un tema activo estiraría la repetición indefinidamente.
+5. **El aviso lo manda `notify.mjs`, no un `fetch` propio.** Trocea, reintenta y comprueba
+   `body.ok` — el `tg()` de `claude-resumer.mjs` **no mira la respuesta de la API**, así que
+   un 400 (hilo borrado) se pierde en silencio. No se reescribe ese fallo: se reutiliza lo
+   que ya lo arregló.
+6. **El bucle sale SIEMPRE con 0.** Es una unidad con `Restart=on-failure`, y ahí un fallo
+   al final no es un fallo: es un bucle (62 relanzamientos el 2026-09-04).
+7. **El freno lo cuenta, y mira en el `data/` DEL COORDINADOR** — ⚠⚠ y aquí ya falló una
+   vez, el mismo día de escribirlo: `CASA` en `cerrable.mjs` es el **workspace**, o sea el
+   padre del coordinador. Con `join(CASA, 'data', …)` el freno decía **«ninguna repetición
+   armada» con una viva**. El falso verde, otra vez, y lo pilló una **prueba en vivo**, no
+   la lectura. Tres tests en `tests/cerrable-casa.test.mjs`; **dos fallan con esa ruta**.
+
+⚠ **`DATA_DIR` viaja ahora por `desacoplar-persistente.sh`**, y hacía falta: sin él, un
+trabajo lanzado desde un tema atado a un workspace escribía su estado en el `data/` de la
+**copia**, donde no lo lee nadie. No es una credencial; es dónde vive el estado por tema.
+
+### Qué está verificado (2026-09-08) y qué no
+
+| | |
+|---|---|
+| ✅ arma, escribe 2 vueltas al tema, avisa de cada una y se borra al terminar | en vivo, unidad `repetir-latido-prueba`, `Result=success`, `NRestarts=0` |
+| ✅ los dos topes rechazan y dicen qué SÍ cabe · `seco` no arranca nada · `off` borra aunque no haya unidad · se salta la vuelta si hay alguien · 3 fallos seguidos paran | 11 tests en `tests/repetir.test.mjs` |
+| ✅ el freno la ve, y busca en el sitio correcto | 3 tests en `tests/cerrable-casa.test.mjs` (2 fallan con el bug) |
+| ✅ `off` sobre una unidad VIVA | en vivo: `active` → `inactive`, estado borrado, y el freno pasó de `1 repetición(es) viva(s): 2 vuelta(s) por escribir` a limpio |
+| ✅ continuidad acumulada del hilo | claude contó **3** y **4** mensajes en las dos vueltas — los dos latidos de las 13:51 más éstas, o sea 3 h después y por otro mecanismo |
+| ❌ una repetición larga de verdad (30 min × 8) | **no medido**: sólo `60s × 2` y `5m × 2` |
+| ❌ que una vuelta se salte por actividad tuya, en vivo | probado en test, **no** contra un tema real |
+
+
 ## Seguridad (tratar con seriedad)
 
 - La allowlist `ALLOWED_USER_IDS` es la única defensa. No la elimines ni la

@@ -1,0 +1,15 @@
+{
+  "name": "repetir",
+  "descripcion": "Escribe una frase a la conversación de `c` de ESTE tema cada N, un número acotado de veces. Topes duros: 20 vueltas y 10 h, el que llegue primero.",
+  "ejemplos": [
+    "ver",
+    "seco 30m x8 revisa el barrido y sigue con lo que falte",
+    "cada 30m x8 revisa el barrido y sigue con lo que falte",
+    "ya",
+    "off"
+  ],
+  "requiere": ["claude"],
+  "command": "node scripts/repetir.mjs --con \"node scripts/claude-session.mjs --model opus --effort max\"",
+  "encargados": ["echo"],
+  "timeoutMs": 0
+}

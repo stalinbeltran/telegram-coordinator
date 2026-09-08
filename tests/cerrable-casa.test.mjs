@@ -186,3 +186,44 @@ test('desde el árbol de casa y sin COORD_HOME NO duda: ahí sí se puede deduci
     'la consola normal no tiene por qué declarar nada: fuera de un workspace, ' +
     'deducir casa del disco es correcto');
 });
+
+// ---------------------------------------------------------------------------
+// Las repeticiones de `repetir` (2026-09-08). Mismo fichero porque es el MISMO
+// fallo: una ruta de «casa» mal calculada que se lee como permiso para apagar.
+//
+// Al escribir el bloque se usó `join(CASA, 'data', 'repeticiones')` — y `CASA` es
+// el WORKSPACE, o sea el padre del coordinador, porque lo que agrupa `LOCALES`
+// son árboles de repos. El `data/` está un nivel más abajo. Con una repetición
+// viva y facturando, el freno decía «ninguna repetición armada». Lo pilló una
+// prueba en vivo; estos dos tests son para que no haga falta la próxima vez.
+
+/** Deja un estado de repetición en el `data/` del coordinador indicado. */
+function armarRepeticionEn(coord, nombre, extra = {}) {
+  mkdirSync(join(coord, 'data', 'repeticiones'), { recursive: true });
+  writeFileSync(join(coord, 'data', 'repeticiones', nombre + '.json'), JSON.stringify({
+    sesion: nombre, frase: 'sigue', cadenciaMs: 1800000, vueltas: 8, hechas: 2,
+    unidad: 'unidad-que-no-existe-jamas-' + nombre, ...extra,
+  }) + '\n');
+}
+
+test('las repeticiones se buscan en el data/ DEL COORDINADOR, no en su padre', () => {
+  const m = prepara();
+  armarRepeticionEn(m.coordCasa, 'tema_1');
+  const salida = correr(m, m.coordCasa, { COORD_HOME: m.coordCasa });
+  // La unidad no existe, así que es un RESTO -- pero para saberlo hay que haber
+  // ENCONTRADO el fichero. Mirando un nivel más arriba, esta línea no sale.
+  assert.match(salida, /1 resto\(s\) de repetición/,
+    'no encontró el estado: está mirando en el directorio equivocado');
+});
+
+test('cuenta las de TODOS los temas, no la de uno', () => {
+  const m = prepara();
+  armarRepeticionEn(m.coordCasa, 'tema_1');
+  armarRepeticionEn(m.coordCasa, 'tema_438');
+  assert.match(correr(m, m.coordCasa, { COORD_HOME: m.coordCasa }), /2 resto\(s\) de repetición/);
+});
+
+test('sin repeticiones lo dice: «miré y no hay» no puede leerse como «no lo miré»', () => {
+  const m = prepara();
+  assert.match(correr(m, m.coordCasa, { COORD_HOME: m.coordCasa }), /ninguna repetición armada/);
+});
