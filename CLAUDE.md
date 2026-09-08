@@ -664,6 +664,61 @@ reportes/
   4. **El lanzador se niega a lanzar dos veces.** Dos procesos escribiendo los mismos pesos y el
      mismo `metrics.jsonl` los corrompen, y el segundo lanzamiento es lo más fácil de hacer por
      error justo cuando no sabes si el primero sigue vivo.
+
+  #### ⚠⚠ Medido el 2026-09-08: `Result=success` NO dice que se corriera lo que pediste
+
+  **Un lanzador con varios modos corrió el modo equivocado, y todos los indicadores decían
+  verde.** Se pidió evaluar tres kernels (`lanzar.sh kernel a.npy b.npy c.npy`) y la unidad
+  corrió **la calibración**. Salió con `Result=success`, `NRestarts=0` y `ExecMainStatus=0`, o
+  sea que el freno la daba por buena; **lo único que delataba el fallo era que no aparecía
+  ningún resultado nuevo en `resultados/`**.
+
+  La causa cabe en una línea. La rama que acepta varios ficheros hace `shift` para recorrerlos,
+  y el despacho de más abajo **releía `$1`** para elegir qué orden construir:
+
+  ```sh
+  case "$1" in
+      kernel) shift; for K in "$@"; do …; done ;;   # ← se come el "kernel" de $1
+  esac
+  …
+  if [ "$1" = "kernel" ]; then   # ← FALSO: $1 ya es la ruta del primer .npy
+      ORDEN="… evaluar_kernel.py …"
+  else
+      ORDEN="… calibrar.py --todo"   # ← y cae aquí, en silencio
+  fi
+  ```
+
+  **Las cuatro reglas que salen de aquí, y son de escribir el lanzador, no de este caso:**
+
+  1. **El modo se guarda al entrar y no se vuelve a leer del argumento.** `MODO="$1"` en la
+     primera línea. Releer un argumento que ya has consumido es la forma barata de que un
+     despacho mienta — y con `shift`, `getopts` o cualquier bucle sobre `"$@"`, consumirlo es
+     lo normal.
+  2. **El último caso del despacho SE NIEGA; nunca es una acción por defecto.** Un `else` mudo
+     que ejecuta algo es exactamente cómo se acaba corriendo lo que nadie pidió. Aquí el
+     defecto era la calibración —reanudable e idempotente, así que no destruyó nada **de
+     milagro**—; con cualquier otra orden por defecto habría sido peor.
+  3. **El lanzador IMPRIME la orden antes de desacoplar**, siempre. El fallo fue invisible
+     porque nadie veía qué se iba a correr: entre teclear el comando y leer un log ya no queda
+     nada que enseñe la decisión.
+  4. **Y trae un modo SECO** (`BANCOK_SECO=1 …`) que imprime unidad y orden **sin lanzar**.
+     ⚠ El seco va **antes** del guardia de «ya está corriendo»: un ensayo no lanza nada, así
+     que no puede haber doble lanzamiento, y bloquearlo impediría mirar qué se lanzaría **justo
+     cuando hay algo vivo**, que es cuando más falta hace. Lo descubrió la propia prueba, que
+     fallaba según si había una unidad corriendo.
+
+  **Y la lección general, que es la que se repite y vale para todo lo desacoplado:**
+  `Result=success` dice *«lo que se lanzó terminó bien»*, **no** *«se hizo lo que pediste»*. Es
+  la regla del proyecto sobre el aviso y la fuente de verdad —*«el artefacto en disco es la
+  fuente de verdad»*— aplicada al **código de salida**: se comprueba el **artefacto**, y si el
+  artefacto no aparece, la unidad verde no es una defensa.
+
+  ⚠ **Con una prueba, no con un comentario** (R17). Un comentario no impide que alguien vuelva
+  a releer `$1`. El experimento `banco-k` de `experimentos-cnn` trae
+  `nn/probar_lanzador.sh`, que usa el modo seco para comprobar que **cada** modo produce su
+  orden y que uno desconocido **se niega**; medido el 2026-09-08, **2 de sus 5 casos fallan**
+  con el código anterior. Un lanzador nuevo con varios modos copia esa prueba: es cinco líneas
+  por modo y caza justo la clase de fallo que el freno no ve.
 - **Modelo y esfuerzo de claude son DATO, no código:** `claude-session.mjs`
   acepta `--model <alias|nombre>` y `--effort <low|medium|high|xhigh|max>` y los
   reenvía a `claude`. Se declaran en la plantilla del ejecutor (`c` trae
