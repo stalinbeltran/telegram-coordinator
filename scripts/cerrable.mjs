@@ -100,9 +100,21 @@ const EXIT0 = process.argv.includes('--exit0');
 // precisamente por esos experimentos, así que el freno ya cuenta sus PROCESOS
 // desde antes de que existiera el repo. Faltaba la otra mitad, que es la que se
 // pierde en silencio: su git.
+// ⚠ Y `claude-code-webapp-mobile` es el OCTAVO desde el 2026-09-09, y entró
+// porque el fallo se REPRODUJO: con los tres documentos de su plan escritos y sin
+// commitear, `--breve` decía «🟢 CERRABLE — todo empujado», o sea permiso para
+// destruir la máquina con trabajo dentro. Es el mismo falso verde que ya costó
+// con `foveal-vision-data` (2026-08-28) y con `estudios-redes-neuronales`
+// (2026-08-29), y por la misma causa: esta lista se DECLARA, así que un repo
+// nuevo es invisible hasta que alguien lo apunta aquí.
+//
+// La lección, que es la que se repite: **un repo que no está en esta lista no
+// avisa de nada, y no se distingue de uno donde no hay trabajo.** Al clonar un
+// repo nuevo en esta máquina, se añade aquí en el mismo commit.
 const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
                'digital-ocean-dropplet-auto-launching', 'image-text-sample-generator',
-               'estudios-redes-neuronales', 'experimentos-cnn'];
+               'estudios-redes-neuronales', 'experimentos-cnn',
+               'claude-code-webapp-mobile'];
 // Lo que, si está vivo, significa que hay trabajo en curso que se perdería.
 //
 // ⚠ Los `fv-*` entraron el 2026-08-30, y faltaban desde el principio. Un
