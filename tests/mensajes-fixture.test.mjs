@@ -19,7 +19,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
-const FIXTURE = join(RAIZ, 'tests', 'fixtures', 'mensajes', 'ejemplo.jsonl');
+const FIXTURE = join(RAIZ, 'tests', 'fixtures', 'mensajes', '-1001234567_7.jsonl');
 
 const lineas = readFileSync(FIXTURE, 'utf8').trim().split('\n')
   .filter(Boolean).map((l) => JSON.parse(l));

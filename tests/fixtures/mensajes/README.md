@@ -1,8 +1,14 @@
 # El fixture del log de mensajes
 
-`ejemplo.jsonl` es **una copia real**: lo generó `scripts/mensajes.mjs`, no está
+`-1001234567_7.jsonl` es **una copia real**: lo generó `scripts/mensajes.mjs`, no está
 escrito a mano. Por eso vale como contrato — un fixture inventado sólo prueba que
 alguien supo escribir JSON.
+
+⚠ **El nombre del fichero ES la identidad de la sesión** (`<chatId>_<threadId>`),
+igual que en `data/sessions/` y en el resto del estado por tema. Por eso no se
+llama `ejemplo.jsonl`: un fixture con un nombre inventado no reproduce la
+convención, y el lector saca de ahí el nombre de la conversación. Lo descubrió el
+propio lector el 2026-09-09, que devolvía una sesión llamada «ejemplo».
 
 **Está en los dos lados**, aquí y en
 [`claude-code-webapp-mobile/tests/fixtures/mensajes/`](https://github.com/stalinbeltran/claude-code-webapp-mobile),
