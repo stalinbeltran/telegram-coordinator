@@ -58,6 +58,13 @@ function correrResumer(dir, base, env = {}) {
         BOT_TOKEN: 'test-token-no-real',
         COORD_CHAT: '-100123',
         COORD_SESSION: 'test_1',
+        // ⚠⚠ DATA_DIR AL TEMPORAL, y es una barrera de seguridad, no comodidad.
+        // Desde que el resumer anota sus avisos en el log (2026-09-09), sin esto
+        // `mensajes.mjs` cae a `COORD_HOME/data` y, sin COORD_HOME, al `data/`
+        // REAL del repo: el test dejaba un `test_1.jsonl` entre las
+        // conversaciones de verdad del dueño. Medido ese mismo día, y limpiado.
+        // Es la misma regla que ya tiene escrita `tests/notify.test.mjs`.
+        DATA_DIR: join(dir, 'data'),
         TELEGRAM_API_BASE: base,
         CLAUDE_RETRY_MAX: '1',
         ...env,
