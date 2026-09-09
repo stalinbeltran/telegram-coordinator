@@ -67,7 +67,13 @@ async function send(ctx: Context, text: string): Promise<Message.TextMessage[]> 
  *  puedan divergir. */
 async function atender(ctx: Context, exec: string, texto: string): Promise<void> {
   try {
-    const replies = await processIncoming(exec, texto, sidOf(ctx));
+    // El aviso de cola: sólo se manda si de verdad hay que esperar. Con `c`
+    // (sin timeout) el de delante puede tardar minutos, y sin decir nada eso es
+    // indistinguible de que el bot te haya ignorado.
+    const replies = await processIncoming(exec, texto, sidOf(ctx), 'telegram', (delante) => {
+      void send(ctx, `⏳ Hay ${delante} turno(s) por delante en este tema. ` +
+        'Tu mensaje va en cola: no se pierde, se manda en cuanto acabe el anterior.');
+    });
     if (replies.length === 0) {
       await send(ctx, '(sin respuesta)');
     } else {

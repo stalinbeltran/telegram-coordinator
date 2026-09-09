@@ -4,6 +4,7 @@ import { parseCommands } from './protocol.js';
 import { COMMAND_TIMEOUT_MS, COORD_HOME, DATA_DIR } from './config.js';
 import { getWorkspace, cwdEnWorkspace } from './workspaces.js';
 import { empiezaTurno, acabaTurno } from './latido.js';
+import { enTurno, ColaLlena } from './cerrojo.js';
 // @ts-expect-error: modulo JS sin tipos, a proposito -- lo usan tambien
 // los scripts sueltos y anadirle un .d.ts seria una segunda definicion
 import { registrar } from '../scripts/errores.mjs';
@@ -41,6 +42,32 @@ export async function processIncoming(
   text: string,
   sessionId: string,
   origen: string = 'telegram',
+  alEsperar?: (delante: number) => void,
+): Promise<string[]> {
+  // ⚠ TODO el turno va dentro del cerrojo de su sesión: dos turnos del mismo
+  // tema no pueden solaparse, o dos `claude --resume <mismo uuid>` se pisan y la
+  // conversación queda corrupta. Temas distintos siguen corriendo a la vez.
+  //
+  // Se envuelve el turno ENTERO y no sólo el ejecutor: los encargados también
+  // hablan con el mismo estado (`claude-watch` mira el marker del tema), así que
+  // partir el cerrojo por la mitad dejaría una ventana abierta justo al final.
+  try {
+    return await enTurno(sessionId, () => correrTurno(executorName, text, sessionId, origen), alEsperar);
+  } catch (e) {
+    if (e instanceof ColaLlena) {
+      return [fail(`⏳ ${e.message}\nEspera a que se vacíe, o usa /end y vuelve luego.`)];
+    }
+    throw e;
+  }
+}
+
+/** Un turno completo: ejecutor → encargados → comandos. Siempre dentro del
+ *  cerrojo de su sesión; nadie debería llamarlo por fuera. */
+async function correrTurno(
+  executorName: string,
+  text: string,
+  sessionId: string,
+  origen: string,
 ): Promise<string[]> {
   const executor = await getExecutor(executorName);
   if (!executor) {

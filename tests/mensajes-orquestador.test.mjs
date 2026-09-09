@@ -120,3 +120,29 @@ test('mientras el ejecutor corre, el turno ESTÁ puesto', async () => {
   assert.deepEqual(turnos(), []);
   L.pararLatido();
 });
+
+// -------------------------------------------- el cerrojo, por el camino real
+
+test('dos turnos del mismo tema NO se solapan al pasar por el orquestador', async () => {
+  exec('lento2', { registrar: true, command: 'sleep 0.6' });
+  const t0 = Date.now();
+  await Promise.all([
+    processIncoming('lento2', 'uno', '-100_30'),
+    processIncoming('lento2', 'dos', '-100_30'),
+  ]);
+  assert.ok(Date.now() - t0 >= 1100,
+    'si tardara ~600 ms es que corrieron a la vez: dos `claude --resume` del ' +
+    'mismo uuid, que es lo que este cerrojo existe para impedir');
+  // Y el log tiene los cuatro mensajes, en orden y sin mezclarse.
+  assert.deepEqual(lineas('-100_30').map((m) => m.autor),
+    ['usuario', 'claude', 'usuario', 'claude']);
+});
+
+test('al segundo se le AVISA de que espera', async () => {
+  const avisos = [];
+  await Promise.all([
+    processIncoming('lento2', 'uno', '-100_31', 'telegram', (d) => avisos.push(d)),
+    processIncoming('lento2', 'dos', '-100_31', 'telegram', (d) => avisos.push(d)),
+  ]);
+  assert.deepEqual(avisos, [1], 'sólo al que de verdad tuvo que esperar');
+});
