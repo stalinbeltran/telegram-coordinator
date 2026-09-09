@@ -37,6 +37,17 @@ export interface Executor {
    * ofrecía un comando que sólo podía fallar. Ausente = no se comprueba.
    */
   requiere?: string[];
+  /**
+   * ¿Se guarda la conversación de este ejecutor en `data/mensajes/`?
+   *
+   * Es un DATO del JSON y no una lista de nombres en el código, a propósito: el
+   * coordinador no tiene por qué saber que `c` existe (filosofía 2 y R18), y así
+   * se puede registrar otro ejecutor cambiando un dato, sin tocar el enrutado ni
+   * reiniciar. Ausente = no se registra, que es lo que le conviene a `shell`:
+   * un `>>SHELL` puede volcar megabytes y el log es la conversación, no un
+   * almacén de salidas.
+   */
+  registrar?: boolean;
   /** Relleno al cargar; NO se escribe en el JSON. */
   origen?: Origen;
   /** Relleno al cargar: cuáles de `requiere` NO están. NO se escribe en el JSON. */

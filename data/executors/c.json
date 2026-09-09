@@ -12,5 +12,6 @@
     "echo",
     "claude-watch"
   ],
-  "timeoutMs": 0
+  "timeoutMs": 0,
+  "registrar": true
 }
