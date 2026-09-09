@@ -94,6 +94,30 @@ Es seguro porque cada mensaje es **una línea y un solo `write` en modo `a`**
 así que dos procesos no se intercalan a media línea. *(Leído, NO medido aquí; en
 otros sistemas de ficheros no se ha comprobado.)*
 
+## La purga
+
+**30 días o 300 mensajes por sesión, lo que llegue primero** (`COORD_LOG_DIAS`,
+`COORD_LOG_TOPE`). Corre **al arrancar el coordinador y una vez al día**.
+
+⚠ Al arrancar y no sólo cada 24 h porque estas máquinas se rehacen y se
+reinician constantemente: un ciclo que sólo dispara al día siguiente puede no
+dispararse nunca.
+
+⚠ **No es sólo higiene de disco.** El log tiene todo lo que Claude dijo,
+incluidas salidas de shell y rutas: la purga es lo que acota cuánto hay que
+perder si alguien entra en la máquina.
+
+⚠⚠ **Y la carrera con los desacoplados está resuelta, no ignorada.** Reescribir
+un fichero al que otros procesos hacen `append` puede perder lo que llegue entre
+que se lee y que se sustituye — y lo que se perdería es justo el aviso de un
+trabajo largo que acaba de terminar. Así que se escribe en un temporal y **antes
+de renombrar se comprueba que el original no ha crecido**; si creció, esa purga
+se salta. Es idempotente: vuelve mañana. Tiene test, con la costura para
+provocar el append a propósito.
+
+⚠ Una línea **sin fecha legible se conserva**: perder un mensaje por no saber
+cuándo es sería peor que guardar uno de más.
+
 ---
 
 ## El latido: `data/coordinador.json`

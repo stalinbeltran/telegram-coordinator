@@ -21,6 +21,8 @@ import {
 } from './workspaces.js';
 import { processIncoming } from './orchestrator.js';
 import { arrancarLatido } from './latido.js';
+// @ts-expect-error: modulo JS sin tipos (ver orchestrator.ts)
+import { purgarTodo, DIAS, TOPE_MENSAJES } from '../scripts/mensajes.mjs';
 import {
   LIMITE,
   TTL_MS,
@@ -491,6 +493,23 @@ export async function arrancar(): Promise<void> {
   // está atendiendo. Va aquí y no en `crearBot()` porque `crearBot` se importa
   // en los tests sin arrancar nada, y un test no tiene por qué escribir latidos.
   arrancarLatido();
+
+  // La purga del log: al arrancar y una vez al día. No es sólo higiene de disco
+  // —el log tiene todo lo que Claude dijo, incluidas salidas de shell— así que
+  // esto acota cuánto hay que perder si alguien entra en la máquina.
+  // ⚠ Al arrancar y no sólo cada 24 h porque estas máquinas se rehacen y se
+  // reinician constantemente: un ciclo que sólo dispara al día siguiente puede no
+  // dispararse nunca.
+  const purgar = () => {
+    const r = purgarTodo();
+    if (r.tocadas) {
+      console.log(`🧹 Purga del log: ${r.quitadas} mensaje(s) fuera de ${r.tocadas} tema(s) ` +
+        `(se conservan ${DIAS} días o ${TOPE_MENSAJES} mensajes, lo que llegue primero).`);
+    }
+  };
+  purgar();
+  setInterval(purgar, 86_400_000).unref();
+
   console.log('🚀 Coordinador arrancando (long polling)...');
   await bot.start({
     onStart: (info) => console.log(`Conectado como @${info.username}`),

@@ -52,7 +52,8 @@
 // resumer que reinyecta). Esos sucesos se registran como mensajes de `sistema`,
 // nunca se esconden.
 
-import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
+import { appendFileSync, mkdirSync, existsSync, readFileSync, writeFileSync,
+  statSync, renameSync, unlinkSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
@@ -178,4 +179,86 @@ export function publicar(m) {
     console.error(`[mensajes] no pude registrar: ${e?.message ?? e}`);
     return null;
   }
+}
+
+// ---------------------------------------------------------------------- purga
+
+/** Cuánto se conserva. Lo que llegue primero. */
+export const DIAS = Number(process.env.COORD_LOG_DIAS ?? 30);
+export const TOPE_MENSAJES = Number(process.env.COORD_LOG_TOPE ?? 300);
+
+/**
+ * Recorta el log de una sesión a `DIAS` días o `TOPE_MENSAJES` mensajes.
+ *
+ * No es sólo higiene de disco: el log tiene todo lo que Claude dijo, incluidas
+ * salidas de shell y rutas, así que la purga **acota cuánto hay que perder si
+ * alguien entra**. Por eso corre aunque el fichero sea pequeño.
+ *
+ * ⚠⚠ LA CARRERA CON LOS DESACOPLADOS, Y CÓMO SE EVITA.
+ * Reescribir un fichero al que otros procesos hacen `append` puede perder lo que
+ * llegue entre que se lee y que se sustituye. La ventana es de milisegundos, pero
+ * «raro» no es «nunca», y lo que se perdería es justo el aviso de un trabajo
+ * largo que acaba de terminar. Así que: se escribe en un temporal, y **antes de
+ * renombrar se comprueba que el original no ha crecido**. Si creció, esta purga
+ * se salta — no pasa nada, es idempotente y vuelve mañana.
+ *
+ * @param {Function} [alEscribirTmp] costura de test: se llama con el temporal ya
+ *   escrito y antes de sustituir, para poder provocar la carrera a propósito.
+ * @returns {{purgado:boolean, antes:number, despues:number, motivo?:string}}
+ */
+export function purgarSesion(sesion, ahora = Date.now(), alEscribirTmp = null) {
+  const f = rutaLog(sesion);
+  try {
+    if (!existsSync(f)) return { purgado: false, antes: 0, despues: 0, motivo: 'no existe' };
+    const tamañoAntes = statSync(f).size;
+    const lineas = readFileSync(f, 'utf8').split('\n').filter((l) => l.trim());
+
+    const limite = ahora - DIAS * 86_400_000;
+    const vivas = lineas.filter((l) => {
+      try {
+        const t = Date.parse(JSON.parse(l).ts);
+        // Una línea sin fecha legible se CONSERVA: perder un mensaje por no saber
+        // cuándo es sería peor que guardar uno de más.
+        return !Number.isFinite(t) || t >= limite;
+      } catch { return true; }
+    }).slice(-TOPE_MENSAJES);
+
+    if (vivas.length === lineas.length) {
+      return { purgado: false, antes: lineas.length, despues: lineas.length, motivo: 'nada que quitar' };
+    }
+
+    const tmp = `${f}.purgando`;
+    writeFileSync(tmp, vivas.join('\n') + '\n', 'utf8');
+    // Única costura para los tests: así se puede provocar el append de última
+    // hora y comprobar que NO se pierde. En producción no se pasa nunca.
+    if (alEscribirTmp) alEscribirTmp();
+    // ⚠ La comprobación que evita perder un append de última hora.
+    if (statSync(f).size !== tamañoAntes) {
+      unlinkSync(tmp);
+      return { purgado: false, antes: lineas.length, despues: lineas.length,
+        motivo: 'alguien escribió mientras purgaba: lo dejo para la próxima' };
+    }
+    renameSync(tmp, f);
+    return { purgado: true, antes: lineas.length, despues: vivas.length };
+  } catch (e) {
+    console.error(`[mensajes] no pude purgar ${sesion}: ${e?.message ?? e}`);
+    return { purgado: false, antes: 0, despues: 0, motivo: String(e?.message ?? e) };
+  }
+}
+
+/** Purga todas las sesiones. NUNCA lanza. Devuelve un resumen para el log. */
+export function purgarTodo(ahora = Date.now()) {
+  const dir = join(raizDatos(), 'mensajes');
+  let tocadas = 0, quitadas = 0;
+  try {
+    if (!existsSync(dir)) return { tocadas, quitadas };
+    for (const n of readdirSync(dir)) {
+      if (!n.endsWith('.jsonl')) continue;
+      const r = purgarSesion(n.slice(0, -6), ahora);
+      if (r.purgado) { tocadas++; quitadas += r.antes - r.despues; }
+    }
+  } catch (e) {
+    console.error(`[mensajes] no pude recorrer el log para purgar: ${e?.message ?? e}`);
+  }
+  return { tocadas, quitadas };
 }
