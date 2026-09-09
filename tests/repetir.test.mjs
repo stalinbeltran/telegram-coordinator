@@ -28,8 +28,15 @@ function prepararCwd({ claude, notify } = {}) {
   mkdirSync(join(dir, 'scripts'), { recursive: true });
   mkdirSync(join(dir, 'data', 'repeticiones'), { recursive: true });
   mkdirSync(join(dir, 'data', 'claude-sessions'), { recursive: true });
+  // ⚠ Esta lista es DECLARADA, así que hay que mantenerla: un `import` nuevo en
+  // cualquiera de estos scripts hace que el arnés falle con MODULE_NOT_FOUND y el
+  // test mide su propio montaje en vez de la regla. Pasó el 2026-09-09 al añadir
+  // `mensajes.mjs` — los cuatro tests del motor se pusieron en rojo de golpe. Es
+  // el mismo patrón que el fallo de `cwdEnWorkspace` («el repo estaba clonado; lo
+  // que faltaba era el FICHERO»), aquí dentro.
   for (const f of ['repetir.mjs', 'repetir-bucle.mjs', 'repetir-estado.mjs',
-                   'cargar-secretos.mjs', 'errores.mjs']) {
+                   'cargar-secretos.mjs', 'errores.mjs',
+                   'mensajes.mjs', 'redactar.mjs']) {
     copyFileSync(join(ROOT, 'scripts', f), join(dir, 'scripts', f));
   }
   // `notify.mjs` de mentira: escribe lo que le mandan en avisos.txt. Sin esto un

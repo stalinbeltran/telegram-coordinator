@@ -49,6 +49,7 @@
 // aquí porque dos copias de esa resolución divergen y nadie se entera.
 import { cargarSecretos } from './cargar-secretos.mjs';
 import { elegirDestino, haceCuanto, raizDeDatos } from './destino-telegram.mjs';
+import { publicar } from './mensajes.mjs';
 
 cargarSecretos();
 
@@ -189,6 +190,28 @@ async function main() {
       (respaldo.candidatos > 1 ? `, de ${respaldo.candidatos} temas` : '') + ')';
     console.error(`[notify] sin COORD_CHAT: elegido ${respaldo.sesion} (${respaldo.porque}).`);
   }
+
+  // Lo que se manda a Telegram se anota TAMBIÉN en el log del tema, para que la
+  // web y el chat vean lo mismo. Si sólo llegara a Telegram, un aviso de un
+  // trabajo largo aparecería en el chat y no en la app — y dos clientes que no
+  // ven lo mismo es exactamente lo que este log existe para evitar.
+  //
+  // ⚠ Va ANTES del envío a propósito: el fichero es la fuente de verdad y el
+  // aviso la comodidad, así que si Telegram falla el rastro ya está en disco.
+  // Y `publicar` NUNCA lanza, que es lo que permite llamarlo aquí: `notify` corre
+  // al final de cadenas lanzadas con `desacoplar-persistente.sh`, o sea unidades
+  // con `Restart=on-failure`, donde un fallo al final no es un fallo sino un
+  // BUCLE (62 relanzamientos medidos el 2026-09-04).
+  //
+  // El `autor` es `sistema` porque esto no lo dijo claude: lo compuso quien
+  // llamó a notify. Y el `origen` lo declara quien llama con `COORD_ORIGEN`
+  // —`repetir`, `resumer`—; sin él, `telegram`.
+  publicar({
+    sesion: process.env.COORD_SESSION || `${chat}_${thread || 'main'}`,
+    autor: 'sistema',
+    origen: process.env.COORD_ORIGEN || 'telegram',
+    texto: text,
+  });
 
   // El tema puede ser "main" (el General del grupo, sin hilo): ahí no se manda
   // message_thread_id, y mandarlo daría "message thread not found".

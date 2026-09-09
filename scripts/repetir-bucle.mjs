@@ -28,6 +28,7 @@ import {
   borrarEstado,
   markerDelTema,
 } from './repetir-estado.mjs';
+import { publicar } from './mensajes.mjs';
 
 // Siempre y de los DOS ficheros: una unidad de systemd nace sin credenciales
 // (no viajan a propósito, `sudo` las escribiría en claro en el journal).
@@ -42,6 +43,11 @@ function arg(nombre, def = null) {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : def;
 }
 const COMANDO = arg('--con', 'node scripts/claude-session.mjs');
+
+// Todo lo que salga de este bucle queda marcado como suyo en el log: los avisos
+// que manda por `notify.mjs` heredan esta variable, así que la web puede
+// distinguir una vuelta de `repetir` de un mensaje tuyo sin cablear nada.
+process.env.COORD_ORIGEN = 'repetir';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -170,6 +176,12 @@ async function main() {
       await avisar(`⏭️ Vuelta ${estado.hechas}/${estado.vueltas} saltada: ${ocupado}.`);
       continue;
     }
+
+    // La frase se anota como TUYA, porque lo es: la escribiste tú al armar la
+    // repetición y esto la reinyecta en tu nombre. La respuesta no se anota aquí:
+    // ya va dentro del aviso que manda `avisar()`, y anotarla dos veces la
+    // enseñaría duplicada en la web.
+    publicar({ sesion: SESION, autor: 'usuario', origen: 'repetir', texto: estado.frase });
 
     const r = await escribirAClaude(estado.frase, restante);
     estado = leerEstado(SESION) ?? estado;

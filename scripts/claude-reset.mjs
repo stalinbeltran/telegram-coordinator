@@ -19,6 +19,7 @@
 // de estar referenciada. Reiniciar es barato y no destruye nada.
 
 import { SESSION, readMarker, epochOf, uuidFor, writeMarker } from './claude-marker.mjs';
+import { publicar } from './mensajes.mjs';
 
 // El coordinador escribe el mensaje en stdin siempre; lo drenamos aunque no nos
 // importe su contenido, para no dejar la tubería a medias.
@@ -39,6 +40,20 @@ const epoch = previo + 1;
 // `started: false` es lo que hace que el próximo mensaje llame a claude con
 // `--session-id` (crear) en vez de `--resume` (continuar).
 await writeMarker(SESSION, { epoch, uuid: uuidFor(SESSION, epoch), started: false });
+
+// La DIVISORIA del log. Sin ella, un lector enseña el hilo entero como si claude
+// siguiera teniéndolo en contexto — y ésa es exactamente la clase de confusión
+// que cuesta media hora entender. El corte es un hecho del sistema, así que lo
+// anota quien lo provoca; el ejecutor `creset` no lleva `registrar` porque su
+// salida no es conversación.
+publicar({
+  sesion: SESSION,
+  autor: 'sistema',
+  origen: 'creset',
+  texto: `🔄 Conversación de claude reiniciada aquí (época ${previo} → ${epoch}). ` +
+    'Lo de arriba ya NO está en su contexto: sigue en el almacén de claude, pero ' +
+    'deja de estar referenciado.',
+});
 
 process.stdout.write(
   [

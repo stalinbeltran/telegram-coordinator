@@ -27,6 +27,7 @@ import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { isRateLimited, calculateWaitMs } from './limit-detect.mjs';
 import { cargarSecretos, pareceFalloDeLogin, pistaDeLogin } from './cargar-secretos.mjs';
+import { publicar } from './mensajes.mjs';
 
 // SIEMPRE, y de los DOS ficheros. Antes esto era `if (!BOT_TOKEN) loadEnvFile('.env')`,
 // y el guard estaba puesto sobre la variable equivocada: `desacoplar.sh` no deja
@@ -122,6 +123,16 @@ const TG_LIMIT = 4000;
 // mandar nada a Telegram, que es la única forma de testear el aviso de corte.
 const API_BASE = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org';
 async function tg(text) {
+  // Se anota ANTES de intentar el envío, y pase lo que pase con él: el fichero es
+  // la fuente de verdad y el aviso la comodidad. ⚠ Y `tg()` NO mira la respuesta
+  // de la API —está documentado en el CLAUDE.md—, así que sin esto un 400 (hilo
+  // borrado) se perdería del todo, sin quedar rastro en ningún sitio.
+  publicar({
+    sesion: process.env.COORD_SESSION || `${CHAT}_${THREAD || 'main'}`,
+    autor: 'sistema',
+    origen: 'resumer',
+    texto: text && text.length ? text : '(vacío)',
+  });
   if (!TOKEN || !CHAT) {
     console.error('[claude-resumer] Falta BOT_TOKEN o COORD_CHAT; no puedo avisar a Telegram.');
     return;
