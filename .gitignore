@@ -9,3 +9,5 @@ data/buffer/
 data/repeticiones/
 # El log de mensajes: TODO lo que se dijo, incluidas salidas de shell y rutas.
 data/mensajes/
+# El latido: dice si el bot sigue vivo y qué atiende AHORA. Es de esta máquina.
+data/coordinador.json

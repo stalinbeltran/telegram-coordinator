@@ -93,3 +93,40 @@ Es seguro porque cada mensaje es **una línea y un solo `write` en modo `a`**
 (`O_APPEND`): en Linux los write a un fichero regular se serializan por el inode,
 así que dos procesos no se intercalan a media línea. *(Leído, NO medido aquí; en
 otros sistemas de ficheros no se ha comprobado.)*
+
+---
+
+## El latido: `data/coordinador.json`
+
+Va aquí porque lo lee el mismo consumidor y por la misma razón: sin él, la web no
+puede distinguir **«claude está pensando»** de **«el bot está parado»**, y las dos
+se ven igual — una conversación que no avanza.
+
+```json
+{"pid": 30973, "arrancado": "2026-09-09T20:06:54Z", "visto": "2026-09-09T21:31:02Z",
+ "vence_ms": 45000,
+ "turnos": {"-1001234567_7": {"desde": "2026-09-09T21:30:58Z", "ejecutor": "c"}}}
+```
+
+| campo | qué es |
+|---|---|
+| `visto` | cuándo se refrescó por última vez. Se reescribe cada 15 s |
+| `vence_ms` | **la regla de caducidad viaja con el dato**: pasado eso desde `visto`, todo lo de este fichero se descarta |
+| `turnos` | qué sesiones tienen un ejecutor corriendo **ahora** |
+
+⚠⚠ **Los turnos viven DENTRO del latido, y eso no es por ahorrar un fichero.**
+El proceso puede morir por SIGKILL sin borrar nada, así que un fichero de turnos
+aparte sería un cerrojo sin dueño vivo — el fallo que ya costó el `.resume.lock`,
+donde un fallo de una tarde dejó una función muerta en silencio para siempre.
+Compartiendo fichero, cuando el latido vence **los turnos se caen con él**: no
+hay estado que sobreviva a su dueño, y no hay nada que limpiar.
+
+⚠ La ventana son **3 latidos** y no uno: un latido perdido por carga, o por un
+turno que bloquea el bucle un instante, no puede leerse como una caída.
+
+⚠ Y se escribe de forma **síncrona**. Con escrituras asíncronas sin esperar,
+empezar y terminar un turno son dos escrituras concurrentes del mismo fichero y
+pueden llegar en orden inverso: el latido se queda diciendo que hay un turno que
+ya acabó. Lo pilló su test de integración el 2026-09-09.
+
+Como el resto del estado por tema, **no se commitea**.

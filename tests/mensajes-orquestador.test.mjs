@@ -87,3 +87,36 @@ test('cada tema tiene su fichero: dos sesiones no se mezclan', () => {
   assert.equal(lineas('-100_7').length, 2);
   assert.equal(lineas('-100_9').length, 2);
 });
+
+// ------------------------------------------------- el turno en curso (latido)
+
+const L = await import('../src/latido.js');
+const turnos = () => {
+  const f = join(datos, 'coordinador.json');
+  return existsSync(f) ? Object.keys(JSON.parse(readFileSync(f, 'utf8')).turnos) : [];
+};
+
+test('el turno se SUELTA aunque el ejecutor falle', async () => {
+  await processIncoming('roto', 'x', '-100_20');
+  assert.deepEqual(turnos(), [],
+    'si un fallo dejara el turno puesto, la web diría «esperando respuesta» para ' +
+    'siempre en ese tema — y sólo se arreglaría reiniciando el bot');
+});
+
+test('el turno se suelta también cuando el ejecutor va bien', async () => {
+  await processIncoming('anotado', 'hola', '-100_21');
+  assert.deepEqual(turnos(), []);
+});
+
+test('mientras el ejecutor corre, el turno ESTÁ puesto', async () => {
+  // Un ejecutor que tarda lo justo para poder mirar el latido a mitad.
+  exec('lento', { registrar: true, command: 'sleep 1' });
+  const enMarcha = processIncoming('lento', 'x', '-100_22');
+  await new Promise((r) => setTimeout(r, 400));
+  assert.deepEqual(turnos(), ['-100_22'],
+    'sin esto la web parece colgada mientras claude piensa, que con `c` ' +
+    '(timeoutMs: 0) pueden ser minutos');
+  await enMarcha;
+  assert.deepEqual(turnos(), []);
+  L.pararLatido();
+});

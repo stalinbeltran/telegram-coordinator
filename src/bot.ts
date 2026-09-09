@@ -20,6 +20,7 @@ import {
   marcarDefecto,
 } from './workspaces.js';
 import { processIncoming } from './orchestrator.js';
+import { arrancarLatido } from './latido.js';
 import {
   LIMITE,
   TTL_MS,
@@ -486,6 +487,10 @@ export async function arrancar(): Promise<void> {
   if (aMedias) {
     console.log(`📥 ${aMedias} tema(s) con un pegado a medias en data/buffer/ (sobrevivieron al reinicio).`);
   }
+  // El latido: la web de lectura lo usa para saber si esto sigue vivo y qué
+  // está atendiendo. Va aquí y no en `crearBot()` porque `crearBot` se importa
+  // en los tests sin arrancar nada, y un test no tiene por qué escribir latidos.
+  arrancarLatido();
   console.log('🚀 Coordinador arrancando (long polling)...');
   await bot.start({
     onStart: (info) => console.log(`Conectado como @${info.username}`),

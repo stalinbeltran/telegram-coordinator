@@ -3,6 +3,7 @@ import { runCommand } from './runner.js';
 import { parseCommands } from './protocol.js';
 import { COMMAND_TIMEOUT_MS, COORD_HOME, DATA_DIR } from './config.js';
 import { getWorkspace, cwdEnWorkspace } from './workspaces.js';
+import { empiezaTurno, acabaTurno } from './latido.js';
 // @ts-expect-error: modulo JS sin tipos, a proposito -- lo usan tambien
 // los scripts sueltos y anadirle un .d.ts seria una segunda definicion
 import { registrar } from '../scripts/errores.mjs';
@@ -96,13 +97,23 @@ export async function processIncoming(
     return [m];
   }
 
-  const result = await runCommand(
-    executor.command,
-    text,
-    env,
-    executor.timeoutMs ?? COMMAND_TIMEOUT_MS,
-    dirEjecutor.cwd,
-  );
+  // Marcar el turno ANTES de lanzar el ejecutor y soltarlo pase lo que pase: sin
+  // esto la web parece colgada mientras claude piensa, que con `c` (timeoutMs: 0)
+  // pueden ser minutos. Si el bot muere aquí en medio no queda nada que limpiar:
+  // el turno vive dentro del latido y caduca con él.
+  empiezaTurno(sessionId, executor.name);
+  let result;
+  try {
+    result = await runCommand(
+      executor.command,
+      text,
+      env,
+      executor.timeoutMs ?? COMMAND_TIMEOUT_MS,
+      dirEjecutor.cwd,
+    );
+  } finally {
+    acabaTurno(sessionId);
+  }
   if (!result.ok) {
     const m = fail(`❌ Error del ejecutor "${executor.name}":\n${result.output}`);
     anota('sistema', m);
