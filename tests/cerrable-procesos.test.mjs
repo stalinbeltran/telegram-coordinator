@@ -294,3 +294,40 @@ test('preguntar por un trabajo no lo inventa: el freno no se cuenta a sí mismo'
     'el shell que pregunta no es el trabajo, y su padre tampoco');
   assert.doesNotMatch(stdout, /trabajo\(s\) vivo/);
 });
+
+test('GENERAR un dataset cuenta como trabajo: tarda tanto como entrenar', async () => {
+  // El agujero que `generar_paginas.py` tapó el 2026-09-09, y llevaba abierto
+  // desde que existe `experimentos-cnn`: `TRABAJOS` sólo tenía entrenamientos y
+  // flotas, así que rendir un dataset —21 min en `banco-k`, ~11 en `bor-p`— no
+  // casaba con nada y el veredicto decía «nada corriendo» con el navegador
+  // trabajando. Y lo que se pierde es peor que un entrenamiento a medias: un
+  // dataset a medias no es reanudable, se vuelve a pagar entero.
+  const m = maquina();
+  const exp = repo(m.casa, 'experimentos-cnn',
+    { '2026-09-09-bordes-parrafo/nn/generar_paginas.py': DORMIR });
+  const hijo = lanzar('node', [join(exp, '2026-09-09-bordes-parrafo/nn/generar_paginas.py')], exp);
+  try {
+    await esperarEnPs('generar_paginas\\.py');
+    const salida = await correr(m, '--breve');
+    assert.match(salida, /NO CERRAR/,
+      'una generación viva se pierde con la máquina igual que un entrenamiento');
+    assert.match(salida, /generar_paginas\.py/,
+      'y la línea breve tiene que nombrarlo: un 🔴 que no se puede contrastar se ignora');
+  } finally { hijo.kill('SIGKILL'); }
+});
+
+test('un `datos.py` cualquiera NO cuenta: el patrón no puede casar de más', async () => {
+  // La otra mitad, y es la que evita el 🔴 permanente. Se eligió el nombre
+  // `generar_paginas.py` justamente para no tener que casar `datos\.py`, que
+  // existe en varios repos y casaría con cualquier cosa. Si alguien "simplifica"
+  // el patrón a `datos\.py`, este test lo caza.
+  const m = maquina();
+  const exp = repo(m.casa, 'experimentos-cnn', { 'nn/datos.py': DORMIR });
+  const hijo = lanzar('node', [join(exp, 'nn/datos.py')], exp);
+  try {
+    await esperarEnPs(`${exp}/nn/datos\\.py`);
+    const salida = await correr(m, '--breve');
+    assert.match(salida, /CERRABLE/,
+      'un `datos.py` genérico no es trabajo declarado: casar de más da 🔴 permanentes');
+  } finally { hijo.kill('SIGKILL'); }
+});

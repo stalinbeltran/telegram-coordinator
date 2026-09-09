@@ -143,7 +143,17 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
 // Medido ese día con `plana-1k7sp`: 37 épocas, ~33 min de reloj, y el veredicto
 // no mencionaba ningún trabajo vivo. Casar el CLI no basta cuando alguien lo
 // llama como biblioteca.
-const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
+// ⚠ `generar_paginas.py` entró el 2026-09-09, y tapa un agujero que llevaba
+// abierto desde que existe `experimentos-cnn`: GENERAR un dataset tarda tanto
+// como entrenar —el de `banco-k` fueron 21 min de renders, `datos.py`— y no
+// casaba con ningún patrón de esta lista, así que el veredicto decía «nada
+// corriendo» con el navegador rindiendo. Y lo que se pierde no es poco: un
+// dataset a medias no es reanudable, se vuelve a pagar entero.
+// ⚠ Y por eso el de `bor-p` se llama `generar_paginas.py` y no `datos.py`:
+// `datos\.py` casaría con cualquier fichero llamado así en los siete repos, y un
+// patrón que casa de más da 🔴 permanentes. El nombre del script es la parte
+// barata de este contrato; el falso verde es la cara.
+const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar
