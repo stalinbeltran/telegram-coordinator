@@ -143,3 +143,26 @@ test('un mensaje normal sigue yendo directo al ejecutor', async () => {
   await enviar('hola, esto es corto');
   assert.equal(respuesta(), 'hola, esto es corto');
 });
+
+// ---------------------------------------- enviar SIN un mensaje del que colgarse
+
+test('enviarA manda a un tema sin necesitar un `ctx`: es la costura para la web', async () => {
+  const { enviarA } = await import('../src/bot.js');
+  salidas = [];
+  await enviarA(bot.api, CHAT, 77, 'un turno que no nació de Telegram');
+  const m = salidas.filter((s) => s.method === 'sendMessage');
+  assert.equal(m.length, 1);
+  assert.equal(m[0].payload.chat_id, CHAT);
+  assert.equal(m[0].payload.message_thread_id, 77);
+  assert.equal(m[0].payload.text, 'un turno que no nació de Telegram');
+});
+
+test('y sigue troceando: el límite es de Telegram, no de quien llame', async () => {
+  const { enviarA } = await import('../src/bot.js');
+  salidas = [];
+  await enviarA(bot.api, CHAT, undefined, 'x'.repeat(9000));
+  const m = salidas.filter((s) => s.method === 'sendMessage');
+  assert.equal(m.length, 3, '9000 caracteres son 3 trozos de 4000');
+  assert.equal(m[0].payload.message_thread_id, undefined,
+    'sin hilo se manda al General, y mandar un thread inexistente daría error');
+});

@@ -48,18 +48,36 @@ function sidOf(ctx: Context): string {
   return sessionId(ctx.chat!.id, ctx.message?.message_thread_id);
 }
 
-/** Envía texto respetando el tema (topic) y troceando mensajes largos.
- *  Devuelve lo enviado: el aviso de pegado necesita su `message_id` para poder
- *  EDITARLO en el trozo siguiente en vez de mandar N avisos. */
-async function send(ctx: Context, text: string): Promise<Message.TextMessage[]> {
-  const thread = ctx.message?.message_thread_id;
+/**
+ * Envía texto a un tema, troceando lo que pase del límite de Telegram.
+ *
+ * ⚠ Existe separado de `send()` porque **no todo lo que sale de aquí nace de un
+ * mensaje**: cuando la web pueda escribir, su turno tendrá que aparecer también
+ * en Telegram —si los dos clientes no ven lo mismo, el espejo miente— y ahí no
+ * hay ningún `ctx` del que sacar el chat. Es la costura que lo permite.
+ *
+ * Devuelve lo enviado: el aviso de pegado necesita su `message_id` para poder
+ * EDITARLO en el trozo siguiente en vez de mandar N avisos.
+ */
+export async function enviarA(
+  api: Bot['api'],
+  chatId: number,
+  threadId: number | undefined,
+  text: string,
+): Promise<Message.TextMessage[]> {
   const body = text.length ? text : '(vacío)';
-  console.log(`[OUT] chat=${ctx.chat?.id} thread=${thread ?? '-'} text=${JSON.stringify(body.slice(0, 200))}`);
+  console.log(`[OUT] chat=${chatId} thread=${threadId ?? '-'} text=${JSON.stringify(body.slice(0, 200))}`);
   const enviados: Message.TextMessage[] = [];
   for (let i = 0; i < body.length; i += TELEGRAM_LIMIT) {
-    enviados.push(await ctx.reply(body.slice(i, i + TELEGRAM_LIMIT), { message_thread_id: thread }));
+    enviados.push(await api.sendMessage(chatId, body.slice(i, i + TELEGRAM_LIMIT),
+      { message_thread_id: threadId }));
   }
   return enviados;
+}
+
+/** Lo mismo, para cuando sí hay un mensaje del que colgarse. */
+function send(ctx: Context, text: string): Promise<Message.TextMessage[]> {
+  return enviarA(ctx.api, ctx.chat!.id, ctx.message?.message_thread_id, text);
 }
 
 /** Corre el ejecutor de la sesión con el texto YA completo y responde.
