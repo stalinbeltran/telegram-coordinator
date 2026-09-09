@@ -7,3 +7,5 @@ data/shell-cwd/
 data/ws/
 data/buffer/
 data/repeticiones/
+# El log de mensajes: TODO lo que se dijo, incluidas salidas de shell y rutas.
+data/mensajes/
