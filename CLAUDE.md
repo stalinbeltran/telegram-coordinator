@@ -839,6 +839,47 @@ trabajo lanzado desde un tema atado a un workspace escribía su estado en el `da
 | ❌ que una vuelta se salte por actividad tuya, en vivo | probado en test, **no** contra un tema real |
 
 
+## ⏳ LO PRIMERO SI ACABAS DE NACER: tres verificaciones que quedaron a medias (2026-09-10)
+
+Ese día se construyeron dos cosas que **funcionan en test y no se han visto
+funcionar enteras**, porque el ciclo que las prueba es *destruir un server y
+relanzarlo* — y el server se destruyó justo después de escribir esto. Lo que
+sigue no es historia: es trabajo que hay que terminar.
+
+1. **La app móvil vuelve a estar alcanzable tras rehacer la máquina.**
+   `claude-code-webapp-mobile` se sirve por `tailscale serve`, y la PWA del móvil
+   apunta al **nombre** del nodo. Al rehacer el dev, el nodo viejo seguía
+   registrado y el nuevo entraba como `dev-1`, matando esa URL. Arreglado: el nodo
+   se da de baja solo antes de morir (`tailscale logout`, medido: nombre libre en
+   **2 s** contra ~75 min esperando), vía un gancho genérico `pre_destroy` en los
+   descriptores de servicio del lanzador.
+   **Los seis pasos de la comprobación, y los tres requisitos previos sin los
+   cuales no puede salir bien**, en
+   [`claude-code-webapp-mobile/docs/pendiente-verificar.md`](https://github.com/stalinbeltran/claude-code-webapp-mobile/blob/main/docs/pendiente-verificar.md).
+   ⚠ El que más se olvida: `tailscale-unir.mjs` cambió cómo pasa la authkey y
+   **sólo se ha ejercitado re-uniendo**, nunca desde una máquina virgen. Si falla,
+   el dev nace **sin tailscale** y la web no se ve por ningún lado.
+
+2. **`launch` no comprueba el llavero, y una máquina puede nacer coja.**
+   De las 17 variables que exige `llavero.json`, al dev le faltaban 5 — entre
+   ellas `DO_SSH_USER`, que está en esa lista **precisamente porque** su ausencia
+   ya hizo que un mini renacido cayera al default `root`. La lección se aprendió,
+   se anotó, y el mecanismo sigue permitiendo repetirla. Se descubrió a mano, al
+   ir a rehacer el mini; **nada lo comprueba en código**.
+   El fallo, lo que hay que decidir antes de arreglarlo y los cinco tests que
+   pide, en
+   [`digital-ocean-dropplet-auto-launching/docs/pendiente-preflight-llavero.md`](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/pendiente-preflight-llavero.md).
+   ⚠ **No lo "arregles" rellenando el llavero de esta máquina**: eso arregla este
+   server, y estos servers se destruyen.
+
+3. **Dos cosas que sólo puede hacer el dueño, y bloquean la 1.**
+   Borrar el nodo `dev` viejo en la consola de Tailscale (es un resto **no
+   efímero**, anterior al mecanismo) y **rotar la `TS_AUTHKEY`**, que se filtró en
+   claro en el journal el 2026-09-10 (arreglado en código; la clave filtrada sigue
+   siendo válida hasta que se rote, y es `Reusable`). Si el dueño no las ha hecho,
+   la verificación 1 falla por un motivo que **no** es el mecanismo — dilo en vez
+   de dar el arreglo por roto.
+
 ## Seguridad (tratar con seriedad)
 
 - La allowlist `ALLOWED_USER_IDS` es la única defensa. No la elimines ni la
