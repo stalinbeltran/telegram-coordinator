@@ -839,26 +839,35 @@ trabajo lanzado desde un tema atado a un workspace escribía su estado en el `da
 | ❌ que una vuelta se salte por actividad tuya, en vivo | probado en test, **no** contra un tema real |
 
 
-## ⏳ LO PRIMERO SI ACABAS DE NACER: tres verificaciones que quedaron a medias (2026-09-10)
+## ⏳ LO PRIMERO SI ACABAS DE NACER: qué quedó a medias (2026-09-10, actualizado esa noche)
 
-Ese día se construyeron dos cosas que **funcionan en test y no se han visto
-funcionar enteras**, porque el ciclo que las prueba es *destruir un server y
-relanzarlo* — y el server se destruyó justo después de escribir esto. Lo que
-sigue no es historia: es trabajo que hay que terminar.
+Ese día se construyeron dos cosas que funcionaban en test y no se habían visto
+funcionar enteras, porque el ciclo que las prueba es *destruir un server y
+relanzarlo*. **El ciclo ocurrió esa misma noche y esta máquina es su resultado**,
+así que el punto 1 ya está medido — y lo que salió de él no es lo que esta lista
+esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
 
-1. **La app móvil vuelve a estar alcanzable tras rehacer la máquina.**
-   `claude-code-webapp-mobile` se sirve por `tailscale serve`, y la PWA del móvil
-   apunta al **nombre** del nodo. Al rehacer el dev, el nodo viejo seguía
-   registrado y el nuevo entraba como `dev-1`, matando esa URL. Arreglado: el nodo
-   se da de baja solo antes de morir (`tailscale logout`, medido: nombre libre en
-   **2 s** contra ~75 min esperando), vía un gancho genérico `pre_destroy` en los
-   descriptores de servicio del lanzador.
-   **Los seis pasos de la comprobación, y los tres requisitos previos sin los
-   cuales no puede salir bien**, en
-   [`claude-code-webapp-mobile/docs/pendiente-verificar.md`](https://github.com/stalinbeltran/claude-code-webapp-mobile/blob/main/docs/pendiente-verificar.md).
-   ⚠ El que más se olvida: `tailscale-unir.mjs` cambió cómo pasa la authkey y
-   **sólo se ha ejercitado re-uniendo**, nunca desde una máquina virgen. Si falla,
-   el dev nace **sin tailscale** y la web no se ve por ningún lado.
+1. ✅ **La app móvil: EL CICLO YA OCURRIÓ (2026-09-10, noche). Arreglado y
+   verificado en vivo — pero no por el motivo que esta lista esperaba.**
+   Este server **es** el dev nuevo (nació a las 20:00 UTC). Lo que sí salió: el
+   nodo se unió desde una máquina **virgen** con `--auth-key=file:` —que era el ❌
+   más temido de la lista— sin filtrar la clave, y recuperó el nombre `dev`.
+   **Y aun así la app no se veía**, por un fallo que nadie había previsto: el
+   `serve` se quedó publicando bajo `dev-2`, el nombre que el nodo tenía **antes**
+   de recuperar el bueno. O sea que **la reparación fue la que rompió**, y ninguna
+   de las dos direcciones servía.
+   ⚠⚠ **La lección, que es de las que se repiten:** se vigilaba la deriva
+   «nombre pedido ↔ nombre del nodo», y el nodo tenía el nombre **correcto**, así
+   que el freno no podía saltar. La que mordió es **la otra mitad del par**:
+   «nodo ↔ serve». Y el paso de reponer el serve **ya existía y se ejecutó** —
+   reintentar a ciegas no arregla esto, porque el reintento es lo que lo escribe
+   mal. El freno va en el **dato** (comparar el host publicado con el del nodo),
+   no en el timing.
+   Arreglado en `claude-code-webapp-mobile` (`448b579`), 8 tests nuevos, 105/105.
+   El detalle medido, en
+   [`docs/pendiente-verificar.md`](https://github.com/stalinbeltran/claude-code-webapp-mobile/blob/main/docs/pendiente-verificar.md).
+   ⚠ **Lo que SIGUE sin verse**: el `pre_destroy` disparado por un `destroy` de
+   verdad. Esta máquina es la que nació, no la que murió.
 
 2. **`launch` no comprueba el llavero, y una máquina puede nacer coja.**
    De las 17 variables que exige `llavero.json`, al dev le faltaban 5 — entre
@@ -872,13 +881,13 @@ sigue no es historia: es trabajo que hay que terminar.
    ⚠ **No lo "arregles" rellenando el llavero de esta máquina**: eso arregla este
    server, y estos servers se destruyen.
 
-3. **Dos cosas que sólo puede hacer el dueño, y bloquean la 1.**
-   Borrar el nodo `dev` viejo en la consola de Tailscale (es un resto **no
-   efímero**, anterior al mecanismo) y **rotar la `TS_AUTHKEY`**, que se filtró en
-   claro en el journal el 2026-09-10 (arreglado en código; la clave filtrada sigue
-   siendo válida hasta que se rote, y es `Reusable`). Si el dueño no las ha hecho,
-   la verificación 1 falla por un motivo que **no** es el mecanismo — dilo en vez
-   de dar el arreglo por roto.
+3. **Una cosa que sólo puede hacer el dueño: rotar la `TS_AUTHKEY`.**
+   Se filtró en claro en el journal el 2026-09-10 (arreglado en código; **la clave
+   filtrada sigue siendo válida hasta que se rote, y es `Reusable`**). Desde aquí
+   no se puede comprobar si ya se hizo.
+   ✅ Lo otro que había aquí —borrar el nodo `dev` viejo en la consola— **ya no
+   hace falta**: comprobado el 2026-09-10 por la noche, la tailnet tiene 2 nodos
+   (`dev` y el móvil). Se limpió.
 
 ## Seguridad (tratar con seriedad)
 
