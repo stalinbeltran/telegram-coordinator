@@ -24,6 +24,13 @@ export const PATRONES = [
   [/dop_v1_[a-f0-9]{64}/g, 'TOKEN-DIGITALOCEAN'],
   [/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, 'CLAVE-PRIVADA'],
   [/AKIA[0-9A-Z]{16}/g, 'CLAVE-AWS'],
+  // ⚠ Tailscale, desde el 2026-09-10. Entró ANTES de que hiciera falta, que es
+  // la única vez que sirve: el dueño iba a pegar una authkey en el chat para
+  // instalarla, y sin este patrón habría quedado en claro en `data/mensajes/` —
+  // que además se sirve por HTTPS a la app. Cubre `tskey-auth-`, `tskey-api-` y
+  // `tskey-client-` (el secreto de un OAuth client), que se parecen lo bastante
+  // como para que olvidar uno sea gratis y caro a la vez.
+  [/tskey-[a-z]+-[A-Za-z0-9]+-[A-Za-z0-9]+/g, 'CLAVE-TAILSCALE'],
 ];
 
 export function ficherosDeSecretos() {
