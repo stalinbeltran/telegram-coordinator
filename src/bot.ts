@@ -21,6 +21,7 @@ import {
 } from './workspaces.js';
 import { processIncoming } from './orchestrator.js';
 import { arrancarLatido } from './latido.js';
+import { vigilarEntrada } from './entrada.js';
 // @ts-expect-error: modulo JS sin tipos (ver orchestrator.ts)
 import { purgarTodo, DIAS, TOPE_MENSAJES } from '../scripts/mensajes.mjs';
 import {
@@ -533,6 +534,10 @@ export async function arrancar(): Promise<void> {
   };
   purgar();
   setInterval(purgar, 86_400_000).unref();
+
+  // La entrada desde la web: ficheros que deja el servidor de lectura y que
+  // entran por el MISMO camino que un mensaje de Telegram.
+  vigilarEntrada(bot, enviarA);
 
   console.log('🚀 Coordinador arrancando (long polling)...');
   await bot.start({

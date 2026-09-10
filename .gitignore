@@ -11,3 +11,5 @@ data/repeticiones/
 data/mensajes/
 # El latido: dice si el bot sigue vivo y qué atiende AHORA. Es de esta máquina.
 data/coordinador.json
+# Lo que la web deja para que el coordinador lo atienda. Efímero.
+data/entrada/
