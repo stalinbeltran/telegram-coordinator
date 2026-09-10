@@ -56,7 +56,13 @@ function coordEn(padre) {
   mkdirSync(join(semilla, 'data'), { recursive: true });
   mkdirSync(join(semilla, 'scripts'), { recursive: true });
   writeFileSync(join(semilla, 'data', 'fuentes.json'), '{"fuentes":["~/src/*/telegram"]}\n');
-  for (const f of ['cerrable.mjs', 'workspaces-locales.mjs', 'git-pendiente.mjs']) {
+  for (const f of [
+    // ⚠ Lista DECLARADA: un `import` nuevo en `cerrable.mjs` la deja corta y
+    // TODOS los tests de este arnés se caen a la vez con MODULE_NOT_FOUND —
+    // midiendo su propio montaje en vez de la regla. Pasó el 2026-09-10 al
+    // añadir `codigo-vivo.mjs`, y es la tercera vez que muerde esta misma forma
+    // («el repo estaba clonado; lo que faltaba era el FICHERO»).
+    'cerrable.mjs', 'workspaces-locales.mjs', 'git-pendiente.mjs', 'codigo-vivo.mjs']) {
     sh(`cp ${join(RAIZ, 'scripts', f)} ${join(semilla, 'scripts', f)}`, padre);
   }
   sh(`${G} add -A`, semilla);

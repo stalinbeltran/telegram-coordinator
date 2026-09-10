@@ -50,7 +50,7 @@ function repoEn(padre, nombre) {
     mkdirSync(join(semilla, 'data'), { recursive: true });
     mkdirSync(join(semilla, 'scripts'), { recursive: true });
     writeFileSync(join(semilla, 'data', 'fuentes.json'), '{"fuentes":["~/src/*/telegram"]}\n');
-    for (const f of ['cerrable.mjs', 'workspaces-locales.mjs', 'git-pendiente.mjs']) {
+    for (const f of ['cerrable.mjs', 'workspaces-locales.mjs', 'git-pendiente.mjs', 'codigo-vivo.mjs']) {
       sh(`cp ${join(RAIZ, 'scripts', f)} ${join(semilla, 'scripts', f)}`, padre);
     }
   }

@@ -30,6 +30,7 @@ import { readFileSync, existsSync, readlinkSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
 import { dentroDe, workspacesLocales } from './workspaces-locales.mjs';
 import { razonesGit, IGNORA_AL_MONTAR } from './git-pendiente.mjs';
+import { codigoVivo } from './codigo-vivo.mjs';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
@@ -468,6 +469,28 @@ for (const { raiz, montado } of LOCALES) {
 }
 if (!razones.some((r) => r.tipo === 'git')) limpio.push('todo commiteado y empujado');
 
+/**
+ * ⚠ «El bot corre código anterior» va en ESTA línea, que es la única que se lee
+ * siempre — pero NO cambia el veredicto, y esa distinción importa: si apagas la
+ * máquina con código sin desplegar no pierdes nada (está en git). Lo que se
+ * pierde es la ILUSIÓN de que un cambio commiteado ya está haciendo efecto.
+ *
+ * Costó tres veces en dos días, y la tercera de verdad: se añadió el patrón que
+ * redacta las authkeys de Tailscale, el bot siguió con el redactor viejo, y una
+ * authkey real quedó en claro en el log. El patrón estaba en git y no protegía
+ * nada.
+ *
+ * ⚠ Sale sólo cuando hay commits de `src/` o `scripts/` posteriores al arranque,
+ * o sea una condición transitoria que se apaga al reiniciar. No es el aviso que
+ * sale siempre y se deja de leer.
+ */
+function avisoCodigo() {
+  try {
+    const c = codigoVivo();
+    return c.ok ? '' : ` · ⚠ el bot corre código ANTERIOR (${c.commits} commit(s) sin desplegar)`;
+  } catch { return ''; }   // esto nunca puede tumbar el freno
+}
+
 // ---------------------------------------------------------------- el veredicto
 const estado = dudas.length ? 'NO SÉ' : (razones.length ? 'NO CERRAR' : 'CERRABLE');
 const icono = { 'NO CERRAR': '🔴', 'NO SÉ': '🟡', CERRABLE: '🟢' }[estado];
@@ -486,9 +509,9 @@ if (BREVE) {
   if (git) partes.push(`${git} cambio(s) sin empujar${repos.length === 1 ? ` en ${repos[0]}` : ''}`);
   const motivo = partes.length ? partes.join(' · ')
     : (dudas.length ? dudas.join(' · ') : 'nada alquilado, nada corriendo, todo empujado');
-  console.log(`${icono} **${estado}** — ${motivo}`);
+  console.log(`${icono} **${estado}** — ${motivo}${avisoCodigo()}`);
 } else {
-  console.log(`\n${icono}  ${estado}\n`);
+  console.log(`\n${icono}  ${estado}${avisoCodigo()}\n`);
   if (razones.length) {
     console.log('Se perdería / seguiría costando:');
     for (const r of razones) console.log(`  · ${r.largo}`);

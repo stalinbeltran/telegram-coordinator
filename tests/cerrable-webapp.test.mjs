@@ -84,7 +84,7 @@ function maquina() {
   writeFileSync(join(raiz, '.config', 'dev-secrets.env'), '');
 
   const scripts = {};
-  for (const f of ['cerrable.mjs', 'workspaces-locales.mjs', 'git-pendiente.mjs']) {
+  for (const f of ['cerrable.mjs', 'workspaces-locales.mjs', 'git-pendiente.mjs', 'codigo-vivo.mjs']) {
     scripts[join('scripts', f)] = readFileSync(join(RAIZ, 'scripts', f), 'utf8');
   }
   const coord = repo(casa, 'telegram-coordinator', {
