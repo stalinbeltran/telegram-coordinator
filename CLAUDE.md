@@ -889,6 +889,65 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    hace falta**: comprobado el 2026-09-10 por la noche, la tailnet tiene 2 nodos
    (`dev` y el móvil). Se limpió.
 
+4. ⚠ **El log de errores se ESCRIBE, no se empuja — y ningún Claude sabe que existe.**
+   **Pedido por el dueño el 2026-09-11**, y son **dos** cosas que hay que hacer juntas
+   porque por separado ninguna sirve: que el log **sobreviva a la máquina**, y que
+   **alguien lo lea**.
+
+   **(a) Nadie lo commitea.** `scripts/errores.mjs:51-56` elige
+   `foveal-vision-data/errores/` y su **única** llamada a git es un `rev-parse` para anotar
+   la versión del código (línea 69). El comentario de la línea 52 da el motivo de escribir
+   ahí: en el repo de código quedaría *«donde nadie lo mira y sin commitear»*. **Pero en el
+   de datos tampoco lo commitea nadie**, así que el acoplamiento que justifica arrastrar ese
+   repo **no entrega lo que promete**.
+
+   **Medido el 2026-09-11, destruyendo el mini.** Tenía **8 registros en disco y 4
+   commiteados**; los 4 de ese día —los cuatro `ejecutor_fallo` de `lanzar`, *«Ya existe un
+   droplet llamado 'dev'»*— existían **sólo en el disco de una máquina que se estaba
+   destruyendo**. Se sacaron por SSH minutos antes de que se fuera. En el dev, el último
+   commit que tocó `errores/` era del **2026-09-08 y hecho a mano**.
+
+   > **Un artefacto que sólo sobrevive si alguien se acuerda, no sobrevive.** Es la regla 3
+   > de escritura por el otro lado: allí un marcador sin dueño vivo no es un cerrojo; aquí
+   > un registro sin quien lo empuje no es un registro.
+
+   ⚠ **Tres cosas que decidir ANTES de tocarlo, y ninguna es obvia:**
+   1. **El push no puede poder tumbar el bot.** `registrar` **nunca lanza**, y eso está
+      garantizado a propósito (`src/orchestrator.ts:22`). Meterle git por dentro es meterle
+      red y disco: si eso escapa, **un error se convierte en una caída**. Es exactamente lo
+      que ya se pagó dos veces con `notify.mjs` (2026-09-02 y 2026-09-04, 62 relanzamientos)
+      y cuya lección es *«si el aviso puede matar el trabajo, ya no es una comodidad»*.
+   2. **Un push por error, no.** Dos máquinas escriben **el mismo fichero del mes** y eso
+      **choca**: medido ese día, `errores/2026/09-septiembre/2026-09.jsonl` tenía 4 líneas
+      de `dev` y 4 de `mini`. Las salidas —un fichero por máquina, o `pull --rebase` antes
+      de empujar, o un volcado periódico en vez de uno por error— **no son equivalentes** y
+      hay que elegir, no improvisar.
+   3. **Tampoco síncrono en el camino del mensaje**: un error costaría entonces una ida y
+      vuelta de red.
+
+   ✅ **Lo que NO hay que resolver: la redacción ya está.** `errores.mjs:38,77-80` usa
+   `redactar.mjs`, el mismo módulo que el archivador de conversaciones. Empujar esto a git
+   no abre la puerta que § «Las conversaciones se archivan solas» cierra.
+
+   **(b) Y que Claude sepa que se están guardando** — la mitad que el dueño nombró aparte, y
+   la que de verdad hace útil a la otra. Hoy **nada** lo dice: el hook `SessionStart` no los
+   menciona, no hay ejecutor que los lea, y este fichero no los nombraba hasta ahora. Un
+   Claude recién nacido no sabe que ese fichero existe, así que el dato se recoge y **no se
+   usa jamás** — que sale igual que no recogerlo, pero cuesta. El propósito que el dueño
+   escribió al crear el archivo de conversaciones (2026-08-31) era *«contar con data útil en
+   caso de necesitarlo para depurar»*; esto es eso, a medias.
+
+   ⚠ **Y la restricción que decide el diseño de (b): un aviso que sale siempre se deja de
+   leer en una semana** (patrón B, ya documentado aquí). O sea que **no** puede ser «los
+   errores» en cada arranque: tiene que ser **los que no se han visto**, o nada.
+
+   **Mientras no esté hecho**, lo que sí se puede hacer hoy y cuesta un comando:
+
+   ```bash
+   ls ~/src/foveal-vision-data/errores/$(date -u +%Y)/*/                # ¿hay algo?
+   cd ~/src/foveal-vision-data && git status --porcelain -- errores/    # ¿sin empujar?
+   ```
+
 ## Seguridad (tratar con seriedad)
 
 - La allowlist `ALLOWED_USER_IDS` es la única defensa. No la elimines ni la
