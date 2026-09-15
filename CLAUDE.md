@@ -726,6 +726,13 @@ reportes/
   tocar el coordinador. Sin flags, manda el default de claude. El hilo depende del tema
   (`COORD_SESSION`), no del ejecutor: cambiar de variante en el mismo tema
   **conserva** la conversación.
+  Y se cambia **desde la conversación**: una primera línea `#modelo opus high` en
+  un mensaje a `c` guarda un override por tema en `data/claude-profile/`
+  (`scripts/claude-profile.mjs`) que pisa la plantilla campo a campo; `#modelo
+  global …` fija el default de todos los temas, `#modelo reset` lo quita y
+  `#modelo` a secas lo consulta. El texto que siga a esa línea va a claude con
+  el perfil nuevo; una orden sola no llama a claude ni toca el marker. Va con
+  `#` porque `/` es control del coordinador y no llega al ejecutor.
 - **Permisos de claude** (`CLAUDE_PERMISSION_MODE`): `default` (pide permiso,
   suele bloquear en `-p`), `acceptEdits`, o `bypassPermissions` (⚠️ autonomía
   total). Tras cambiarlo, reiniciar el bot.

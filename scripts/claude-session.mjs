@@ -18,6 +18,12 @@
 //   --model  : alias ("fable", "opus", "sonnet") o nombre completo ("claude-opus-5").
 //   --effort : low | medium | high | xhigh | max
 //
+// Y cambiable DESDE LA CONVERSACIÓN, sin editar nada: si la primera línea del
+// mensaje es `#modelo opus high`, este tema pasa a usar ese perfil (por encima
+// de la plantilla) y lo que haya debajo va a claude ya con él. `#modelo` a
+// secas dice qué perfil se está usando; `#modelo reset` vuelve a la plantilla;
+// `#modelo global …` fija el default de todos los temas. Ver claude-profile.mjs.
+//
 // Permisos: por defecto "acceptEdits" (claude puede crear/editar archivos sin
 // preguntar, pero no más). Para autonomía total ponlo en .env:
 //     CLAUDE_PERMISSION_MODE=bypassPermissions   (⚠️ claude ejecuta cualquier cosa)
@@ -33,6 +39,7 @@ import {
   writeMarker,
 } from './claude-marker.mjs';
 import { cargarSecretos, pareceFalloDeLogin, pistaDeLogin } from './cargar-secretos.mjs';
+import { parseCommand, applyCommand, resolveProfile, explain } from './claude-profile.mjs';
 
 // Los secretos, de disco. Lanzado por el bot no hace falta (el unit arranca con
 // `bash -lc` y ya trae CLAUDE_CODE_OAUTH_TOKEN), pero este script se compone
@@ -69,11 +76,10 @@ function parseProfile(argv) {
   return profile;
 }
 
-const profile = parseProfile(process.argv.slice(2));
-const profileArgs = [
-  ...(profile.model ? ['--model', profile.model] : []),
-  ...(profile.effort ? ['--effort', profile.effort] : []),
-];
+const template = parseProfile(process.argv.slice(2));
+// Se rellena tras leer el mensaje: una orden `#modelo` en la primera línea
+// cambia el perfil ANTES de llamar a claude.
+let profileArgs = [];
 
 function readStdin() {
   return new Promise((res) => {
@@ -101,11 +107,36 @@ function runClaude(mode, uuid, prompt) {
   });
 }
 
-const prompt = (await readStdin()).trim();
+let prompt = (await readStdin()).trim();
 if (!prompt) {
   console.error('Mensaje vacío.');
   process.exit(1);
 }
+
+// ¿La primera línea es una orden de perfil? Se aplica, se confirma, y si no hay
+// nada más que decir se termina aquí sin llamar a claude (ni tocar el marker:
+// la conversación no ha avanzado).
+let aviso = '';
+const orden = parseCommand(prompt);
+if (orden) {
+  if (orden.error) {
+    console.error(`#modelo: ${orden.error} Uso: #modelo [global] <modelo> [esfuerzo] | reset`);
+    process.exit(1);
+  }
+  await applyCommand(orden, SESSION);
+  aviso = explain(orden, SESSION, template);
+  if (!orden.rest) {
+    process.stdout.write(aviso);
+    process.exit(0);
+  }
+  prompt = orden.rest;
+}
+
+const profile = resolveProfile(template, SESSION);
+profileArgs = [
+  ...(profile.model ? ['--model', profile.model] : []),
+  ...(profile.effort ? ['--effort', profile.effort] : []),
+];
 
 const marker = readMarker();
 const epoch = epochOf(marker);
@@ -129,7 +160,10 @@ if (!res.ok && !isRateLimited(`${res.err}\n${res.out}`)) {
 
 if (res.ok) {
   await writeMarker(SESSION, { epoch, uuid, started: true });
-  process.stdout.write(res.out.trim() || '(sin respuesta de claude)');
+  const respuesta = res.out.trim() || '(sin respuesta de claude)';
+  process.stdout.write(aviso ? `${aviso}
+
+${respuesta}` : respuesta);
 } else if (isRateLimited(`${res.err}\n${res.out}`)) {
   // Límite de tokens: NO es un error fatal para el flujo. Volcamos el banner a
   // stdout y salimos con código 0 para que el ejecutor se considere "exitoso" y

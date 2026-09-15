@@ -417,6 +417,32 @@ Y como el hilo de claude se deriva del **tema** (`COORD_SESSION`), no del
 ejecutor, puedes cambiar de perfil a mitad de conversación sin perder contexto:
 `/end` y `/use c-barato` en el mismo tema continúan la misma charla.
 
+### Cambiar el modelo desde la conversación (`#modelo`)
+
+Sin editar JSON ni cambiar de ejecutor: si la **primera línea** de un mensaje a
+`c` empieza por `#modelo`, es una orden de perfil y no llega a claude.
+
+```
+#modelo opus high         → este tema usa opus/high a partir de ahora
+#modelo sonnet            → solo el modelo; el esfuerzo se queda como estaba
+#modelo max               → solo el esfuerzo
+#modelo global opus high  → default para TODOS los temas sin perfil propio
+#modelo reset             → este tema vuelve a lo que diga la plantilla
+#modelo global reset      → quita el default global
+#modelo                   → ¿qué perfil usa este tema y de dónde sale?
+```
+
+Si debajo de esa línea hay más texto, va a claude ya con el perfil nuevo; si no,
+solo se confirma el cambio (no se llama a claude ni avanza la conversación). El
+perfil se guarda por tema en `data/claude-profile/` (efímero, ignorado por git)
+y se aplica a los mensajes siguientes sin repetir la orden. La precedencia es
+**tema > global > plantilla > default de claude**, campo a campo: `#modelo opus`
+cambia el modelo y conserva el esfuerzo que hubiera. `repetir` lo hereda porque
+también pasa por `claude-session.mjs`.
+
+El prefijo es `#` y no `/` a propósito: lo que empieza por `/` es un comando de
+control del coordinador y nunca llega al ejecutor.
+
 ### Empezar de cero sin cambiar de tema (`/use creset`)
 
 El id de la conversación **no se guarda: se deriva** del tema. Eso da la memoria
