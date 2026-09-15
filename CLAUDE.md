@@ -868,6 +868,31 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    [`docs/pendiente-verificar.md`](https://github.com/stalinbeltran/claude-code-webapp-mobile/blob/main/docs/pendiente-verificar.md).
    ⚠ **Lo que SIGUE sin verse**: el `pre_destroy` disparado por un `destroy` de
    verdad. Esta máquina es la que nació, no la que murió.
+   ⚠⚠ **Y VOLVIÓ A PASAR EL 2026-09-15, por una tercera puerta — arreglado ese
+   día.** Este dev nació con la web móvil inalcanzable **otra vez**, y otra vez
+   sin que ningún freno pudiera saltar: la unidad arrancó **sin token** a las
+   15:36:42 —y el bind se decide **al arrancar**—, el token apareció a las
+   15:46:53, y desde entonces `instalar`, `arrancar` y `estado` daban los tres
+   **verde** mientras el móvil seguía sin poder entrar. Ninguno lo arreglaba:
+   `instalar` no reiniciaba la unidad, `arrancar` hacía `start` sobre algo ya
+   activo (no-op) y `estado` deducía el bind **del disco**.
+   **La forma es la de siempre y por eso se repite**: se vigilaba un par
+   («¿hay token?») y el fallo estaba en el **otro** («¿lo está usando el proceso
+   vivo?»). El freno va en el **dato observable** —aquí, el socket—, nunca en lo
+   que debería haber pasado.
+   Arreglado en `claude-code-webapp-mobile` (`6f1207f`): **el token lo crea el
+   servidor al arrancar**, así que no puede faltar; `estado` pregunta a `ss` y
+   **grita** si disco y socket no coinciden. 8 tests nuevos, 106/106.
+
+   ⚠ **Y lo que esto significa para ti si acabas de nacer: la URL de la web móvil
+   CAMBIA con cada dev.** Es una decisión del dueño de ese día —*«el token se crea
+   nuevo siempre»*—, así que `CWEB_TOKEN` ya **no** viaja en el llavero
+   (`ce5f724` del lanzador). No hay nada que configurar; la URL se pide, y la da
+   ya comprobada (no la compone a ciegas):
+
+   ```
+   /use cweb   →   url
+   ```
 
 2. **`launch` no comprueba el llavero, y una máquina puede nacer coja.**
    De las 17 variables que exige `llavero.json`, al dev le faltaban 5 — entre
