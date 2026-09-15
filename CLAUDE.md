@@ -894,6 +894,72 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    /use cweb   →   url
    ```
 
+   ⚠⚠ **Y OTRA VEZ EL MISMO DÍA, por una CUARTA puerta — y ésta no estaba en la
+   máquina.** El dev seguía sin verse desde el móvil **después** de `6f1207f`, y
+   el motivo es el que ninguna de las tres puertas anteriores podía tener: el
+   **puerto 8020 no estaba abierto en `ufw`**. Medido: `ss` decía `0.0.0.0:8020`,
+   había token, la unidad estaba `active` con `Result=success` y `NRestarts=0`, y
+   `curl` desde la propia máquina daba **200** — porque ese tráfico va por `lo` y
+   `ufw` lo deja pasar. El `8010` de `foveal-vision-web` sí funcionaba desde el
+   móvil, y **esa asimetría era todo el diagnóstico**: dos apps iguales, una
+   abierta en el cortafuegos y la otra no.
+
+   **La causa raíz no estaba en el dev ni en la app: estaba en el MINI.** Su copia
+   del lanzador llevaba **6 commits de retraso** (HEAD del 11-sep, la era de
+   Tailscale), así que parió este dev con la receta vieja, en la que
+   `services/claude-web.json` decía `install: node scripts/acceso.mjs unir` — un
+   script **borrado el 12-sep**. La cadena, sin un solo error a la vista:
+
+       install → MODULE_NOT_FOUND → `|| echo AVISO` → log del provision, que NO
+       sobrevive → provision sale con 0 → nadie se entera
+
+   Y quien abre el puerto en `ufw` es precisamente ese `cweb instalar` que nunca
+   corrió. **El arreglo llevaba tres días en `main`** — de ahí que la conversación
+   anterior «lo corrigiera» y no funcionara: se corrigió en git, y el mini seguía
+   lanzando con la receta de antes.
+
+   **Las tres lecciones, y la primera es la que se repite:**
+   1. **«Está corregido en `main`» no es «está en la máquina que lo corre».** El
+      `⚠` de más abajo —*«un tipo que cambia sólo llega a las máquinas creadas
+      después, y sólo si el mini tiene el repo del lanzador al día»*— estaba
+      escrito **y no protegía nada**, porque nada lo comprobaba. Escrito como nota,
+      mordió.
+   2. **El dato que falta no siempre está en la máquina que falla.** Aquí estaba en
+      **quien la parió**, así que ningún preflight, ni `cweb estado`, ni el freno
+      del propio dev podía verlo. Por eso el freno va en `launch`, del lado del
+      lanzador.
+   3. **Un `AVISO` que sólo vive en un log que no sobrevive es un aviso que no
+      existe.** Es la misma regla que el § del log de errores (punto 4): *un
+      artefacto que sólo sobrevive si alguien se acuerda, no sobrevive*.
+
+   ✅ **Arreglado el 2026-09-15 en el lanzador (`e1a6171`):**
+   `comprobar_lanzador_al_dia()` es la **primera** comprobación de `launch` —local,
+   **0,2 s medidos**— y **mata antes de crear nada** si esta copia está por detrás
+   de su remoto, con el número de commits y el comando que lo arregla. Tres estados
+   como `comprobar_github_token`: al día pasa, **viejo mata**, y la **duda avisa y
+   sigue** (sin red no se podría lanzar nunca, y eso es estorbar en vez de
+   proteger). Emergencia: `--sin-version`. **17 casos** en
+   `tests/test_lanzador_al_dia.py`, los cinco primeros contra repos git de verdad;
+   todos caen con el código anterior. Comprobado reproduciendo el HEAD real del
+   mini: dice *«6 commit(s) por detrás de origin/main»* y no deja lanzar.
+
+   ⚠ **Lo que NO está arreglado, y hay que decidirlo:** `provision` **sigue
+   saliendo con 0** cuando el `install` de un servicio falla — el `AVISO` está en
+   `do_droplet.py` (`|| echo "  AVISO: …: falló la instalación."`) y se pierde con
+   el log. El freno de arriba tapa **la causa de hoy** (receta vieja), no **la
+   clase entera** (un `install` que falla por cualquier otro motivo). No se metió en
+   el mismo commit a propósito: `provision` es también **el remedio**, y bloquearlo
+   sería meter la salida de emergencia dentro de aquello de lo que quieres salir.
+
+   ⚠ **Y un hallazgo aparte, que dejó al dueño sin el mando que lo diagnosticaba:**
+   `/use cweb` → `url` falló con *«este tema trabaja en el workspace
+   `~/ws/tema-2`, y ahí no está el repo `claude-code-webapp-mobile`»*. O sea que
+   **el único mando que sabía decir «ufw bloquea el 8020» era inalcanzable desde el
+   móvil**, que es desde donde se opera. Es la decisión 2 del § `/ws` mordiendo por
+   el lado bueno (se negó en vez de mentir), pero el efecto es que un diagnóstico
+   quedó fuera de alcance justo cuando hacía falta. Salidas de hoy: `/ws off` en
+   ese tema, o clonar el repo en el workspace.
+
 2. **`launch` no comprueba el llavero, y una máquina puede nacer coja.**
    De las 17 variables que exige `llavero.json`, al dev le faltaban 5 — entre
    ellas `DO_SSH_USER`, que está en esa lista **precisamente porque** su ausencia
@@ -1996,6 +2062,14 @@ dispara, en
 ⚠ Un tipo que cambia sólo llega a las máquinas creadas **después**, y sólo si el mini
 tiene el repo del lanzador al día: es él quien lee `types/dev.json` al lanzar. Tras
 tocar un tipo, `actualizar` en el Lanzador.
+
+⚠⚠ **Y esto de aquí arriba estaba escrito, se incumplió, y costó un dev entero el
+2026-09-15**: el mini lanzó con 6 commits de retraso y el dev nació con la web móvil
+inalcanzable (el detalle, en el punto 1 del § «LO PRIMERO SI ACABAS DE NACER»). **Una
+nota no es un freno.** Desde `e1a6171` sí lo hay: `launch` **se niega a lanzar** si la
+copia del lanzador está por detrás de su remoto, y dice cuántos commits y cómo
+arreglarlo. O sea que esto ya no depende de acordarse — pero sigue siendo más barato
+correr `actualizar` que chocar con el freno.
 
 La versión larga y explícita, si hace falta lanzar sin tipo (desde la máquina
 lanzadora, no desde aquí):
