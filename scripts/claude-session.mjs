@@ -12,7 +12,7 @@
 //
 // Perfil (modelo + esfuerzo) como DATO, no como código: se declara en la
 // plantilla del ejecutor, así que puedes tener varias variantes sin tocar nada:
-//     node scripts/claude-session.mjs --model opus   --effort high
+//     node scripts/claude-session.mjs --model fable  --effort max
 //     node scripts/claude-session.mjs --model sonnet --effort low
 // Sin flags, claude usa sus propios valores por defecto.
 //   --model  : alias ("fable", "opus", "sonnet") o nombre completo ("claude-opus-5").

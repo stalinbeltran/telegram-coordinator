@@ -1,13 +1,13 @@
 {
   "name": "c",
-  "descripcion": "Conversa con claude (opus, esfuerzo max) con memoria por tema.",
+  "descripcion": "Conversa con claude (fable, esfuerzo max) con memoria por tema.",
   "ejemplos": [
     "¿qué cambió en este repo esta semana?"
   ],
   "requiere": [
     "claude"
   ],
-  "command": "node scripts/claude-session.mjs --model opus --effort max",
+  "command": "node scripts/claude-session.mjs --model fable --effort max",
   "encargados": [
     "echo",
     "claude-watch"

@@ -6,7 +6,7 @@
 //   node scripts/repetir-bucle.mjs --con "node scripts/claude-session.mjs"
 //
 // El COMANDO de claude es un ARGUMENTO, no una constante: así el ejecutor
-// `repetir` declara en su JSON los mismos flags que `c` (`--model opus --effort
+// `repetir` declara en su JSON los mismos flags que `c` (`--model fable --effort
 // max`) y cambiar de variante no toca este fichero. Filosofía 2 de CLAUDE.md.
 //
 // Qué NO hace, a propósito:

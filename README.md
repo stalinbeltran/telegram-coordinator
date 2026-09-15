@@ -397,7 +397,14 @@ node scripts/claude-session.mjs --model <alias|nombre> --effort <nivel>
 - `--effort` — `low`, `medium`, `high`, `xhigh`, `max`.
 - Sin flags, claude usa sus propios valores por defecto.
 
-El ejecutor `c` viene con `--model opus --effort max`.
+El ejecutor `c` viene con `--model fable --effort max`.
+
+> **Fable 5.1 necesita `claude` 2.1.251 o más nuevo.** Con una CLI anterior el
+> alias `fable` resuelve a Fable 5 y el nombre `claude-fable-5-1` da error 400
+> («does not support this model»). Compruébalo con `claude --version` y
+> actualiza con `npm i -g @anthropic-ai/claude-code` (aquí `claude update`
+> falló a medias y dejó la CLI sin ejecutable; la reinstalación con npm lo
+> arregló).
 
 Crear variantes no requiere tocar código: desde Telegram, con `definer`,
 

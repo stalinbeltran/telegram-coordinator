@@ -9,7 +9,7 @@
     "off"
   ],
   "requiere": ["claude"],
-  "command": "node scripts/repetir.mjs --con \"node scripts/claude-session.mjs --model opus --effort max\"",
+  "command": "node scripts/repetir.mjs --con \"node scripts/claude-session.mjs --model fable --effort max\"",
   "encargados": ["echo"],
   "timeoutMs": 0
 }
