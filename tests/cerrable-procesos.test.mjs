@@ -316,6 +316,44 @@ test('GENERAR un dataset cuenta como trabajo: tarda tanto como entrenar', async 
   } finally { hijo.kill('SIGKILL'); }
 });
 
+test('EVALUAR un kernel cuenta: entrena de verdad, pero con otro nombre', async () => {
+  // El agujero del 2026-09-17, y la forma es la que se repite: parecía cubierto.
+  // `banco-k` entrena ~9 min por kernel, pero `calibrar.py:54` hace
+  // `from entrenar_local import correr` EN PROCESO, así que el nombre que sí
+  // estaba en `TRABAJOS` no aparece en ninguna línea de comando. La real es
+  // `python -u nn/evaluar_kernel.py --kernel …` (`nn/lanzar.sh:114`).
+  // Un `import` no se ve desde `ps`: lo que se declara aquí es lo que se EJECUTA.
+  const m = maquina();
+  const exp = repo(m.casa, 'experimentos-cnn',
+    { '2026-09-08-banco-kernels/nn/evaluar_kernel.py': DORMIR });
+  const hijo = lanzar('node',
+    [join(exp, '2026-09-08-banco-kernels/nn/evaluar_kernel.py'), '--kernel', 'k.npy'], exp);
+  try {
+    await esperarEnPs('evaluar_kernel\\.py');
+    const salida = await correr(m, '--breve');
+    assert.match(salida, /NO CERRAR/,
+      'apagar a mitad pierde las 10 semillas ya corridas: se vuelven a pagar enteras');
+    assert.match(salida, /evaluar_kernel\.py/,
+      'y la línea breve tiene que nombrarlo, o el 🔴 no se puede contrastar');
+  } finally { hijo.kill('SIGKILL'); }
+});
+
+test('CALIBRAR el banco también cuenta: es la más larga de las dos', async () => {
+  // ~1 h según `nn/lanzar.sh:5`. Entra por el mismo motivo que la de arriba y se
+  // prueba aparte porque es OTRO nombre: cubrir uno no cubre al otro, que es
+  // justo el error que dejó el agujero abierto.
+  const m = maquina();
+  const exp = repo(m.casa, 'experimentos-cnn',
+    { '2026-09-08-banco-kernels/nn/calibrar.py': DORMIR });
+  const hijo = lanzar('node', [join(exp, '2026-09-08-banco-kernels/nn/calibrar.py'), '--todo'], exp);
+  try {
+    await esperarEnPs('calibrar\\.py');
+    const salida = await correr(m, '--breve');
+    assert.match(salida, /NO CERRAR/);
+    assert.match(salida, /calibrar\.py/);
+  } finally { hijo.kill('SIGKILL'); }
+});
+
 test('un `datos.py` cualquiera NO cuenta: el patrón no puede casar de más', async () => {
   // La otra mitad, y es la que evita el 🔴 permanente. Se eligió el nombre
   // `generar_paginas.py` justamente para no tener que casar `datos\.py`, que

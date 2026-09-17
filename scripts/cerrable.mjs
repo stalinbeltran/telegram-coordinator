@@ -163,10 +163,19 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
 // corriendo» con el navegador rindiendo. Y lo que se pierde no es poco: un
 // dataset a medias no es reanudable, se vuelve a pagar entero.
 // ⚠ Y por eso el de `bor-p` se llama `generar_paginas.py` y no `datos.py`:
+// ⚠ Y `evaluar_kernel\.py`/`calibrar\.py` entraron el 2026-09-17, porque
+// `entrenar_local\.py` NO los cubría y parecía que sí. El banco de kernels
+// entrena de verdad —~9 min por kernel, ~1 h la calibración— pero lo hace
+// IMPORTANDO `entrenar_local` en proceso (`banco-k/nn/calibrar.py:54`), así que
+// ese nombre no aparece en ninguna línea de comando: la real es
+// `python -u nn/evaluar_kernel.py --kernel …` (`nn/lanzar.sh:114`). Comprobado
+// ese día pasando esa línea por este mismo patrón: NO la veía. O sea el falso
+// verde otra vez, y por la vía de siempre —«ya está cubierto»— sin que nadie
+// mirase qué se ejecuta. Un `import` no se ve desde `ps`.
 // `datos\.py` casaría con cualquier fichero llamado así en los siete repos, y un
 // patrón que casa de más da 🔴 permanentes. El nombre del script es la parte
 // barata de este contrato; el falso verde es la cara.
-const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
+const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|evaluar_kernel\.py|calibrar\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar

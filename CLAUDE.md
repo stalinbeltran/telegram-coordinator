@@ -939,6 +939,21 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
       existe.** Es la misma regla que el § del log de errores (punto 4): *un
       artefacto que sólo sobrevive si alguien se acuerda, no sobrevive*.
 
+   ✅ **Y la lección se aplicó, con lo que esta máquina tiene TRES apps web.** El
+   2026-09-17 nació `gauss-p` (`experimentos-cnn`, visor para elegir el `sigma` de la
+   gaussiana de `banco-k`) en el **8030**, y se construyó con las cuatro puertas de
+   arriba delante: el **token lo crea el servidor al arrancar** —no se configura, así
+   que no puede faltar—, el puerto se abrió en `ufw` **en el mismo paso** que la unidad,
+   y su `estado` pregunta al **socket** (`ss`) y al **cortafuegos**, nunca al disco,
+   diciendo además lo único que no puede comprobar: *«la red de en medio»*. Desde
+   Telegram, `/use gaussp` → `url`.
+   ⚠ Y una quinta puerta que se descubrió al escribirla: `StartLimitIntervalSec` y
+   `StartLimitBurst` van en **`[Unit]`**, no en `[Service]`. Puestas en `[Service]`,
+   systemd las **ignora** con un aviso en el journal que nadie mira — o sea el
+   limitador de reinicios que existe para acotar el bucle de `Restart=`, apagado en
+   silencio. Se comprueba con `systemctl show <unidad> -p StartLimitIntervalUSec`.
+   Las tres apps: **8010** `foveal-vision-web` · **8020** `claude-web` · **8030** `gauss-p`.
+
    ✅ **Arreglado el 2026-09-15 en el lanzador (`e1a6171`):**
    `comprobar_lanzador_al_dia()` es la **primera** comprobación de `launch` —local,
    **0,2 s medidos**— y **mata antes de crear nada** si esta copia está por detrás
@@ -1192,6 +1207,19 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    ⚠ Y el **servicio** (`fv-api`, `web_app.py`) **no** entra: está vivo desde que arranca la máquina,
    así que contarlo sería un 🔴 permanente — el aviso que sale siempre y se deja de leer. Lo que corre
    *dentro* de él se pregunta aparte.
+
+   ⚠⚠ **Y «ya está cubierto» hay que COMPROBARLO, no deducirlo del nombre.** Medido el
+   2026-09-17: el banco de kernels de `experimentos-cnn` entrena de verdad —~9 min por kernel,
+   ~1 h la calibración— y `TRABAJOS` **no lo veía**, pese a tener `entrenar_local\.py`, que es
+   justo lo que ese banco ejecuta. El motivo es que lo ejecuta **importándolo en proceso**
+   (`banco-k/nn/calibrar.py:54`, `from entrenar_local import correr`), así que ese nombre no
+   aparece en ninguna línea de comando: la real es `python -u nn/evaluar_kernel.py --kernel …`
+   (`nn/lanzar.sh:114`). **Un `import` no se ve desde `ps`.** Se comprobó pasando la línea real
+   por el propio patrón, que es lo que había que hacer antes de darlo por cubierto — y por eso
+   entraron `evaluar_kernel\.py` y `calibrar\.py`, **los dos**, con un test cada uno: cubrir
+   un nombre no cubre al otro, que es exactamente el error que dejó el agujero abierto.
+   Dos tests en `tests/cerrable-procesos.test.mjs`; **los dos fallan con el patrón anterior.**
+   **La regla práctica: lo que se declara aquí es lo que se EJECUTA, no lo que se importa.**
 
 7. **Se cuentan TRABAJOS, no procesos.** `desacoplar.sh` envuelve el comando en
    `sudo … systemd-run … sh -c '…'`, y cada envoltorio lleva la línea entera del hijo: casan los
