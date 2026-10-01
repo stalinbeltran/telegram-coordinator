@@ -1003,6 +1003,10 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    (`dev` y el móvil). Se limpió.
 
 4. ⚠ **El log de errores se ESCRIBE, no se empuja — y ningún Claude sabe que existe.**
+   ⚠ **ACTUALIZADO el 2026-10-01: el destino ya no es GitHub, es el ALMACÉN** (§ «EL
+   ALMACÉN», más abajo): el `origin` del repo de datos apunta al volumen del mini. Lo de
+   abajo sigue en pie en lo que importa —**nadie commitea ni empuja `errores/`**—; el
+   último rescate a mano fue ese mismo día (`15e683b`: el mini con una línea sin empujar).
    **Pedido por el dueño el 2026-09-11**, y son **dos** cosas que hay que hacer juntas
    porque por separado ninguna sirve: que el log **sobreviva a la máquina**, y que
    **alguien lo lea**.
@@ -1071,6 +1075,58 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
   logs ni al chat. (Un mensaje a `c` pidiendo leer `.env` filtró el token una
   vez; si vuelve a pasar, avisa al usuario para rotarlo.)
 - `.env` y los datos efímeros están en `.gitignore`. No los commitees.
+
+## 🗄 EL ALMACÉN: dónde se guarda TODO dato (desde el 2026-10-01)
+
+**Regla del dueño, y manda sobre la costumbre anterior:** *«todo dato, aun siendo temporal,
+se guarda ahí en vez de en el repo de datos como hemos hecho hasta ahora»*. «Ahí» es el
+**almacén**: un volumen de DigitalOcean (`datos`, 1 GB, `nyc1`, 0,10 $/mes) conectado al
+mini y montado en `/mnt/datos`, que sirve por SSH **repos git desnudos** desde un usuario
+`datos` sin shell. `foveal-vision-data` vive ahí como ORIGEN; GitHub quedó como remoto
+`github`, **copia congelada que ya no se actualiza**. Git y no un servicio web porque el
+dueño lo pidió así, y porque git ya trae la regla que importa.
+
+Lo que cambia para ti, en tres puntos:
+
+1. **`git push` en `~/src/foveal-vision-data` va al almacén**, no a GitHub: su `origin` es
+   `almacen:/mnt/datos/git/foveal-vision-data.git`. El alias `almacen` vive en
+   `~/.ssh/config`, lo escribe `do_droplet.py almacen conectar`, y el `post` de cada dev lo
+   deja puesto al nacer. Todo lo que ya empujaba —conversaciones, estudios, datasets,
+   errores— sigue igual **sin tocar una línea** (ninguno cablea la URL; comprobado).
+2. **Lo que antes moría en `/tmp` también se guarda**: logs de flota, resultados a medias,
+   la salida de un trabajo largo. Van al repo de datos en `temporal/<máquina>/<fecha>/`,
+   commiteados y empujados. **«Lo que no está empujado AL ALMACÉN, no existe.»**
+3. **Nadie borra.** El remoto rechaza borrar ramas y reescribir historia
+   (`receive.denyDeletes` + `denyNonFastForwards` + hook `pre-receive`, que además apunta
+   cada push en `/mnt/datos/log/pushes.log`); un fichero quitado en un commit sigue en la
+   historia. **«Nosotros»** es root en el mini (`sudo`, clave de flota). Como no se borra, lo
+   único que puede pasarle al disco es llenarse: antes de meter algo grande (>20 MB) mira
+   `/use almacen` → `estado` (**45 % usado el día que nació**, con el espejo de 355 MB
+   dentro), y crece con `lanzar volume resize datos --size-gb N`. Los pesos `.pt` y los
+   `.npz` de runs siguen fuera, como siempre (`.gitignore` del repo de datos).
+
+**Qué sobrevive a qué.** El volumen sobrevive a **reiniciar** y a **destruir** el mini: es
+de la cuenta, no del droplet, y `launch mini` lo reconecta y monta solo porque está
+declarado en `types/mini.json` (`volume`), y su `post` reinstala el servicio git **sin tocar
+el contenido** (`almacen instalar`, idempotente). Lo que NO sobrevive a rehacer el mini es su
+**IP**: cada dev vivo repite `/use almacen` → `conectar`; los dev nuevos nacen conectados.
+La carpeta `datos/` de la demo de SisPla también vive en el volumen desde ese día. El ciclo
+completo —destruir y rehacer el mini de verdad— está medido en
+[`docs/almacen.md` del lanzador](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/almacen.md) § 5.
+
+⚠ **El mini apagado = los push fallan, ruidosamente.** Es a propósito: lo contrario de
+irse a GitHub en silencio. Lo commiteado se queda y se reintenta.
+
+⚠ **El volumen es UNA copia.** DigitalOcean lo replica en su centro de datos, no contra
+`volume destroy` ni contra un error en la cuenta. Un espejo a GitHub costaría cero y **no
+está puesto**, porque el dueño pidió «en vez de» GitHub; es decisión suya. Y por lo mismo:
+**`volume destroy datos` no se corre nunca**, igual que el mini no se destruye en ninguna
+limpieza.
+
+⚠ **Lo que NO arregla:** `errores.mjs` sigue escribiendo sin commitear (punto 4 de «LO
+PRIMERO»). El almacén es el destino; el empujón periódico sigue pendiente de decidir.
+
+Desde Telegram: `/use almacen` → `estado` · `conectar` · `probar`.
 
 ## Estos servidores son efímeros: lo que no está empujado, no existe
 
