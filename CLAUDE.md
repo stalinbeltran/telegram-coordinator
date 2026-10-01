@@ -882,13 +882,15 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
       clonan el repo de datos, y los dos se conectan.
    2. ✅ **El freno no veía droplets de DO** (dijo 🟢 con el hijo facturando). Ver § «¿Se
       puede apagar este server?», donde está el arreglo y sus cinco decisiones.
-   3. ✅ **El llavero: 15/16 en las dos máquinas.** `FVW_WEB_TOKEN` es el token vivo de la web
-      de foveal-vision (el manual de secretos manda llevarlo en el llavero); `TGL2_ALLOWED_USER_IDS`
-      = el de `TGL_`; `TGL_CLAUDE_PERMISSION_MODE` = `acceptEdits`, que es lo que ya valía sin
-      ella (`claude-session.mjs:52`; el mini no tiene Claude Code). ⏳ **Falta
-      `TGL2_BOT_TOKEN`**, y sólo puede darlo el dueño: es un bot nuevo de @BotFather. ⚠ **No
-      se pega en el chat**: el bot escribe el texto entero de cada mensaje en el journal
-      (`src/bot.ts:207`, `[IN] … text=…`).
+   3. ✅ **El llavero: 14/14 en las dos máquinas.** `FVW_WEB_TOKEN` es el token vivo de la web
+      de foveal-vision (el manual de secretos manda llevarlo en el llavero);
+      `TGL_CLAUDE_PERMISSION_MODE` = `acceptEdits`, que es lo que ya valía sin ella
+      (`claude-session.mjs:52`; el mini no tiene Claude Code). Las dos `TGL2_` —el bot de
+      staging— **salieron del llavero** ese mismo día: el dueño dijo *«No necesito el bot de
+      staging»*, y la vía para rehacer el mini con el viejo vivo pasa a ser nacer con
+      `--service ''` (`flota-simetrica.md` §5 del lanzador, `c14a504`).
+      ⚠ **Y si algún día hace falta un token nuevo: no se pega en el chat.** El bot escribe el
+      texto entero de cada mensaje en el journal (`src/bot.ts:207`, `[IN] … text=…`).
    4. ✅ **Vast: de 19 claves a 1.** Toda la flota usa para Vast la **clave de flota**
       (`VAST_SSH_KEY_FILE` en dev-secrets.env, que pone `_mandar_clave_flota`), así que ya no
       nace una por máquina; las 19 viejas se podaron. La excepción a «un proveedor, una clave»
