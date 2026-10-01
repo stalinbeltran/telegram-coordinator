@@ -241,6 +241,82 @@ if (!existsSync(lanzador)) {
   }
 }
 
+// ---------------------------------------------------------------- 1 bis. droplets de DO
+// ⚠ Hasta el 2026-10-01 esto sólo miraba Vast, y DigitalOcean no salía en
+// ninguna línea. Medido ese día: con `prueba-almacen` —un droplet lanzado DESDE
+// este dev para probar el almacén— vivo y facturando, `--breve` dijo «🟢
+// CERRABLE — nada alquilado». Destruir el dev en ese momento dejaba el hijo vivo,
+// con el llavero entero dentro, hasta que alguien corriera `apagar-do`. El mismo
+// daño que una máquina de Vast sin vigilante, por la otra nube.
+//
+// Qué cuenta: TODO droplet, salvo los que traen un dato que los exima —nunca por
+// convención de nombres (R16):
+//   (a) esta misma máquina, por su ID de droplet (API de metadatos, como
+//       `bench-preflight.mjs`; `CERRABLE_DROPLET_ID` lo fija en los tests). El
+//       hostname NO: es un nombre, y el lanzador ya lo descartó por eso;
+//   (b) tag `control`: el mini, que no se destruye en ninguna limpieza;
+//   (c) tag `atendida`: la pone `launch` cuando la máquina corre DE VERDAD un
+//       servicio que da mando propio (los dos bots). Sin (c), el `/use cerrable`
+//       del mini diría 🔴 SIEMPRE por el dev —el aviso que sale siempre y se deja
+//       de leer—. Y no se deduce del tipo: `prueba-almacen` era `--type dev
+//       --service ''`, o sea un dev SIN bot.
+// No se filtra por `status`: un droplet apagado factura igual.
+//
+// Igual que Vast: se pregunta al lanzador en vez de a la API, y si no contesta es
+// NO SÉ — no saber qué hay vivo nunca puede leerse como permiso. Y antes de nada,
+// se le pregunta QUÉ NUBES hay (`estado_nubes.py --nubes`, la lista única): este
+// freno sabía de una sola nube y por eso no vio la otra; una tercera tiene que
+// llegar aquí como duda, no como silencio.
+const NUBES_QUE_SE_MIRAR = new Set(['DigitalOcean', 'Vast.ai']);
+if (existsSync(lanzador)) {
+  const nubes = sh('python3 scripts/estado_nubes.py --nubes', lanzador);
+  // «¿lanzador sin actualizar?» va en los dos avisos porque es la causa más
+  // probable y la menos obvia: un lanzador anterior al 2026-10-01 no conoce ni
+  // `--nubes` ni `--json`, y sin la pista esto se leería como red o token.
+  if (nubes === null) {
+    dudas.push('`estado_nubes.py --nubes` falló (¿lanzador sin actualizar?): no sé qué nubes hay que mirar');
+  } else {
+    for (const n of nubes.split('\n').map((s) => s.trim()).filter(Boolean)) {
+      if (!NUBES_QUE_SE_MIRAR.has(n)) {
+        dudas.push(`el lanzador conoce la nube «${n}» y este freno no sabe mirarla: NO sé si hay algo vivo allí`);
+      }
+    }
+  }
+
+  const salida = sh(`sh -c '. ~/.config/dev-secrets.env 2>/dev/null; python3 scripts/do_droplet.py list --json'`, lanzador);
+  let droplets = null;
+  try { droplets = salida === null ? null : JSON.parse(salida); } catch { droplets = null; }
+  if (!Array.isArray(droplets)) {
+    dudas.push('`do_droplet.py list --json` falló (¿token? ¿red? ¿lanzador sin actualizar?): NO sé qué droplets de DO hay vivos');
+  } else {
+    // Fuera de un droplet (una laptop) los metadatos no contestan, y entonces no
+    // hay «yo» que quitar: es lo correcto, esa máquina no es ninguno de ellos.
+    const yo = process.env.CERRABLE_DROPLET_ID
+      ?? sh('curl -s -m 3 http://169.254.169.254/metadata/v1/id') ?? '';
+    const exime = (d) => String(d.id) === yo
+      || (d.tags ?? []).some((t) => t === 'control' || t === 'atendida');
+    const sueltos = droplets.filter((d) => !exime(d));
+    if (sueltos.length) {
+      // Un precio que falta NO es cero: se suma lo que se sabe y se dice que falta.
+      const conPrecio = sueltos.filter((d) => typeof d.price_hourly === 'number');
+      const gasto = conPrecio.reduce((s, d) => s + d.price_hourly, 0).toFixed(4)
+        + (conPrecio.length < sueltos.length ? '+?' : '');
+      const edad = (d) => {
+        const min = Math.round((Date.now() - Date.parse(d.created_at)) / 60000);
+        return Number.isFinite(min) ? (min < 120 ? `${min} min` : `${Math.round(min / 60)} h`) : '?';
+      };
+      razones.push({ tipo: 'do',
+        breve: `${sueltos.length} droplet(s) DO suelto(s): ${sueltos.map((d) => d.name).join(', ')} (${gasto} $/h)`,
+        largo: `${sueltos.length} droplet(s) de DigitalOcean que nadie más atiende (${gasto} $/h): ` +
+               sueltos.map((d) => `${d.name} (${d.status}, hace ${edad(d)})`).join(', ') +
+               ' — si este server muere, siguen facturando hasta que alguien los destruya',
+        nombres: sueltos.map((d) => d.name) });
+    } else {
+      limpio.push('DigitalOcean: ningún droplet suelto');
+    }
+  }
+}
+
 // ---------------------------------------------------------------- 2. trabajo en curso
 // De quién es un proceso lo dice su CWD, no su línea de comando: la flota se
 // lanza con ruta relativa (medido 2026-08-27).
@@ -544,6 +620,10 @@ if (BREVE) {
     if (et.length > 3) console.log(`  ...y ${et.length - 3} más`);
     console.log(`  ⚠ NO uses "destroy --all": con varios workspaces destruiría`);
     console.log(`    también las máquinas de otra sesión. Destruye por etiqueta.`);
+    // Por NOMBRE y uno a uno, nunca `destroy --tag ephemeral`: ese tag lo lleva
+    // también el propio dev, y el comando se lo llevaría por delante.
+    const D = 'python3 ' + lanzador + '/scripts/do_droplet.py';
+    for (const n of razones.find((r) => r.tipo === 'do')?.nombres ?? []) console.log(`  ${D} destroy ${n} --yes`);
   }
 }
 process.exit(EXIT0 ? 0 : (dudas.length ? 2 : (razones.length ? 1 : 0)));

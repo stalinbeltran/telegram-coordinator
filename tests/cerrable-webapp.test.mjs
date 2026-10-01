@@ -92,6 +92,9 @@ function maquina() {
   });
   repo(casa, 'digital-ocean-dropplet-auto-launching', {
     'scripts/vast_instance.py': 'print("No hay ninguna instancia viva")\n',
+    // Sin droplets sueltos: aquí se mide la web app, no la cuenta de DO.
+    'scripts/do_droplet.py': 'print("[]")\n',
+    'scripts/estado_nubes.py': 'print("DigitalOcean\\nVast.ai")\n',
   });
   return { raiz, coord };
 }
@@ -114,6 +117,8 @@ async function correr(m, puerto) {
       // máquina tiene la web app instalada, y el test sería distinto según dónde
       // corra -- justo lo que `cerrable-casa.test.mjs` existe para no permitir.
       FV_WEB_UNIT: 'no-existe-este-servicio.test',
+      // Y sin la API de metadatos de ESTA máquina, por lo mismo.
+      CERRABLE_DROPLET_ID: '',
     },
   });
   return stdout;

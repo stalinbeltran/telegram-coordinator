@@ -81,6 +81,10 @@ function maquina(programas = {}, vastVivo = false) {
         + '  49406152  ei-prueba           running        9.3    0.0500  ssh1:1\n\n'
         + 'Gastando ahora: 0.0500 $/h""")\n'
       : 'print("No hay ninguna instancia viva")\n',
+    // Sin droplets sueltos: este fichero mide procesos, no la cuenta de DO
+    // (eso es `cerrable-droplets.test.mjs`). Sin ellos, el freno diría NO SÉ.
+    'scripts/do_droplet.py': 'print("[]")\n',
+    'scripts/estado_nubes.py': 'print("DigitalOcean\\nVast.ai")\n',
   });
   const fv = repo(casa, 'foveal-vision', programas);
   return { raiz, coord, fv, casa };
@@ -112,7 +116,9 @@ async function correr(m, ...extra) {
       env: { ...base, HOME: m.raiz, COORD_HOME: m.coord,
              // puerto libre + servicio inexistente: esta rama no puede depender
              // de si la máquina donde corre el test tiene la web app
-             FV_WEB_PORT: '1', FV_WEB_UNIT: 'no-existe-este-servicio.test' } });
+             FV_WEB_PORT: '1', FV_WEB_UNIT: 'no-existe-este-servicio.test',
+             // ni de la API de metadatos de la máquina donde corre
+             CERRABLE_DROPLET_ID: '' } });
   return stdout;
 }
 

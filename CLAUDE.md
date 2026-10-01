@@ -870,17 +870,29 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    Las salidas, pegadas, en `docs/almacen.md` § 5.2 del lanzador (`7c0c8d6`); el guion y su
    log, en el almacén (`foveal-vision-data/temporal/dev/2026-10-01/`, `f7fefc06`).
 
-   ⚠ **Y lo que destapó, SIN arreglar** — el «algo falta» no estaba en el almacén, estaba
-   alrededor. Lo que se arregle, **en el lanzador y con su test** (R17), no a mano aquí:
-   1. **`bench-control` clona el repo de datos y NO se conecta**: su `post` no lleva
+   ⚠ **Y lo que destapó** — el «algo falta» no estaba en el almacén, estaba alrededor. Tres
+   de las cuatro, resueltas ese mismo día: el freno y la clave de Vast **en código y con
+   test** (R17); el llavero, que no es código sino estado de la flota, **completado en las
+   dos máquinas**, que es donde vive (cada una pare a la otra con el suyo):
+   1. ⏳ **`bench-control` clona el repo de datos y NO se conecta**: su `post` no lleva
       `almacen conectar`, así que empujaría a GitHub —la copia congelada— **en silencio**.
-      Arreglo propuesto: el paso y un test del invariante «todo tipo que clone el repo de
-      datos se conecta». Falta que el dueño diga si ese tipo sigue en uso.
-   2. **El freno no ve droplets de DO**: dijo 🟢 con el hijo facturando. Ver § «¿Se puede
-      apagar este server?».
-   3. Al llavero le faltan 4 opcionales, entre ellas **las `TGL2_` del bot de staging**: sin
-      ellas no se puede rehacer el mini con el viejo vivo (`flota-simetrica.md` §5).
-   4. Cada máquina que nace deja una clave más en Vast (**19** hoy; deuda ya conocida).
+      **Revisado**: está **abandonado de hecho desde el 2026-08-23** (`dev` asumió su papel:
+      alquilar y apagar en Vast) y **cinco documentos lo siguen dando por vigente**. Lo
+      decide el dueño: retirarlo, o darle el paso y un test del invariante «todo tipo que
+      clone el repo de datos se conecta».
+   2. ✅ **El freno no veía droplets de DO** (dijo 🟢 con el hijo facturando). Ver § «¿Se
+      puede apagar este server?», donde está el arreglo y sus cinco decisiones.
+   3. ✅ **El llavero: 15/16 en las dos máquinas.** `FVW_WEB_TOKEN` es el token vivo de la web
+      de foveal-vision (el manual de secretos manda llevarlo en el llavero); `TGL2_ALLOWED_USER_IDS`
+      = el de `TGL_`; `TGL_CLAUDE_PERMISSION_MODE` = `acceptEdits`, que es lo que ya valía sin
+      ella (`claude-session.mjs:52`; el mini no tiene Claude Code). ⏳ **Falta
+      `TGL2_BOT_TOKEN`**, y sólo puede darlo el dueño: es un bot nuevo de @BotFather. ⚠ **No
+      se pega en el chat**: el bot escribe el texto entero de cada mensaje en el journal
+      (`src/bot.ts:207`, `[IN] … text=…`).
+   4. ✅ **Vast: de 19 claves a 1.** Toda la flota usa para Vast la **clave de flota**
+      (`VAST_SSH_KEY_FILE` en dev-secrets.env, que pone `_mandar_clave_flota`), así que ya no
+      nace una por máquina; las 19 viejas se podaron. La excepción a «un proveedor, una clave»
+      está escrita donde vive esa regla, `vast_instance.py` (DEFAULTS).
 
    **Para repetirlo.** La mitad 1 cuesta 10 s y vale en cada dev nuevo; la 2, sólo si
    cambia el tipo `dev` o el almacén:
@@ -1247,6 +1259,7 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
 | Qué | Por qué se pierde al apagar |
 |---|---|
 | **Máquinas de Vast vivas** | **El daño que crece solo.** El proceso que las recoge muere con el server; **las máquinas no**. Siguen facturando, sin nadie que las destruya y sin nadie que se entere |
+| **Droplets de DigitalOcean sueltos** (desde el 2026-10-01) | El mismo daño por la otra nube: un droplet lanzado desde aquí —una prueba, una medición— sigue facturando si este server muere. Cuenta **todo** droplet menos esta máquina (por su **id**, de la API de metadatos), los de tag `control` y los de tag `atendida` (los que traen bot propio). Detalle abajo |
 | **Trabajos con proceso propio** | Flotas, vigilantes, datasets, mediciones y **entrenamientos por consola** (`fv-train` y compañía): mueren con la máquina y hay que repetirlos. La lista se **declara** (`TRABAJOS` en `cerrable.mjs`), así que un comando nuevo que tarde hay que **añadirlo ahí** |
 | **Trabajo DENTRO de la web app** | Desde el 2026-08-29 la app de `foveal-vision` corre como servicio, y un entrenamiento lanzado desde el navegador vive en un **hilo** de `fv.api`. **No hay proceso que casar**, así que la fila de arriba no puede verlo |
 | **Lo no commiteado / no empujado** | «Lo que no está empujado, no existe»: un clon limpio saca `main` del remoto y punto |
@@ -1362,20 +1375,45 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    anterior (los otros dos fijan lo que ya funcionaba: que el servicio no cuente, y que lo de otra
    máquina no cuente).
 
-### ⏳ PENDIENTE (2026-10-01): el freno no ve los droplets de DO que se lanzan desde aquí
+### ✅ RESUELTO el 2026-10-01: el freno no veía los droplets de DO que se lanzan desde aquí
 
 **Visto con un droplet facturando.** Con `prueba-almacen` vivo (lanzado desde este dev para
 probar el almacén, punto 0 de «LO PRIMERO»), `cerrable.mjs --breve` dijo **«🟢 CERRABLE —
-nada alquilado, nada corriendo»** (~16:22 UTC, corrido por el agente `revisor`). No es mala
-suerte, es estructural: el script **no menciona DigitalOcean en ninguna línea** (0
-coincidencias de `droplet`/`DO_TOKEN`), y `TRABAJOS` no casa `do_droplet.py`. Destruir el
-dev en ese momento habría dejado el hijo vivo —con el llavero entero dentro— hasta que
+nada alquilado, nada corriendo»** (~16:22 UTC, corrido por el agente `revisor`). No era mala
+suerte, era estructural: el script **no mencionaba DigitalOcean en ninguna línea**. Destruir
+el dev en ese momento habría dejado el hijo vivo —con el llavero entero dentro— hasta que
 alguien corriera `apagar-do`.
 
-Lo que hay que decidir antes de tocarlo: **qué droplets cuentan**. El mini y este mismo dev,
-nunca; cualquier otro de la cuenta, como una máquina viva que nadie apagará, que es la forma
-de la fila de Vast. Pide su test (R17) con un droplet ajeno en el escenario. **Mientras
-tanto**, antes de destruir el dev: `/use estado` (las dos nubes, con su gasto por hora).
+Ahora sale así: `🔴 NO CERRAR — 1 droplet(s) DO suelto(s): prueba-almacen (0.0357 $/h)`, y el
+informe largo da el `destroy <nombre> --yes` de cada uno. **Las cinco decisiones que hay que
+respetar si se toca**, las cinco del agente `arquitecto` antes de escribir una línea:
+
+1. **Se pregunta al lanzador, no a la API**: `do_droplet.py list --json`, hechos crudos (id,
+   nombre, estado, tags, precio, fecha). Es el contrato entre los dos repos: lo fija
+   `tests/test_atendida.py` allí y `tests/cerrable-droplets.test.mjs` aquí.
+2. **Cuenta TODO, y sólo exime un DATO, nunca un nombre** (R16): esta máquina por su **id**
+   (`/metadata/v1/id`; `CERRABLE_DROPLET_ID` en los tests), el tag `control` (el mini) y el
+   tag **`atendida`**, que pone `launch` cuando la máquina corre **de verdad** un servicio
+   que declara `"atiende": true` (los dos bots). ⚠ **No se deduce del tipo**: `prueba-almacen`
+   era `--type dev --service ''`, o sea un dev SIN bot — eximirlo por tipo era el falso verde
+   otra vez. Sin la exención, el `/use cerrable` del mini diría 🔴 **siempre** por el dev.
+3. **Un droplet apagado cuenta** —DigitalOcean lo factura igual— y **un precio que falta no es
+   cero**: sale `+?`, no un `0.0000` que parezca gratis.
+4. **No contesta = `NO SÉ`**, como Vast. Y antes de nada se pregunta **qué nubes hay**
+   (`estado_nubes.py --nubes`, la lista única del lanzador): una nube que este freno no sabe
+   mirar es **duda**, no silencio. El fallo de hoy fue justo ése, por la nube que faltaba.
+5. **La pista apaga por NOMBRE, nunca por tag**: `ephemeral` lo lleva también el propio dev,
+   y `apagar-do` / `destroy --tag ephemeral` se lo llevaría por delante.
+
+⚠ **Los droplets que nacieron antes no traen `atendida`**: el dev y el mini vivos el
+2026-10-01 se etiquetaron a mano ese día (`POST /v2/tags/atendida/resources`), y a partir
+de ahí lo pone `launch`. Si un `/use cerrable` desde el mini nombra un dev como suelto, es
+uno nacido sin el tag: `tags` en `lanzar list --json` lo dice.
+
+Diez tests en `tests/cerrable-droplets.test.mjs`; **ocho fallan con el freno anterior**
+(medido). Y los tests que montan un lanzador de pega (`cerrable-procesos`, `cerrable-webapp`)
+llevan ahora su `do_droplet.py` y su `estado_nubes.py`: sin ellos el freno dice `NO SÉ`, que
+es exactamente lo que tiene que decir.
 
 ### ⏳ PENDIENTE (desbloqueado el 2026-09-02): reparar los prefijos del freno
 
