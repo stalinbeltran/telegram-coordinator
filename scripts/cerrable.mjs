@@ -175,7 +175,10 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
 // `datos\.py` casaría con cualquier fichero llamado así en los siete repos, y un
 // patrón que casa de más da 🔴 permanentes. El nombre del script es la parte
 // barata de este contrato; el falso verde es la cara.
-const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|evaluar_kernel\.py|calibrar\.py|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
+// ⚠ Y `vast_instance\.py trabajo` entró el 2026-10-01 en el MISMO commit que el modo
+// (R11: el freno nunca llega después del acelerador). Cada trabajo es una unidad de
+// systemd con una máquina de Vast alquilada detrás: muere con este server.
+const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|evaluar_kernel\.py|calibrar\.py|vast_instance\.py trabajo|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar
@@ -219,8 +222,16 @@ if (!existsSync(lanzador)) {
       .map((m) => ({ id: m[1], etiqueta: m[2] }));
     // Mías = de CUALQUIER workspace de esta máquina. Sin ningún prefijo conocido
     // no se puede distinguir, así que cuentan todas: ante la duda, NO cerrable.
+    //
+    // ⚠ Y las `expc-*` cuentan SIEMPRE (2026-10-01): son las del modo `trabajo` que
+    // lanza `experimentos-cnn`, y ese repo sólo alquila desde el dev. Sin esto, en
+    // cuanto existiera un `~/ws/tema-N` con su prefijo, una flota de experimentos
+    // lanzada desde casa pasaba a «de otro server» —el falso verde que documenta
+    // `docs/freno-prefijos-2026-09-01.md`—. Es contar DE MÁS a propósito: el
+    // arreglo de fondo (P1/P2 de ese documento) sigue pendiente.
+    const PROPIAS_SIEMPRE = ['expc-'];
     const mias = prefijosLocales.length
-      ? filas.filter((f) => prefijosLocales.some((p) => f.etiqueta.startsWith(p)))
+      ? filas.filter((f) => [...prefijosLocales, ...PROPIAS_SIEMPRE].some((p) => f.etiqueta.startsWith(p)))
       : filas;
     const ajenas = filas.length - mias.length;
     const gasto = (salida.match(/Gastando ahora:\s*([\d.,]+)\s*\$\/h/) ?? [])[1];
@@ -457,7 +468,7 @@ if (!CASA_COORD) {
 // PID 1, `Restart=on-failure`); esto es la RED por debajo, para cuando aun así
 // pase. Y dice el comando exacto: quien lee esto desde el móvil no va a deducir
 // que existe `adoptar_vast.py`.
-const VIGILANTES = /entrenar_vast\.py|adoptar_vast\.py|estudio_flota\.py|vigilante_avance\.py/;
+const VIGILANTES = /entrenar_vast\.py|adoptar_vast\.py|estudio_flota\.py|vigilante_avance\.py|vast_instance\.py trabajo/;
 if (maquinasMias.length && !vivos.some((v) => VIGILANTES.test(v.que))) {
   razones.push({
     tipo: 'huerfana',
