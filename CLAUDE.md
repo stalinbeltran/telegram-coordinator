@@ -874,12 +874,12 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    de las cuatro, resueltas ese mismo día: el freno y la clave de Vast **en código y con
    test** (R17); el llavero, que no es código sino estado de la flota, **completado en las
    dos máquinas**, que es donde vive (cada una pare a la otra con el suyo):
-   1. ⏳ **`bench-control` clona el repo de datos y NO se conecta**: su `post` no lleva
-      `almacen conectar`, así que empujaría a GitHub —la copia congelada— **en silencio**.
-      **Revisado**: está **abandonado de hecho desde el 2026-08-23** (`dev` asumió su papel:
-      alquilar y apagar en Vast) y **cinco documentos lo siguen dando por vigente**. Lo
-      decide el dueño: retirarlo, o darle el paso y un test del invariante «todo tipo que
-      clone el repo de datos se conecta».
+   1. ✅ **`bench-control` clonaba el repo de datos y NO se conectaba**: su `post` no
+      llevaba `almacen conectar`, así que habría empujado a GitHub —la copia congelada—
+      **en silencio**. Estaba **abandonado de hecho desde el 2026-08-23** (`dev` asumió su
+      papel: alquilar y apagar en Vast), y el dueño lo **retiró** ese mismo día: tipo
+      borrado y corregidos los sitios que lo daban por vigente. Hoy sólo `dev` y `mini`
+      clonan el repo de datos, y los dos se conectan.
    2. ✅ **El freno no veía droplets de DO** (dijo 🟢 con el hijo facturando). Ver § «¿Se
       puede apagar este server?», donde está el arreglo y sus cinco decisiones.
    3. ✅ **El llavero: 15/16 en las dos máquinas.** `FVW_WEB_TOKEN` es el token vivo de la web
@@ -1179,8 +1179,11 @@ declarado en `types/mini.json` (`volume`), y su `post` reinstala el servicio git
 el contenido** (`almacen instalar`, idempotente). Lo que NO sobrevive a rehacer el mini es su
 **IP**: cada dev vivo repite `/use almacen` → `conectar`; los dev nuevos nacen conectados
 (cableado en el `post` de `types/dev.json`; **medido** el 2026-10-01, y también que un dev
-pare máquinas conectadas: punto 0 de «LO PRIMERO»). ⚠ **`bench-control` no**: clona el repo
-de datos sin conectarse, y empujaría a GitHub en silencio (pendiente, mismo punto).
+pare máquinas conectadas: punto 0 de «LO PRIMERO»). ⚠ **Un tipo nuevo que clone el repo de
+datos tiene que llevar `almacen conectar` en su `post`**, como `dev` y `mini`: sin él empuja a
+GitHub en silencio. Le pasaba a `bench-control`, que se retiró el 2026-10-01 por eso y por
+llevar abandonado desde agosto. Y desde ese día no depende de acordarse: lo exige
+`tests/test_almacen.py` del lanzador, que falla nombrando el tipo que no se conecte.
 La carpeta `datos/` de la demo de SisPla también vive en el volumen desde ese día. El ciclo
 completo —destruir y rehacer el mini de verdad— **está medido** (4 min 39 s; el volumen
 volvió montado, 762 commits y la demo con sus 152.138 bytes; la IP cambió y `conectar` lo
@@ -2164,7 +2167,7 @@ la única que no: el token, que lo tiene que enviar la máquina lanzadora.
 | 1 | `DO_TOKEN` en el entorno | el lanzador, con `--make-launcher` o `push-do-token` | **no se puede** crear ni destruir droplets. Es lo único que no se arregla desde dentro |
 | 1 bis | `GITHUB_TOKEN` **que GitHub siga aceptando** | el lanzador, en `provision` (lo envía solo si él lo tiene) | no se clona lo que pida credenciales (`foveal-vision-data`) y **no se empuja nada**: en una máquina efímera, eso es perder el trabajo. Tampoco se arregla desde dentro |
 | 2 | Repo `~/src/digital-ocean-dropplet-auto-launching` | `--make-launcher`, o `--fix` | no hay con qué hablar con la API |
-| 3 | Par de claves `~/.ssh/do_droplet` **registrado en la cuenta** | `--make-launcher`, o `--fix` | se crean droplets en los que no se puede entrar: existen, facturan y no sirven |
+| 3 | La clave con la que **el lanzador** entra en los droplets, **registrada en la cuenta** — en la flota es la de flota (`~/.ssh/do_flota`); la dice `do_droplet.py clave-de-entrada` | el lanzador, al nacer la máquina (`--make-launcher`). Si falta, `autorizar-flota <esta>` desde otra de la flota: ⚠ `--fix` **ya no la genera** (2026-10-01) — una clave nueva por máquina era el goteo que la de flota corta | se crean droplets en los que no se puede entrar: existen, facturan y no sirven. ⚠ Hasta el 2026-10-01 `bench_fleet.py` y este preflight daban por hecho `~/.ssh/do_droplet`, que en la flota **no existe**: el benchmark moría al empezar en todo dev nuevo |
 | 4 | Repos `~/src/foveal-vision` y `~/src/image-text-sample-generator` | `--repo` al lanzar, o `--fix` | no hay benchmark ni generador |
 | 5 | Repo `~/src/foveal-vision-data` | `--repo` al lanzar, o `--fix` | **lo medido no se guarda en ninguna parte.** Ver abajo |
 | 6 | Volumen `bench-data` montado en `/mnt/bench-data` con el dataset | `--volume bench-data` al lanzar | hay que regenerar el dato: ~15-20 min de renders. **Se puede**, no es un bloqueo |

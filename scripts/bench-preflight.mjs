@@ -244,12 +244,33 @@ async function main() {
   // 4. La clave SSH. El token deja CREAR droplets; entrar en ellos es otra cosa,
   //    y es la que se olvida: sin par propio registrado en la cuenta, las
   //    máquinas que lances existen, facturan y no las puedes tocar.
-  const clave = join(HOME, '.ssh', 'do_droplet');
-  let claveOk = existsSync(clave);
-  if (!claveOk && FIX) {
-    const r = intenta(`ssh-keygen -t ed25519 -f ${clave} -N "" -C "bench-${meta?.hostname || 'local'}"`);
-    claveOk = r.ok;
-    if (!r.ok) anota('FALTA', 'clave SSH', r.salida, 'ssh-keygen -t ed25519 -f ~/.ssh/do_droplet -N ""');
+  //
+  //    ⚠ Cuál es la clave se le PREGUNTA al lanzador (`do_droplet.py
+  //    clave-de-entrada`), que es quien entra con ella. Hasta el 2026-10-01 aquí
+  //    se miraba `~/.ssh/do_droplet`, que en una máquina de la flota NO existe —la
+  //    flota entra con la clave de flota desde el 2026-09-11—, y `--fix` la
+  //    GENERABA y la registraba como `lanzador-<máquina>`: una clave nueva en la
+  //    cuenta por cada máquina, el goteo que la de flota existe para cortar (26
+  //    `lanzador-*` muertas el 2026-09-11). Por eso `--fix` ya NO genera ninguna:
+  //    la que falta se REENVÍA desde otra máquina de la flota.
+  const preguntada = existsSync(join(LANZADOR, 'scripts', 'do_droplet.py'))
+    ? intenta(`python3 ${join(LANZADOR, 'scripts', 'do_droplet.py')} clave-de-entrada`)
+    : null;
+  // La ruta va en la ÚLTIMA línea: antes puede venir el aviso de la caída a la flota.
+  const lineasClave = preguntada?.ok ? preguntada.salida.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+  const clave = lineasClave.length ? lineasClave[lineasClave.length - 1] : null;
+  const claveOk = Boolean(clave && existsSync(clave));
+  if (!preguntada) {
+    anota('FALTA', 'clave SSH', 'sin el repo del lanzador no sé con qué clave se entra en los droplets',
+      'arregla antes el repo del lanzador (punto 3)');
+  } else if (!claveOk) {
+    anota('FALTA', 'clave SSH', preguntada.salida || 'el lanzador no da ninguna clave de entrada',
+      'si esta máquina es de la flota, que otra que la tenga se la REENVÍE:\n' +
+      '      python3 scripts/do_droplet.py autorizar-flota <esta-maquina>\n' +
+      '    si no lo es: python3 scripts/do_droplet.py keygen && python3 scripts/do_droplet.py register-key\n' +
+      '    (--fix no la genera a propósito: una clave nueva por máquina es el goteo que la de flota corta)');
+  } else if (!token) {
+    anota('OK', 'clave SSH', `${clave} (sin DO_TOKEN no compruebo que esté registrada en la cuenta)`);
   }
   if (claveOk && token) {
     const publica = readFileSync(`${clave}.pub`, 'utf8').trim();
@@ -258,25 +279,22 @@ async function main() {
       const { ssh_keys: claves } = await api('/account/keys?per_page=200');
       const ya = claves.find((k) => k.public_key.split(/\s+/)[1] === material);
       if (ya) {
-        anota('OK', 'clave SSH', `~/.ssh/do_droplet registrada en la cuenta como '${ya.name}'`);
+        anota('OK', 'clave SSH', `${clave} registrada en la cuenta como '${ya.name}'`);
       } else if (FIX) {
-        const nombre = `lanzador-${meta?.hostname || 'bench'}`;
-        const { ssh_key } = await api('/account/keys', {
-          method: 'POST',
-          body: JSON.stringify({ name: nombre, public_key: publica }),
-        });
-        anota('ARREGLADO', 'clave SSH', `registrada en la cuenta como '${ssh_key.name}'`);
+        // Por el lanzador, que la nombra `<máquina>-do-droplet`. Aquí se nombraba
+        // `lanzador-<máquina>`, que es justo el patrón que barre `keys --prune
+        // "lanzador-*"`: la clave registrada hoy desaparecía en la poda siguiente.
+        const r = intenta(`python3 ${join(LANZADOR, 'scripts', 'do_droplet.py')} register-key ${clave}.pub`);
+        if (r.ok) anota('ARREGLADO', 'clave SSH', r.salida.split('\n').pop());
+        else anota('FALTA', 'clave SSH', r.salida, `python3 scripts/do_droplet.py register-key ${clave}.pub`);
       } else {
-        anota('FALTA', 'clave SSH', 'existe pero NO está registrada en la cuenta',
+        anota('FALTA', 'clave SSH', `${clave} existe pero NO está registrada en la cuenta`,
           'node scripts/bench-preflight.mjs --fix   (la registra)\n' +
           '    Ojo: sólo la aceptarán los droplets creados DESPUÉS de registrarla.');
       }
     } catch (e) {
       anota('FALTA', 'clave SSH', `no pude consultar las claves de la cuenta: ${e.message}`);
     }
-  } else if (!claveOk) {
-    anota('FALTA', 'clave SSH', 'no existe ~/.ssh/do_droplet',
-      'node scripts/bench-preflight.mjs --fix   (la genera y la registra)');
   }
 
   // 5. Los repos del trabajo.

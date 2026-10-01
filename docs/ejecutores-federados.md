@@ -238,11 +238,12 @@ que crees es peor que un ejecutor que falta.
 Ésta es la parte que responde a «que los comandos estén siempre disponibles en un
 mini u otro».
 
-`types/bench-control.json` ya declara qué repos clona la máquina. Con
-descubrimiento, **eso mismo decide qué sabe hacer el bot de esa máquina**:
+`types/dev.json` ya declara qué repos clona la máquina. Con descubrimiento, **eso
+mismo decide qué sabe hacer el bot de esa máquina** (el ejemplo era `bench-control`,
+retirado el 2026-10-01):
 
 ```
-lanzar   launch bench-control
+lanzar   launch dev
 ```
 
 …y el bot de la máquina nueva trae, sin un solo paso más:

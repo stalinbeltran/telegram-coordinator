@@ -16,7 +16,7 @@
 // Lo que fijan estos tests, que es lo que puede volver a romperse:
 //   1. un droplet suelto → NO CERRAR, y se dice CUÁL, cuánto cuesta y cómo se
 //      apaga (por nombre: el tag `ephemeral` lo lleva también el dev);
-//   2. un `bench-control` vivo cuenta: no trae bot, nadie lo atiende;
+//   2. una máquina de medir (`cpu`) cuenta: no trae bot, nadie la atiende;
 //   3. un droplet APAGADO cuenta: DigitalOcean lo factura igual;
 //   4. un precio que falta no se lee como 0;
 //   5. esta máquina y el mini no cuentan;
@@ -138,10 +138,10 @@ test('un droplet suelto lanzado desde aquí impide cerrar, y se dice cuál', asy
     'nunca por tag: `ephemeral` lo lleva también el propio dev');
 });
 
-test('un bench-control vivo cuenta: no trae bot, nadie lo atiende', async () => {
-  const breve = await correr(maquina(cuenta(DEV, MINI, droplet('bench-control'))), DEV, '--breve');
+test('una máquina de medir (cpu) cuenta: no trae bot, nadie la atiende', async () => {
+  const breve = await correr(maquina(cuenta(DEV, MINI, droplet('cpu'))), DEV, '--breve');
   assert.match(breve, /NO CERRAR/);
-  assert.match(breve, /bench-control/);
+  assert.match(breve, /\bcpu\b/);
 });
 
 test('un droplet APAGADO también cuenta: DigitalOcean lo factura igual', async () => {
