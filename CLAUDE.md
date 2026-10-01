@@ -854,6 +854,50 @@ relanzarlo*. **El ciclo ocurrió esa misma noche y esta máquina es su resultado
 así que el punto 1 ya está medido — y lo que salió de él no es lo que esta lista
 esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
 
+0. ⏳ **EL ALMACÉN, LO PRIMERO (2026-10-01): comprueba que siga funcionando desde este dev
+   nuevo, ANTES de cualquier otra cosa.** El dueño destruyó el dev ese día **a propósito**
+   para medir lo que el ciclo del mini no midió: que un dev recién nacido queda conectado
+   al almacén (el volumen `datos` del mini, § «EL ALMACÉN») y que puede parir máquinas que
+   también se conecten. *«Es necesario probar destruyendo dev porque nos ha pasado que algo
+   falta.»* El resultado se anota, medido y con la salida pegada, en `docs/almacen.md` § 5
+   del lanzador; y lo que falle se arregla **en el lanzador con su test** (R17), no a mano
+   en esta máquina, que también se destruye.
+
+   **Mitad 1 — este dev nació conectado:**
+
+   ```bash
+   cd ~/src/digital-ocean-dropplet-auto-launching
+   git -C ~/src/foveal-vision-data remote -v       # origin → almacen:/mnt/datos/git/foveal-vision-data.git · github → GitHub
+   grep -A6 "Host almacen" ~/.ssh/config           # el alias con la IP del mini y HostKeyAlias
+   python3 scripts/do_droplet.py almacen estado    # volumen conectado y montado · usuario datos · nadie borra: si
+   python3 scripts/do_droplet.py almacen probar    # ok ×5: entra, borrar NO, forzar NO, root limpia
+   ```
+
+   Si `origin` sigue en GitHub o falta el alias, el `post` de `types/dev.json` (`almacen
+   conectar`) **no corrió o falló** y el motivo está en el log del `launch`, que vive en el
+   mini (el bot Lanzador lo publicó en Telegram). Repara con `almacen conectar` y busca la
+   causa: un `post` que falla sólo deja un `AVISO` (`ejecutar_post` no es fatal a propósito).
+
+   **Mitad 2 — un dev puede parir máquinas conectadas** (es la que nadie ha medido):
+
+   ```bash
+   python3 scripts/do_droplet.py launch prueba-almacen --type dev --service ''   # sin bot: sin 409
+   python3 scripts/do_droplet.py ssh prueba-almacen --cmd 'git -C ~/src/foveal-vision-data remote get-url origin && git -C ~/src/foveal-vision-data ls-remote origin HEAD'
+   python3 scripts/do_droplet.py destroy prueba-almacen --yes
+   ```
+
+   Las tres preguntas del gasto: se alquila **un `s-2vcpu-4gb` (0,036 $/h) unos 10 min, menos
+   de 0,01 $**; lo apaga `destroy prueba-almacen --yes` desde cualquier máquina con `DO_TOKEN`,
+   y lleva tag `ephemeral`, así que `apagar-do` desde el mini también se lo lleva si este dev
+   muere a mitad. ⚠ `--service ''` es el camino «nacer sin servicio» de `flota-simetrica.md`
+   §5 y **no está medido**: si `launch` lo rechaza, **no la lances con el bot** (dos
+   coordinadores con el mismo token = 409); usa `--type cpu --make-launcher --repo
+   stalinbeltran/foveal-vision-data` y corre a mano `remoto prueba-almacen almacen conectar`,
+   que es lo que el `post` del tipo `dev` hace solo.
+
+   Lo que YA está medido y no hay que repetir: el ciclo del mini (`docs/almacen.md` § 5.1).
+   Cuando las dos mitades estén en verde, este punto pasa a ✅ con la fecha, como el 1.
+
 1. ✅ **La app móvil: EL CICLO YA OCURRIÓ (2026-09-10, noche). Arreglado y
    verificado en vivo — pero no por el motivo que esta lista esperaba.**
    Este server **es** el dev nuevo (nació a las 20:00 UTC). Lo que sí salió: el
