@@ -1109,9 +1109,12 @@ Lo que cambia para ti, en tres puntos:
 de la cuenta, no del droplet, y `launch mini` lo reconecta y monta solo porque está
 declarado en `types/mini.json` (`volume`), y su `post` reinstala el servicio git **sin tocar
 el contenido** (`almacen instalar`, idempotente). Lo que NO sobrevive a rehacer el mini es su
-**IP**: cada dev vivo repite `/use almacen` → `conectar`; los dev nuevos nacen conectados.
+**IP**: cada dev vivo repite `/use almacen` → `conectar`; los dev nuevos nacen conectados
+(cableado en el `post` de `types/dev.json`; **no medido** todavía con un dev nuevo).
 La carpeta `datos/` de la demo de SisPla también vive en el volumen desde ese día. El ciclo
-completo —destruir y rehacer el mini de verdad— está medido en
+completo —destruir y rehacer el mini de verdad— **está medido** (4 min 39 s; el volumen
+volvió montado, 762 commits y la demo con sus 152.138 bytes; la IP cambió y `conectar` lo
+absorbió) en
 [`docs/almacen.md` del lanzador](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/almacen.md) § 5.
 
 ⚠ **El mini apagado = los push fallan, ruidosamente.** Es a propósito: lo contrario de
