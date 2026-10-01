@@ -854,16 +854,36 @@ relanzarlo*. **El ciclo ocurrió esa misma noche y esta máquina es su resultado
 así que el punto 1 ya está medido — y lo que salió de él no es lo que esta lista
 esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
 
-0. ⏳ **EL ALMACÉN, LO PRIMERO (2026-10-01): comprueba que siga funcionando desde este dev
-   nuevo, ANTES de cualquier otra cosa.** El dueño destruyó el dev ese día **a propósito**
-   para medir lo que el ciclo del mini no midió: que un dev recién nacido queda conectado
-   al almacén (el volumen `datos` del mini, § «EL ALMACÉN») y que puede parir máquinas que
-   también se conecten. *«Es necesario probar destruyendo dev porque nos ha pasado que algo
-   falta.»* El resultado se anota, medido y con la salida pegada, en `docs/almacen.md` § 5
-   del lanzador; y lo que falle se arregla **en el lanzador con su test** (R17), no a mano
-   en esta máquina, que también se destruye.
+0. ✅ **EL ALMACÉN: MEDIDO el 2026-10-01 desde el dev nuevo — las dos mitades en verde.**
+   El dueño destruyó el dev ese día **a propósito** para medir lo que el ciclo del mini no
+   midió: que un dev recién nacido queda conectado al almacén (el volumen `datos` del mini,
+   § «EL ALMACÉN») y que puede parir máquinas que también se conecten. *«Es necesario probar
+   destruyendo dev porque nos ha pasado que algo falta.»* Salieron las dos:
 
-   **Mitad 1 — este dev nació conectado:**
+   - **Este dev nació conectado**: `origin` en el almacén, el alias puesto, `estado` y
+     `probar` en verde, y `main` en `d69f7a3d` — 5 commits que **sólo existen en el
+     almacén**, así que el `post` corrió `conectar` de verdad, no sólo escribió el alias.
+   - **Y pare máquinas conectadas**: `prueba-almacen` (`--type dev --service ''`), lanzada
+     desde aquí, nació conectada, **leyó y escribió** (`probar` ok ×5 desde dentro), con sus
+     tres servicios `inactive` (sin bot, sin 409), y se destruyó sola. 6 min 36 s, ≈0,004 $.
+
+   Las salidas, pegadas, en `docs/almacen.md` § 5.2 del lanzador (`7c0c8d6`); el guion y su
+   log, en el almacén (`foveal-vision-data/temporal/dev/2026-10-01/`, `f7fefc06`).
+
+   ⚠ **Y lo que destapó, SIN arreglar** — el «algo falta» no estaba en el almacén, estaba
+   alrededor. Lo que se arregle, **en el lanzador y con su test** (R17), no a mano aquí:
+   1. **`bench-control` clona el repo de datos y NO se conecta**: su `post` no lleva
+      `almacen conectar`, así que empujaría a GitHub —la copia congelada— **en silencio**.
+      Arreglo propuesto: el paso y un test del invariante «todo tipo que clone el repo de
+      datos se conecta». Falta que el dueño diga si ese tipo sigue en uso.
+   2. **El freno no ve droplets de DO**: dijo 🟢 con el hijo facturando. Ver § «¿Se puede
+      apagar este server?».
+   3. Al llavero le faltan 4 opcionales, entre ellas **las `TGL2_` del bot de staging**: sin
+      ellas no se puede rehacer el mini con el viejo vivo (`flota-simetrica.md` §5).
+   4. Cada máquina que nace deja una clave más en Vast (**19** hoy; deuda ya conocida).
+
+   **Para repetirlo.** La mitad 1 cuesta 10 s y vale en cada dev nuevo; la 2, sólo si
+   cambia el tipo `dev` o el almacén:
 
    ```bash
    cd ~/src/digital-ocean-dropplet-auto-launching
@@ -878,25 +898,17 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    mini (el bot Lanzador lo publicó en Telegram). Repara con `almacen conectar` y busca la
    causa: un `post` que falla sólo deja un `AVISO` (`ejecutar_post` no es fatal a propósito).
 
-   **Mitad 2 — un dev puede parir máquinas conectadas** (es la que nadie ha medido):
+   **La mitad 2 va como UNIDAD, nunca desde el turno**: alquila, y el `destroy` tiene que
+   llegar aunque la sesión muera. El guion que se usó está en el almacén
+   (`temporal/dev/2026-10-01/prueba-almacen-hijo.sh`: launch → mira dentro → `probar` dentro
+   → `destroy` sin condiciones → sale con 0) y se lanza con
+   `scripts/desacoplar-persistente.sh prueba-almacen-hijo sh <guion>`. Las tres preguntas
+   del gasto: un `s-2vcpu-4gb` (0,0357 $/h) unos 7 min; lo apaga el propio guion, y si este
+   dev muere a mitad, `apagar-do` desde el mini (tag `ephemeral`). ✅ `--service ''` **ya
+   está medido**: `launch` lo acepta y el hijo nace sin ningún servicio, o sea sin 409.
 
-   ```bash
-   python3 scripts/do_droplet.py launch prueba-almacen --type dev --service ''   # sin bot: sin 409
-   python3 scripts/do_droplet.py ssh prueba-almacen --cmd 'git -C ~/src/foveal-vision-data remote get-url origin && git -C ~/src/foveal-vision-data ls-remote origin HEAD'
-   python3 scripts/do_droplet.py destroy prueba-almacen --yes
-   ```
-
-   Las tres preguntas del gasto: se alquila **un `s-2vcpu-4gb` (0,036 $/h) unos 10 min, menos
-   de 0,01 $**; lo apaga `destroy prueba-almacen --yes` desde cualquier máquina con `DO_TOKEN`,
-   y lleva tag `ephemeral`, así que `apagar-do` desde el mini también se lo lleva si este dev
-   muere a mitad. ⚠ `--service ''` es el camino «nacer sin servicio» de `flota-simetrica.md`
-   §5 y **no está medido**: si `launch` lo rechaza, **no la lances con el bot** (dos
-   coordinadores con el mismo token = 409); usa `--type cpu --make-launcher --repo
-   stalinbeltran/foveal-vision-data` y corre a mano `remoto prueba-almacen almacen conectar`,
-   que es lo que el `post` del tipo `dev` hace solo.
-
-   Lo que YA está medido y no hay que repetir: el ciclo del mini (`docs/almacen.md` § 5.1).
-   Cuando las dos mitades estén en verde, este punto pasa a ✅ con la fecha, como el 1.
+   Lo que YA está medido y no hay que repetir: el ciclo del mini (`docs/almacen.md` § 5.1) y
+   las dos mitades de este punto (§ 5.2).
 
 1. ✅ **La app móvil: EL CICLO YA OCURRIÓ (2026-09-10, noche). Arreglado y
    verificado en vivo — pero no por el motivo que esta lista esperaba.**
@@ -1154,7 +1166,9 @@ de la cuenta, no del droplet, y `launch mini` lo reconecta y monta solo porque e
 declarado en `types/mini.json` (`volume`), y su `post` reinstala el servicio git **sin tocar
 el contenido** (`almacen instalar`, idempotente). Lo que NO sobrevive a rehacer el mini es su
 **IP**: cada dev vivo repite `/use almacen` → `conectar`; los dev nuevos nacen conectados
-(cableado en el `post` de `types/dev.json`; **no medido** todavía con un dev nuevo).
+(cableado en el `post` de `types/dev.json`; **medido** el 2026-10-01, y también que un dev
+pare máquinas conectadas: punto 0 de «LO PRIMERO»). ⚠ **`bench-control` no**: clona el repo
+de datos sin conectarse, y empujaría a GitHub en silencio (pendiente, mismo punto).
 La carpeta `datos/` de la demo de SisPla también vive en el volumen desde ese día. El ciclo
 completo —destruir y rehacer el mini de verdad— **está medido** (4 min 39 s; el volumen
 volvió montado, 762 commits y la demo con sus 152.138 bytes; la IP cambió y `conectar` lo
@@ -1347,6 +1361,21 @@ Desde Telegram: `/use cerrable` (el ejecutor está en `data/executors/cerrable.j
    Seis tests en `tests/cerrable-procesos.test.mjs`; cuatro de los seis fallan con el código
    anterior (los otros dos fijan lo que ya funcionaba: que el servicio no cuente, y que lo de otra
    máquina no cuente).
+
+### ⏳ PENDIENTE (2026-10-01): el freno no ve los droplets de DO que se lanzan desde aquí
+
+**Visto con un droplet facturando.** Con `prueba-almacen` vivo (lanzado desde este dev para
+probar el almacén, punto 0 de «LO PRIMERO»), `cerrable.mjs --breve` dijo **«🟢 CERRABLE —
+nada alquilado, nada corriendo»** (~16:22 UTC, corrido por el agente `revisor`). No es mala
+suerte, es estructural: el script **no menciona DigitalOcean en ninguna línea** (0
+coincidencias de `droplet`/`DO_TOKEN`), y `TRABAJOS` no casa `do_droplet.py`. Destruir el
+dev en ese momento habría dejado el hijo vivo —con el llavero entero dentro— hasta que
+alguien corriera `apagar-do`.
+
+Lo que hay que decidir antes de tocarlo: **qué droplets cuentan**. El mini y este mismo dev,
+nunca; cualquier otro de la cuenta, como una máquina viva que nadie apagará, que es la forma
+de la fila de Vast. Pide su test (R17) con un droplet ajeno en el escenario. **Mientras
+tanto**, antes de destruir el dev: `/use estado` (las dos nubes, con su gasto por hora).
 
 ### ⏳ PENDIENTE (desbloqueado el 2026-09-02): reparar los prefijos del freno
 
