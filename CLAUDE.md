@@ -1230,6 +1230,21 @@ pack y al quinto se corre `gc --auto`. El reparto de lo que ocupa (≈42 % sobra
 probablemente) y por qué un almacén de objetos sí pero **MinIO no** (archivado en febrero de 2026),
 en [`docs/almacen-contenido-y-objetos-2026-10-03.md` del lanzador](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/almacen-contenido-y-objetos-2026-10-03.md).
 
+⚠⚠ **HISTORIA COMPACTADA el 2026-10-03, por orden del dueño** (*«eliminar historias previas,
+manteniendo todos los últimos»*). Cada rama del almacén es ahora **un solo commit** con su
+contenido de ese día —árboles comprobados idénticos antes y después—; `datos-fechados` y `tema-2`
+apuntan a la `main` nueva (no se borraron, a propósito: así un clon viejo que empuje historia
+antigua es **rechazado** por no-fast-forward en vez de colarla como rama nueva). Almacén: **263 MB,
+33 %**. Los tres clones (dev, `~/ws/tema-2`, mini) se reajustaron y purgaron; las copias de
+`/var/tmp` del mini se borraron. Qué significa para ti:
+- **Todo hash del repo de datos anterior a ese día ya NO existe en el almacén** (los `f7fefc06`,
+  `15e683b`, `d69f7a3d`, `82d89fa` de este fichero y de `inferencia.json`). Los ficheros sí
+  están. La historia hasta el 2026-10-01 sigue en el remoto `github`, congelado.
+- **Un clon de antes de ese día no puede empujar**: hay que `git fetch` + `reset --hard origin/main`
+  (sin trabajo local) o re-clonar. Por eso la regla de URL en vez de hash (§ «Cómo se escribe aquí»).
+- Lo que sigue ocupando es el **contenido vigente**: pesos no aprobados y `preprocesado/`, el
+  ≈41 % «probable» del análisis. Eso ya no es historia: quitarlo es borrar ficheros, decisión aparte.
+
 Mientras se decide: lo commiteado en el dev **se queda y se reintenta** (`git push` en
 `~/src/foveal-vision-data`), que es exactamente lo que la regla de abajo promete.
 
