@@ -1192,6 +1192,34 @@ volvió montado, 762 commits y la demo con sus 152.138 bytes; la IP cambió y `c
 absorbió) en
 [`docs/almacen.md` del lanzador](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/almacen.md) § 5.
 
+⚠⚠ **SE LLENÓ el 2026-10-03, dos días después de nacer** — y el síntoma NO dice «lleno». El push
+del archivador de conversaciones fue rechazado con `! [remote rejected] main -> main (unpacker
+error)`, que se lee como un fallo de git; la causa estaba una línea más arriba y sólo sale sin `-q`:
+`remote: fatal: unable to write loose object file: No space left on device`. Medido ese día con
+`do_droplet.py almacen estado`: **801 MB usados de 868 (100 %)**, repo de 800 MB. El freno lo
+recogió como `1 cambio(s) sin empujar en foveal-vision-data`, que es verdad y no es el problema.
+
+Tres cosas medidas, y las tres hay que saberlas antes de ampliar el volumen:
+
+1. **El almacén guarda la historia DOS veces.** El mismo repo ocupa **460 MB en el dev** (4 packs,
+   367 MiB + 91 MiB sueltos) y **800 MB en el mini** (7 packs, 710 MiB + 89 MiB sueltos), con dos
+   packs casi gemelos de **360 MB y 371 MB**. Cada push grande deja su propio pack autocontenido y
+   nadie reempaqueta (`gc.auto` sin fijar). Un `git repack -ad` del lado del servidor devolvería
+   del orden de **430 MB** *(estimado por diferencia con el dev, no medido)* — pero **no cabe en el
+   volumen** (360 KB libres): hay que copiar el repo desnudo al disco raíz del mini (**4,5 GB
+   libres**, medido), reempaquetar ahí y volver a ponerlo, en una ventana sin pushes. **No se hizo**:
+   es infraestructura compartida y la decisión entre eso y `volume resize` es del dueño.
+2. **Las conversaciones son el 80 % del repo de datos**: **369 MB de los ~460** son blobs de
+   `conversaciones/` (645 blobs en la historia; 44 commits del archivador del 1 al 3 de octubre).
+   Cada archivado es un `.jsonl.gz` nuevo de ~4 MB y **un `.gz` no se delta-comprime**, así que
+   cada versión cuesta sus 4 MB enteros para siempre. A ese ritmo cualquier volumen se llena en
+   días: **ampliar sin cambiar esto es comprar tiempo**, y hay que decirlo así.
+3. **El `unpacker error` es el `NO SÉ` de siempre leído mal**: `receive.denyDeletes` no tiene nada
+   que ver, no es un rechazo de la regla «nadie borra». Mirar siempre `df` antes de depurar git.
+
+Mientras se decide: lo commiteado en el dev **se queda y se reintenta** (`git push` en
+`~/src/foveal-vision-data`), que es exactamente lo que la regla de abajo promete.
+
 ⚠ **El mini apagado = los push fallan, ruidosamente.** Es a propósito: lo contrario de
 irse a GitHub en silencio. Lo commiteado se queda y se reintenta.
 
