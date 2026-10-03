@@ -1225,6 +1225,11 @@ pushes pendientes entraron. Las copias quedan en `/var/tmp/fvd-orig.git` y `/var
 del mini (~1,2 GB), y se borran cuando el dueño lo diga. ⚠ **Volverá a llenarse** si no cambia el
 archivado de conversaciones (punto 2), y el repack no es automático: `gc.auto` sigue sin fijar.
 
+✅ **Y desde ese mismo día se reempaqueta SOLO** (`ed3d498` del lanzador): cada push entra como
+pack y al quinto se corre `gc --auto`. El reparto de lo que ocupa (≈42 % sobra seguro, ≈41 %
+probablemente) y por qué un almacén de objetos sí pero **MinIO no** (archivado en febrero de 2026),
+en [`docs/almacen-contenido-y-objetos-2026-10-03.md` del lanzador](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/almacen-contenido-y-objetos-2026-10-03.md).
+
 Mientras se decide: lo commiteado en el dev **se queda y se reintenta** (`git push` en
 `~/src/foveal-vision-data`), que es exactamente lo que la regla de abajo promete.
 
@@ -1698,6 +1703,14 @@ hay que respetar al escribir. La **sexta** no viene de ahí: la pidió el dueño
 
    No sustituye a la tabla: la tabla es para **buscar** cuando ya sabes, la sesión es
    para **aprender** la primera vez. La que falta casi siempre es la segunda.
+
+⚠ **Propuesta del dueño (2026-10-03), anotada y AÚN NO aplicada: en la documentación, mejor la URL
+del fichero que el número de commit.** Un `82d89fa` sólo se puede seguir con el repo clonado y se
+rompe si algún día se reescribe la historia —que es justo lo que §2 de
+[`almacen-contenido-y-objetos-2026-10-03.md`](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/almacen-contenido-y-objetos-2026-10-03.md)
+pone sobre la mesa para el repo de datos—; una URL se abre desde el móvil. Si se adopta, que sea un
+**permalink** (la URL con el hash dentro, `…/blob/<hash>/ruta`), no `…/blob/main/…`: la segunda
+cambia de contenido cuando cambia el fichero.
 
 Y dos sobre **dónde** se escribe, porque documentar no basta si no llega:
 
