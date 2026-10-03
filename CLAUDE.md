@@ -1217,6 +1217,14 @@ Tres cosas medidas, y las tres hay que saberlas antes de ampliar el volumen:
 3. **El `unpacker error` es el `NO SÉ` de siempre leído mal**: `receive.denyDeletes` no tiene nada
    que ver, no es un rechazo de la regla «nadie borra». Mirar siempre `df` antes de depurar git.
 
+✅ **REEMPAQUETADO el 2026-10-03, por orden del dueño: de 835 MB a 392 MB, 47 % de uso.** Se copió
+el repo desnudo al disco raíz del mini, se corrió `git repack -a -d` con un hilo y 64 MB de ventana
+(el mini tiene 458 MB de RAM), y se sustituyó sólo `objects/pack` tras comprobar `fsck` y que las
+cuatro ramas eran idénticas. Mismos 18.099 objetos, misma historia; `almacen probar` en verde y los
+pushes pendientes entraron. Las copias quedan en `/var/tmp/fvd-orig.git` y `/var/tmp/fvd-new.git`
+del mini (~1,2 GB), y se borran cuando el dueño lo diga. ⚠ **Volverá a llenarse** si no cambia el
+archivado de conversaciones (punto 2), y el repack no es automático: `gc.auto` sigue sin fijar.
+
 Mientras se decide: lo commiteado en el dev **se queda y se reintenta** (`git push` en
 `~/src/foveal-vision-data`), que es exactamente lo que la regla de abajo promete.
 
