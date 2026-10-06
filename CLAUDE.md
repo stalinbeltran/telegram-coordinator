@@ -1211,9 +1211,16 @@ Tres cosas medidas, y las tres hay que saberlas antes de ampliar el volumen:
    es infraestructura compartida y la decisión entre eso y `volume resize` es del dueño.
 2. **Las conversaciones son el 80 % del repo de datos**: **369 MB de los ~460** son blobs de
    `conversaciones/` (645 blobs en la historia; 44 commits del archivador del 1 al 3 de octubre).
-   Cada archivado es un `.jsonl.gz` nuevo de ~4 MB y **un `.gz` no se delta-comprime**, así que
-   cada versión cuesta sus 4 MB enteros para siempre. A ese ritmo cualquier volumen se llena en
-   días: **ampliar sin cambiar esto es comprar tiempo**, y hay que decirlo así.
+   Cada archivado es un `.jsonl.gz` nuevo de ~4 MB. ⚠ **CORREGIDO el 2026-10-06**: aquí decía
+   que «un `.gz` no se delta-comprime, así que cada versión cuesta sus 4 MB enteros», y **medido**
+   ese día en el clon de `~/ws/tema-2` las 16 versiones de `2026-10-05-64641da7.jsonl.gz` suman
+   127 MB lógicos y ocupan **22,6 MB** en disco (15 guardadas como delta; `git cat-file
+   --batch-check='%(objectsize:disk) %(deltabase)'`). Sí se comprime. Lo que crece es el **número
+   de versiones** —una por turno de `c`— y las **imágenes en base64** (10 de los 25 MB de esa
+   conversación), que no se comprimen con nada. A ese ritmo cualquier volumen se llena igual:
+   **ampliar sin cambiar esto es comprar tiempo**, y hay que decirlo así. El análisis de qué
+   conversaciones deberían sobrevivir al dev, en
+   [`docs/conversaciones-sobreviven-al-dev-2026-10-06.md`](docs/conversaciones-sobreviven-al-dev-2026-10-06.md).
 3. **El `unpacker error` es el `NO SÉ` de siempre leído mal**: `receive.denyDeletes` no tiene nada
    que ver, no es un rechazo de la regla «nadie borra». Mirar siempre `df` antes de depurar git.
 
