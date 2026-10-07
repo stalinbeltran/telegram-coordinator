@@ -1025,7 +1025,11 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    systemd las **ignora** con un aviso en el journal que nadie mira — o sea el
    limitador de reinicios que existe para acotar el bucle de `Restart=`, apagado en
    silencio. Se comprueba con `systemctl show <unidad> -p StartLimitIntervalUSec`.
-   Las tres apps: **8010** `foveal-vision-web` · **8020** `claude-web` · **8030** `gauss-p`.
+   ⚠ **ACTUALIZADO el 2026-10-07: ya no son tres en el dev.** `claude-web` se mudó al **mini**
+   ese día, y `gauss-p` (y `sispla-demo`) se **retiraron** por orden del dueño (*«ya no deben
+   ejecutarse»*). Medido ese día con `ss -ltnp` y `ufw status`: en el **dev** sólo queda
+   **8010** `foveal-vision-web`; en el **mini**, **8020** `claude-web` y **8040**
+   `graph-simulator`. Lo de arriba sobre las cuatro puertas sigue valiendo para la próxima app.
 
    ✅ **Arreglado el 2026-09-15 en el lanzador (`e1a6171`):**
    `comprobar_lanzador_al_dia()` es la **primera** comprobación de `launch` —local,
