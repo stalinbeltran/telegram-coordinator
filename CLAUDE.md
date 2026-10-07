@@ -1719,6 +1719,11 @@ hay que respetar al escribir. La **sexta** no viene de ahí: la pidió el dueño
    No sustituye a la tabla: la tabla es para **buscar** cuando ya sabes, la sesión es
    para **aprender** la primera vez. La que falta casi siempre es la segunda.
 
+⚠⚠ **Regla del dueño (2026-10-07): cuando pida imágenes, reportes o cualquier fichero, se le da el LINK COMPLETO**
+(`https://github.com/<dueño>/<repo>/blob/<hash>/<ruta>`), listo para abrir en el navegador del móvil. No una ruta del
+disco ni un nombre suelto: desde el móvil no se pueden abrir. Para eso el fichero tiene que estar **commiteado y
+empujado** antes de dar el link (un link a algo sin empujar da 404). Si el repo es privado, decirlo junto al link.
+
 ⚠ **Propuesta del dueño (2026-10-03), anotada y AÚN NO aplicada: en la documentación, mejor la URL
 del fichero que el número de commit.** Un `82d89fa` sólo se puede seguir con el repo clonado y se
 rompe si algún día se reescribe la historia —que es justo lo que §2 de
