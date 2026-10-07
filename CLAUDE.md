@@ -1198,6 +1198,23 @@ mismo criterio (rama `respaldo-github-2026-10-07`, `reset --hard origin/main`, r
 Tests: 15 en `tests/estado-por-tema.test.mjs`; en el lanzador 17 nuevos más los invariantes de
 `post` (todo tipo con el coordinador restaura después de conectar) y de `pre_destroy`.
 
+### ✅ Y desde el mismo día, la web vive en el MINI: una sola app, también sin dev
+
+Decisión del dueño del 2026-10-07: *«que siempre sea el mini el que tenga el claude web»*. La
+web (`claude-code-webapp-mobile`) corre **sólo en el mini**, en modo remoto: copia el historial
+del dev por SSH cada 3 s, o la foto del almacén de arriba si no hay dev, y reenvía lo que
+escribas a `data/entrada` del dev (que `src/entrada.ts` ya atendía); **sin dev, avisa y no envía
+nada**. El enlace se pide al **bot Lanzador** (`/use cweb` → `url`) y no cambia al rehacer el dev.
+Probado ese día en Chrome: misma conversación que la web del dev, un mensaje escrito en el mini
+contestado por claude del dev en 24 s, y el caso sin dev. Detalle en la P12 de
+`claude-code-webapp-mobile/docs/decisiones.md`.
+
+⚠ **PENDIENTE de decisión del dueño:** no se recreó el mini para probarlo desde cero porque el
+2026-10-07 **su tamaño (`s-1vcpu-512mb-10gb`) no se podía crear en `nyc1`**, la única región del
+volumen del almacén (`/v2/sizes`: lo más barato disponible era `s-1vcpu-1gb-amd`, 7 $/mes). Lo
+mismo vale para el dev: `s-2vcpu-4gb` tampoco estaba en `nyc1` (el fallo de `lanzar` del
+2026-10-06 22:13 en `errores/`). **Antes de destruir el mini, mira `/v2/sizes`.**
+
 ## Seguridad (tratar con seriedad)
 
 - La allowlist `ALLOWED_USER_IDS` es la única defensa. No la elimines ni la
