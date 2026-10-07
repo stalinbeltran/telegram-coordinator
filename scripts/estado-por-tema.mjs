@@ -423,7 +423,8 @@ function cliEstado(datos) {
   const f = git(datos, ['fetch', '-q', 'origin'], { timeout: 60_000 });
   if (!f.ok) { console.log(`almacén     no contesta: ${f.err.split('\n').pop()}`); return 2; }
   const ls = git(datos, ['ls-tree', '-r', '--name-only', 'origin/main', '--', CARPETA]).out.split('\n').filter(Boolean);
-  const maquinas = [...new Set(ls.map((r) => r.split('/')[1]).filter(Boolean))].sort();
+  // Sólo `coordinador/<máquina>/<algo>`: el README de la carpeta no es una máquina.
+  const maquinas = [...new Set(ls.map((r) => r.split('/')).filter((t) => t.length >= 3).map((t) => t[1]))].sort();
   console.log(`almacén     ${maquinas.length} máquina(s) con foto en ${CARPETA}/`);
   for (const m of maquinas) {
     let meta = {};

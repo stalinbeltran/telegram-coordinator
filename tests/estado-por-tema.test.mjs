@@ -153,6 +153,17 @@ test('la foto commitea SÓLO coordinador/, empuja al almacén, y sin cambios no 
   assert.equal(git(m.bare, 'rev-parse', 'main'), antes, 'una foto sin cambios no commitea');
 });
 
+test('--estado cuenta máquinas, no ficheros sueltos: el README de la carpeta no es una máquina', () => {
+  const m = maquina({ locales: { '-100_7': [linea(hace(0, 1), 'hola')] },
+    almacen: { 'do-1': { '-100_7': [linea(hace(2), 'viejo')] } } });
+  assert.equal(correr(m, ['--foto']).codigo, 0);
+  const r = correr(m, ['--estado']);
+  assert.equal(r.codigo, 0, r.salida);
+  assert.match(r.salida, /2 máquina\(s\) con foto/);
+  assert.doesNotMatch(r.salida, /README/, 'listó el README como si fuera una máquina');
+  assert.match(r.salida, /maq-test \(ésta\)/);
+});
+
 test('la foto NO borra la carpeta de otra máquina', () => {
   const m = maquina({ locales: { '-100_7': [linea(hace(0, 1), 'hola')] },
     almacen: { 'do-1': { '-100_7': [linea(hace(2), 'de la máquina anterior')] } } });
