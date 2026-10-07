@@ -1209,11 +1209,17 @@ Probado ese día en Chrome: misma conversación que la web del dev, un mensaje e
 contestado por claude del dev en 24 s, y el caso sin dev. Detalle en la P12 de
 `claude-code-webapp-mobile/docs/decisiones.md`.
 
-⚠ **PENDIENTE de decisión del dueño:** no se recreó el mini para probarlo desde cero porque el
-2026-10-07 **su tamaño (`s-1vcpu-512mb-10gb`) no se podía crear en `nyc1`**, la única región del
-volumen del almacén (`/v2/sizes`: lo más barato disponible era `s-1vcpu-1gb-amd`, 7 $/mes). Lo
-mismo vale para el dev: `s-2vcpu-4gb` tampoco estaba en `nyc1` (el fallo de `lanzar` del
-2026-10-06 22:13 en `errores/`). **Antes de destruir el mini, mira `/v2/sizes`.**
+✅ **RESUELTO el mismo 2026-10-07: la flota se mudó a `sfo2`, y con ella el almacén.** `nyc1`
+había dejado de ofrecer `s-1vcpu-512mb-10gb` (el mini) y `s-2vcpu-4gb` (el dev), medido contra
+`/v2/sizes`. El dueño pidió moverlo todo a una región que sí los tenga, volumen incluido: el mini
+se rehízo en `sfo2` (IP **159.65.77.58**) con el almacén copiado a un `datos` **nuevo** de `sfo2`,
+y con eso **la web del mini sí se recreó desde cero**: los cinco servicios `active` y claude-web
+copiando el historial del dev. El dev de ese día sigue en `nyc1`; el siguiente nace en `sfo2`.
+Sesión, salidas y lo que cambió, en
+[`docs/almacen.md` §7 del lanzador](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/edd3aa6/docs/almacen.md#7-la-mudanza-a-sfo2-ejecutada-el-2026-10-07).
+⚠ **Las URL del mini guardadas antes de ese día ya no valen** (IP y tokens nuevos): pídelas al
+Lanzador. **Y antes de rehacer cualquier máquina, mira `/v2/sizes`**: un plan desaparece de una
+región sin aviso.
 
 ## Seguridad (tratar con seriedad)
 
@@ -1233,7 +1239,7 @@ mismo vale para el dev: `s-2vcpu-4gb` tampoco estaba en `nyc1` (el fallo de `lan
 
 **Regla del dueño, y manda sobre la costumbre anterior:** *«todo dato, aun siendo temporal,
 se guarda ahí en vez de en el repo de datos como hemos hecho hasta ahora»*. «Ahí» es el
-**almacén**: un volumen de DigitalOcean (`datos`, 1 GB, `nyc1`, 0,10 $/mes) conectado al
+**almacén**: un volumen de DigitalOcean (`datos`, 1 GB, **`sfo2`** desde el 2026-10-07, 0,10 $/mes) conectado al
 mini y montado en `/mnt/datos`, que sirve por SSH **repos git desnudos** desde un usuario
 `datos` sin shell. `foveal-vision-data` vive ahí como ORIGEN; GitHub quedó como remoto
 `github`, **copia congelada que ya no se actualiza**. Git y no un servicio web porque el
@@ -1346,6 +1352,12 @@ irse a GitHub en silencio. Lo commiteado se queda y se reintenta.
 está puesto**, porque el dueño pidió «en vez de» GitHub; es decisión suya. Y por lo mismo:
 **`volume destroy datos` no se corre nunca**, igual que el mini no se destruye en ninguna
 limpieza.
+
+⚠ **Desde el 2026-10-07 hay DOS volúmenes `datos`**: el de **`sfo2`**, conectado al mini, es el
+almacén vivo; el de **`nyc1`**, suelto, es una **copia congelada** de ese día (`main` = `8a06c4f`),
+que no se conecta ni se escribe y tampoco se destruye. Por eso todo comando `volume …` del
+lanzador busca por **nombre + región** y **se niega** si no sabe cuál (`--region`). Antes cogía
+el primero que diera la API, y un `destroy` sin región se llevaba el de `nyc1`.
 
 ⚠ **Lo que NO arregla:** `errores.mjs` sigue escribiendo sin commitear (punto 4 de «LO
 PRIMERO»). El almacén es el destino; el empujón periódico sigue pendiente de decidir.
