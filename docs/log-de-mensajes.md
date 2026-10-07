@@ -25,7 +25,7 @@ Lo implementa [`scripts/mensajes.mjs`](../scripts/mensajes.mjs) y lo fija
 | `ts` | UTC, sin milisegundos |
 | `sesion` | `<chatId>_<threadId>` — la misma identidad que usa todo lo demás del coordinador |
 | `autor` | `usuario` · `claude` · `sistema` |
-| `origen` | `telegram` · `web` · `resumer` · `repetir` · `creset` · `shell` |
+| `origen` | `telegram` · `web` · `resumer` · `repetir` · `creset` · `shell` · `restaurar` (la línea frontera que deja la restauración desde el almacén) |
 | `texto` | el mensaje **entero**, con sus saltos escapados por JSON |
 
 `autor` es **quién habla**; `origen`, **por dónde entró**. Se separan porque un
@@ -60,9 +60,20 @@ sin borrar el log, y un resumer reinyecta un turno. Esos sucesos se registran
 como mensajes de `autor: "sistema"`; **no se esconden**, porque un lector que
 enseña un contexto que claude ya no tiene es peor que uno que no enseña nada.
 
-⚠ **No sobrevive a rehacer la máquina.** `data/mensajes/` está en `.gitignore`,
-como el resto del estado por tema. Es deliberado: contiene todo lo que Claude
-dijo, incluidas salidas de shell y rutas.
+⚠ **Sobrevive a rehacer la máquina SÓLO por el almacén** — desde el 2026-10-07; hasta
+entonces moría con ella, y era deliberado. `data/mensajes/` sigue en `.gitignore`: lo que
+viaja es una **foto redactada y pasada por la rejilla** que `scripts/estado-por-tema.mjs`
+deja en `foveal-vision-data/coordinador/<máquina>/` en cada turno de `c` (por el hook del
+archivador) y antes de destruir el dev (`pre_destroy`), y que el `post` del dev nuevo
+**restaura fusionando por `id`**, sin pisar nada local, con una **línea frontera** de
+`sistema` por tema (`origen: "restaurar"`): la web enseña entonces una conversación que
+claude **ya no tiene**, y la frontera lo dice. El motivo de exposición de siempre sigue en
+pie —el log contiene todo lo que Claude dijo, incluidas salidas de shell y rutas— y por eso
+la foto **redacta otra vez y retiene** cualquier línea que aún tenga forma de secreto. Lo
+que el almacén NO devuelve: la última respuesta de un dev destruido desde la consola de DO
+(el log la anota después del `SessionEnd`, y sin `destroy` no corre el `pre_destroy`), y
+nada más viejo que la purga. El porqué, lo descartado y lo medido, en
+[`conversaciones-sobreviven-al-dev-2026-10-06.md`](conversaciones-sobreviven-al-dev-2026-10-06.md).
 
 ## Dónde se escribe, y por qué importa
 
@@ -83,6 +94,9 @@ porque dependía de qué ejecutor lanzaras. Tiene test.
   **antes de trocearla**.
 - **Los procesos desacoplados** (`notify.mjs`, `repetir-bucle.mjs`,
   `claude-resumer.mjs`, `claude-reset.mjs`), **directamente al fichero**.
+- **La restauración desde el almacén** (`estado-por-tema.mjs --restaurar`), al nacer la
+  máquina o desde `/use historial`: añade las líneas que faltan y UNA frontera por tema.
+  Nunca reescribe una línea local; escribe como la purga (temporal + comprobar + rename).
 
 ⚠ Los desacoplados **no** hablan con el coordinador por HTTP a propósito: si
 tuvieran que hacerlo, dejarían de funcionar justo cuando el bot está caído, que es

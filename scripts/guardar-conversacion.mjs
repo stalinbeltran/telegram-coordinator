@@ -51,6 +51,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { loQueSigueSiendoSecreto, redactar, valoresSecretos } from './redactar.mjs';
+import { foto, empujar as empujarRutas } from './estado-por-tema.mjs';
 
 const HOOK = process.argv.includes('--hook');
 const SECO = process.argv.includes('--seco');
@@ -90,8 +91,9 @@ function sh(cmd, args, cwd) {
 }
 
 function repoDeDatos() {
-  // La misma indirección que `fv.settings.data_root`: el repo hermano si está.
-  const cand = join(dirname(CASA), 'foveal-vision-data');
+  // Se DECLARA con COORD_DATOS (R4); el defecto es la misma indirección que
+  // `fv.settings.data_root`: el repo hermano, si está.
+  const cand = process.env.COORD_DATOS || join(dirname(CASA), 'foveal-vision-data');
   return existsSync(cand) ? cand : null;
 }
 
@@ -291,7 +293,22 @@ function main() {
     (recuperadas ? `, ${recuperadas} ya archivada(s) sin transcript vivo` : '') +
     (rechazadas ? `, ⛔ ${rechazadas} RECHAZADA(S) por posible secreto` : ''));
 
-  if (!SECO && !SIN_GIT && guardadas) empujar(datos);
+  // La FOTO del estado por tema —el historial que enseña la web de lectura— va en el
+  // mismo viaje (estado-por-tema.mjs). Nunca puede tumbar el archivado: si falla, se dice.
+  let cambiosFoto = 0;
+  try {
+    const f = foto({ datos, seco: SECO, log: console.error });
+    if (f.motivo) console.error(`  ⚠ foto del estado por tema: ${f.motivo}`);
+    else if (f.cambiados) {
+      console.log(`  📸 estado por tema: ${f.cambiados} fichero(s) ${SECO ? 'cambiaría(n)' : 'actualizado(s)'}`
+        + (f.retenidas ? ` · ${f.retenidas} línea(s) retenida(s) por forma de secreto` : ''));
+    }
+    cambiosFoto = f.cambiados;
+  } catch (e) {
+    console.error(`  ⚠ foto del estado por tema falló: ${e.message}`);
+  }
+
+  if (!SECO && !SIN_GIT && (guardadas || cambiosFoto)) empujar(datos, guardadas, cambiosFoto);
   // ⚠ Un hook JAMÁS impide trabajar: pase lo que pase, sale con 0.
   return HOOK ? 0 : (rechazadas ? 2 : 0);
 }
@@ -326,25 +343,15 @@ function escribirIndice(datos, filas) {
   writeFileSync(join(datos, 'conversaciones', 'README.md'), cab + tabla + '\n');
 }
 
-function empujar(datos) {
-  // ⚠ SÓLO la carpeta de conversaciones. Un `git add -A` automático arrastraría
-  // el trabajo a medias de quien esté editando el repo de datos en ese momento y
-  // lo commitearía sin que nadie lo pidiera. Esto es lo único que este script
-  // tiene permiso para tocar.
-  const r1 = sh('git', ['add', 'conversaciones'], datos);
-  if (r1?.error) return console.error(`  (git add falló: ${r1.error})`);
-  const pend = sh('git', ['diff', '--cached', '--name-only'], datos);
-  if (!pend || pend.error || !pend.length) return;
-  const r2 = sh('git', ['commit', '-m', 'conversaciones: archivo automático'], datos);
-  if (r2?.error) return console.error(`  (git commit falló: ${r2.error})`);
-  const r3 = sh('git', ['push'], datos);
-  if (r3?.error) {
-    // No es fatal y no se reintenta aquí: el commit está hecho y el siguiente
-    // archivado (o `cerrable.mjs`) lo verá como pendiente de empujar.
-    console.error(`  (git push falló, queda commiteado: ${r3.error.split('\n')[0]})`);
-  } else {
-    console.log('  commiteado y empujado al repo de datos');
-  }
+function empujar(datos, guardadas, cambiosFoto) {
+  // ⚠ SÓLO las carpetas que este archivo produce: `conversaciones/` y `coordinador/` (la
+  // foto del estado por tema). Un `git add -A` automático arrastraría el trabajo a medias
+  // de quien esté editando el repo de datos en ese momento y lo commitearía sin que nadie
+  // lo pidiera. El commit, el push y el reintento con `pull --rebase` cuando otra máquina
+  // empujó antes viven en estado-por-tema.mjs, en un solo sitio.
+  const que = guardadas && cambiosFoto ? 'conversaciones y estado por tema'
+    : guardadas ? 'conversaciones' : 'estado por tema';
+  empujarRutas(datos, ['conversaciones', 'coordinador'], `${que}: archivo automático`, console.error);
 }
 
 try {

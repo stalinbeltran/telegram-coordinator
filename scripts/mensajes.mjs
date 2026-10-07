@@ -67,7 +67,7 @@ const CASA = process.env.COORD_HOME || dirname(dirname(fileURLToPath(import.meta
 export const TOPE_TEXTO = Number(process.env.COORD_LOG_MAX ?? 64_000);
 
 const AUTORES = new Set(['usuario', 'claude', 'sistema']);
-const ORIGENES = new Set(['telegram', 'web', 'resumer', 'repetir', 'creset', 'shell']);
+const ORIGENES = new Set(['telegram', 'web', 'resumer', 'repetir', 'creset', 'shell', 'restaurar']);
 
 let secretos = null;      // se leen una vez: cambiarlos pide reiniciar, como en errores.mjs
 let ultimoMs = 0, seq = 0;   // ver `nuevoId`: el orden dentro de un ms lo da el contador
@@ -117,10 +117,18 @@ export function nuevoId(ahora = Date.now()) {
     seq = 0;
   }
   ultimoMs = ms;
-  return ms.toString(36).padStart(8, '0')
-    + seq.toString(36).padStart(3, '0')
-    + randomBytes(3).toString('hex');
+  return componerId(ms, seq);
 }
+
+/** Un id con sus tres trozos dados. `azar` es aleatorio por defecto; la restauración
+ *  (estado-por-tema.mjs) pasa uno DERIVADO para que su línea frontera tenga siempre el
+ *  mismo id y repetirla no la duplique. */
+export function componerId(ms, seq = 0, azar = randomBytes(3).toString('hex')) {
+  return ms.toString(36).padStart(8, '0') + seq.toString(36).padStart(3, '0') + azar;
+}
+
+/** Los milisegundos de un id: su primer trozo. */
+export const msDeId = (id) => parseInt(String(id).slice(0, 8), 36);
 
 function recorta(texto) {
   const t = String(texto ?? '');

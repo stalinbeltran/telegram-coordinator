@@ -135,6 +135,9 @@ scripts/
   shell-cwd.mjs        shell con directorio de trabajo persistente por sesión
   guardar-conversacion.mjs  archiva las conversaciones de Claude Code en el repo
                        de DATOS, REDACTADAS. Corre solo en los dos hooks
+  estado-por-tema.mjs  la FOTO del historial de la web (data/mensajes) al almacén
+                       y su RESTAURACIÓN al nacer el dev. La llaman el archivador,
+                       el pre_destroy y el post de types/dev.json
   notify.mjs           aviso a Telegram desde un proceso desacoplado
   destino-telegram.mjs ¿a QUÉ tema avisar si nadie lo dijo? Respaldo: lee el
                        estado por tema. Principal > más reciente; caduca a 7 días
@@ -1135,6 +1138,66 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
    cd ~/src/foveal-vision-data && git status --porcelain -- errores/    # ¿sin empujar?
    ```
 
+## ✅ HECHO el 2026-10-07: el historial de «Claude web» sobrevive a destruir el dev (opción A)
+
+**Pedido por el dueño ese día** («quiero poder revisar la conversación en claude web»); el
+análisis, las opciones y lo medido están en
+[`docs/conversaciones-sobreviven-al-dev-2026-10-06.md`](docs/conversaciones-sobreviven-al-dev-2026-10-06.md).
+Lo que la web enseña es el **log de mensajes** del coordinador (`data/mensajes/`), no los
+transcripts de claude, y hasta ese día moría con la máquina. Ahora:
+
+- **La FOTO.** `scripts/estado-por-tema.mjs --foto` copia `data/mensajes/` y
+  `data/claude-profile/` a `foveal-vision-data/coordinador/<máquina>/`, **redactando otra vez y
+  pasando la rejilla línea a línea**, y la empuja al almacén. La hace el **archivador en cada
+  turno de `c`** (mismo hook, mismo push: cero viajes nuevos) y el `pre_destroy` del servicio
+  antes de un `destroy`. `<máquina>` es el id del droplet (`do-<id>`), nunca el hostname.
+- **La RESTAURACIÓN.** `--restaurar` corre en el `post` de `types/dev.json`, **después** de
+  `almacen conectar`: lee `origin/main` del almacén (no el árbol de trabajo), **fusiona por `id`
+  sin quitar una línea local**, aplica la ventana de la purga, y deja una **línea frontera** de
+  `sistema` por tema (`origen: restaurar`): la web enseña una conversación que claude **ya no
+  tiene**, y la frontera lo dice y dice cómo seguir (`/use c`). Repetirla sólo añade lo que falte.
+- **Desde Telegram: `/use historial`** → `estado` · `foto` · `restaurar` · `seco`.
+
+Qué viaja es una **lista declarada** (`VIAJAN`/`NO_VIAJAN` en el script; un test falla si una
+carpeta de `data/` queda sin clasificar): viajan `mensajes/` y `claude-profile/`; **no** viajan
+`sessions/` (el bot lo lee al arrancar, `src/sessions.ts`: restaurarlo haría que la web enseñara un
+ejecutor ligado que el bot no tiene), `ws/` (`workspaces.ts` da por decidido un tema con fichero
+aunque `~/ws/tema-N` no exista: trabajaría en `~/src` sin avisar), `shell-cwd/`,
+`claude-sessions/` (la memoria de claude: sería A+, que no se pidió), `buffer/` y `repeticiones/`
+(texto sin redactar) y `entrada/`.
+
+Medido ese día en este dev, con el código ya escrito y antes de fusionarlo a `main`:
+
+    $ node scripts/estado-por-tema.mjs --foto --seco
+    🧪 SECO — no escribo nada. Cambiaría 3 fichero(s):
+       coordinador/do-606776120/mensajes/-1004383895505_2.jsonl
+       coordinador/do-606776120/mensajes/-1004383895505_main.jsonl
+       coordinador/do-606776120/claude-profile/-1004383895505_main.json
+    $ node scripts/estado-por-tema.mjs --restaurar --seco
+    Nada que restaurar: el almacén (0 máquina(s) anteriores) no tiene nada que no esté ya aquí.
+
+⚠ **Lo que NO devuelve**: la última respuesta de un dev destruido **desde la consola** de DO (el
+log la anota después del `SessionEnd`, y sin `destroy` no corre `pre_destroy`); nada más viejo que
+la purga (30 días / 300 por tema); y la memoria de `c`, que sigue empezando en blanco en cada dev.
+⚠ **La primera restauración de verdad ocurrirá en el PRÓXIMO dev**: aquí está medida en seco y en
+test, y la foto en vivo. Compruébala al nacer: la salida del `post` (la publica el Lanzador) dice
+«✅ Restaurado del almacén …» o «❌ NO restauro: <motivo>», y la web enseña la frontera en cada tema.
+Y hace falta que el mini tenga el lanzador al día (`actualizar`), que `launch` ya exige.
+
+**Y lo que esto destapó, arreglado en el lanzador el mismo día**: `almacen conectar` dejaba en
+AVISO (exit 0) el clon de GitHub que `provision` trae, que desde la compactación del 10-03 **no
+comparte historia** con el almacén; el hook del archivador commiteaba encima y su push fallaba en
+silencio. Medido en este dev recién nacido: `main...origin/main [ahead 758, behind 52]`, y tres
+archivos del día sin poder empujar. Ahora `sincronizar_clon_con_almacen` **reajusta** el clon a
+`origin/main` si lo único local es regenerable (`conversaciones/`, `coordinador/`) y **se niega**
+si hay trabajo que no lo es; `tests/test_almacen_sincronizar.py`, 17 casos con repos git de
+verdad. La trampa que NO se hizo: fusionar las dos historias habría metido **366 MB** (16.342
+objetos) en el almacén y deshecho la compactación. El clon de este dev se reparó a mano con el
+mismo criterio (rama `respaldo-github-2026-10-07`, `reset --hard origin/main`, rearchivar).
+
+Tests: 15 en `tests/estado-por-tema.test.mjs`; en el lanzador 17 nuevos más los invariantes de
+`post` (todo tipo con el coordinador restaura después de conectar) y de `pre_destroy`.
+
 ## Seguridad (tratar con seriedad)
 
 - La allowlist `ALLOWED_USER_IDS` es la única defensa. No la elimines ni la
@@ -1144,7 +1207,10 @@ esperaba: mereció la pena correrlo. Lo que sigue sin cerrar, en cada punto.
 - **Nunca** imprimas el `BOT_TOKEN` ni el contenido de `.env` en respuestas,
   logs ni al chat. (Un mensaje a `c` pidiendo leer `.env` filtró el token una
   vez; si vuelve a pasar, avisa al usuario para rotarlo.)
-- `.env` y los datos efímeros están en `.gitignore`. No los commitees.
+- `.env` y los datos efímeros están en `.gitignore`. No los commitees. ⚠ La única excepción,
+  desde el 2026-10-07, es la **foto** del historial de la web (`data/mensajes/` →
+  `foveal-vision-data/coordinador/<máquina>/`), que viaja **redactada y pasada por la rejilla**
+  por `scripts/estado-por-tema.mjs`; el fichero local sigue sin commitearse.
 
 ## 🗄 EL ALMACÉN: dónde se guarda TODO dato (desde el 2026-10-01)
 

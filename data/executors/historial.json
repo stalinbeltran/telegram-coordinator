@@ -1,0 +1,19 @@
+{
+  "name": "historial",
+  "descripcion": "El historial que enseña la web de lectura (data/mensajes) viaja al ALMACÉN y vuelve al nacer el dev. Sin argumentos, el estado: qué hay aquí y qué hay allí. `foto` lo empuja ahora · `restaurar` trae lo de las máquinas anteriores (fusiona por id, no pisa nada, deja una línea frontera) · `seco` dice qué restauraría sin tocar nada.",
+  "ejemplos": [
+    "estado",
+    "foto",
+    "restaurar",
+    "seco"
+  ],
+  "command": "A=\"{{input}}\"; case \"${A:-estado}\" in estado) node scripts/estado-por-tema.mjs --estado;; foto) node scripts/estado-por-tema.mjs --foto;; restaurar) node scripts/estado-por-tema.mjs --restaurar;; seco) node scripts/estado-por-tema.mjs --restaurar --seco;; *) echo \"No sé qué es «$A». Órdenes: estado · foto · restaurar · seco\";; esac 2>&1; true",
+  "encargados": [
+    "echo"
+  ],
+  "timeoutMs": 180000,
+  "requiere": [
+    "node",
+    "git"
+  ]
+}

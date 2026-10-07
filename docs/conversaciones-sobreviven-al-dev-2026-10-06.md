@@ -1,6 +1,11 @@
 # Que las conversaciones de «Claude web» sobrevivan a destruir el dev
 
-**Estado: ANÁLISIS, pendiente de decisión del dueño. Nada implementado.**
+**Estado: A IMPLEMENTADA el 2026-10-07** por orden del dueño («Corre merge. Implementa A, pues
+quiero poder revisar la conversación en claude web»): `scripts/estado-por-tema.mjs` (foto +
+restauración), el ejecutor `historial`, el `post` de `types/dev.json`, el `pre_destroy` del
+servicio y el arreglo de `almacen conectar` del § 5. **A+ no** (que `c` recuerde no se pidió).
+La primera restauración real ocurrirá en el próximo dev. Lo de abajo es el análisis tal como se
+escribió antes de decidir.
 Escrito el 2026-10-06 en un dev nacido ese mismo día a las 22:55 UTC, o sea
 justo después de la pérdida que motiva la petición. Revisado por el agente
 `revisor` (sus hallazgos van integrados y los que importan se re-midieron a mano)
