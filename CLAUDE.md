@@ -1695,6 +1695,19 @@ para el resto apunta.
 Y lleva un apartado de **«lo que quedó pendiente»**, que es la parte que más se pierde: un
 barrido incompleto que no dice qué le falta es indistinguible de uno terminado.
 
+## Todo reconocimiento mide su resistencia a los DESPLAZAMIENTOS (regla del dueño, 2026-10-09)
+
+**Al medir cualquier reconocimiento** —un dígito, una feature, un objeto; en `experimentos-cnn`, en `foveal-vision` o
+donde sea— se mide también **la curva de su métrica contra la entrada movida d px** (d = −k…+k, horizontal y vertical
+por separado, cada signo aparte), **para el objeto entero y para cada feature individual**, más el % que cambia de
+lectura respecto de d = 0. Medido ese día: un compositor de dígitos con 0,958 de acierto baja a 0,84–0,87 moviendo la
+entrada 2 px, y falla un 5 nítido cuyo gemelo de entrenamiento está 1 px más abajo.
+
+La regla completa (los siete puntos, la trampa de `np.roll`, el recorte de los dígitos de UCI y por qué una curva plana
+es un resultado) vive donde se dispara:
+[`experimentos-cnn/CLAUDE.md` § «la resistencia a los DESPLAZAMIENTOS se mide SIEMPRE»](https://github.com/stalinbeltran/experimentos-cnn/blob/main/CLAUDE.md).
+Allí `comprobar.py` la exige en el `REGLAS.md` de todo experimento creado desde ese día.
+
 ## Quién revisa cada petición: el triage OBLIGA, los agentes JUZGAN
 
 Las reglas de aquí abajo están escritas y aun así se rompen, porque una regla escrita compite con
