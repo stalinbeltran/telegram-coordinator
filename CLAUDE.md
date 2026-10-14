@@ -1843,6 +1843,11 @@ hay que respetar al escribir. La **sexta** no viene de ahí: la pidió el dueño
 disco ni un nombre suelto: desde el móvil no se pueden abrir. Para eso el fichero tiene que estar **commiteado y
 empujado** antes de dar el link (un link a algo sin empujar da 404). Si el repo es privado, decirlo junto al link.
 
+⚠⚠ **Y las IMÁGENES van SIEMPRE en RAW** (el dueño, 2026-10-15: *«siempre pasarme las imágenes raw, la página de GitHub
+da problemas»*): `https://raw.githubusercontent.com/<dueño>/<repo>/<hash>/<ruta>.png`, no `…/blob/…`. El visor de
+GitHub le falla desde el móvil (ya lo había anotado `experimentos-cnn` para sus figuras el 2026-10-11; vale para todo
+repo). El `.md` sigue yendo por `blob`, que es lo que lo renderiza. Si el repo es privado, el raw pide sesión: decirlo.
+
 ⚠ **Propuesta del dueño (2026-10-03), anotada y AÚN NO aplicada: en la documentación, mejor la URL
 del fichero que el número de commit.** Un `82d89fa` sólo se puede seguir con el repo clonado y se
 rompe si algún día se reescribe la historia —que es justo lo que §2 de
