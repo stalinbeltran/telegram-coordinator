@@ -5,6 +5,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/memoria.mjs\" --restaurar --hook",
+            "timeout": 15,
+            "statusMessage": "restaurando la memoria de Claude desde git"
+          },
+          {
+            "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/sesiones.mjs\" --registrar --hook",
             "timeout": 15,
             "statusMessage": "¿trabaja alguien más en este workspace?"
@@ -14,6 +20,12 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/guardar-conversacion.mjs\" --hook",
             "timeout": 120,
             "statusMessage": "archivando conversaciones que quedaron sin guardar"
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/memoria.mjs\" --guardar --hook",
+            "timeout": 60,
+            "statusMessage": "guardando la memoria de Claude en git"
           }
         ]
       }
@@ -30,6 +42,11 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/guardar-conversacion.mjs\" --hook",
             "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/memoria.mjs\" --guardar --hook",
+            "timeout": 60
           }
         ]
       }

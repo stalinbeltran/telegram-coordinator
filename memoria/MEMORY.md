@@ -1,0 +1,1 @@
+- [Glosario siempre](glosario-siempre.md) — el dueño pide siempre un glosario en los informes; cada término nuevo entra; las corridas se describen por lo que llevan

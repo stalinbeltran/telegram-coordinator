@@ -1225,6 +1225,36 @@ Sesión, salidas y lo que cambió, en
 Lanzador. **Y antes de rehacer cualquier máquina, mira `/v2/sizes`**: un plan desaparece de una
 región sin aviso.
 
+## 🧠 La MEMORIA de Claude vive en GIT (`memoria/`), porque `~/.claude/` muere con el dev (2026-10-15)
+
+**Pedido por el dueño ese día**: *«esta máquina se descarta; si la memoria vive en el server, tenerla en memoria no
+sirve»*. La memoria persistente de Claude Code (`~/.claude/projects/<slug>/memory/*.md` + `MEMORY.md`) se trata igual que
+las conversaciones: `scripts/memoria.mjs` la **restaura** del repo en `SessionStart` y la **guarda y empuja** en
+`SessionEnd` (y también en `SessionStart`, por si la sesión anterior murió sin cerrar). Vive en **este** repo, en
+`memoria/`, porque es el que todo dev clona y donde están los hooks; no en el de datos.
+
+Cinco reglas, todas con test (`tests/memoria.test.mjs`):
+1. **Restaurar no pisa lo local**: copia lo que falta y une el índice línea a línea. Lo local es lo más reciente.
+2. **Guardar copia lo local encima** y commitea **sólo `memoria/`** (nunca `-A`: no arrastra trabajo a medias). Si el
+   push choca, `pull --rebase` y otro intento; si falla, queda commiteado y se reintenta en el siguiente hook.
+3. **Rejilla**: una memoria con forma de secreto (`redactar.mjs`) **no se guarda** y se dice cuál. Git no olvida.
+4. **El hook nunca impide trabajar**: con `--hook` sale con 0 siempre.
+5. Dónde está la memoria local se **declara** (`MEMORIA_DIR`) o se deduce con la regla de Claude Code (la ruta del
+   proyecto con todo lo que no es alfanumérico → `-`). ⚠ Eso significa que la memoria es **por ruta de proyecto**: una
+   sesión en `~/ws/tema-2/telegram-coordinator` tiene otro slug y otra carpeta local, pero **restaura del mismo
+   `memoria/`** de su copia del repo.
+
+```
+node scripts/memoria.mjs --estado      # qué hay en cada lado y qué difiere
+node scripts/memoria.mjs --restaurar   # repo → local (lo que falte)
+node scripts/memoria.mjs --guardar     # local → repo, commit y push de memoria/
+```
+
+⚠ **Lo que NO cubre**: una memoria escrita y la máquina destruida **antes** de que corra ningún hook (el `SessionEnd`
+no corre con SIGKILL; el `SessionStart` siguiente ya es en otra máquina). Si acabas de escribir algo que importa,
+`--guardar` a mano. Y las memorias son del **proyecto** (coordinador): lo que es regla de un experimento va en el
+`CLAUDE.md` o el README de ese repo, no aquí.
+
 ## Seguridad (tratar con seriedad)
 
 - La allowlist `ALLOWED_USER_IDS` es la única defensa. No la elimines ni la
