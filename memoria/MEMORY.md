@@ -1,2 +1,3 @@
 - [Glosario siempre](glosario-siempre.md) — el dueño pide siempre un glosario en los informes; cada término nuevo entra; las corridas se describen por lo que llevan
 - [Imagen antes que texto](imagen-antes-que-texto.md) — al dueño no le sirven las descripciones largas; una imagen con los números dentro, y pocas líneas
+- [Revisor en vivo en el dev](revisor-en-vivo-en-el-dev.md) — apps de revisión: cálculo en vivo en el dev y varios modelos entrenados; patrón en rizo-2/web
