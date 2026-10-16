@@ -375,3 +375,20 @@ test('un `datos.py` cualquiera NO cuenta: el patrón no puede casar de más', as
       'un `datos.py` genérico no es trabajo declarado: casar de más da 🔴 permanentes');
   } finally { hijo.kill('SIGKILL'); }
 });
+
+test('el ENTRENAMIENTO EN PARALELO de rizo-2 cuenta: la unidad alquila droplets y los destruye al final', async () => {
+  // 2026-10-16: `entrenar_paralelo.sh --dentro …` es el proceso que espera a
+  // las máquinas y las destruye. Si el dev muere con él vivo, los droplets
+  // rizo2-* quedan facturando hasta que alguien corra `apagar-do`.
+  const m = maquina();
+  const exp = repo(m.casa, 'experimentos-cnn',
+    { '2026-10-11-rizo-dos/web/entrenar_paralelo.sh': DORMIR });
+  const hijo = lanzar('node',
+    [join(exp, '2026-10-11-rizo-dos/web/entrenar_paralelo.sh'), '--dentro', '1c384b8b'], exp);
+  try {
+    await esperarEnPs('entrenar_paralelo\\.sh');
+    const salida = await correr(m, '--breve');
+    assert.match(salida, /NO CERRAR/, 'con el vigilante muerto nadie destruye los droplets');
+    assert.match(salida, /entrenar_paralelo\.sh/, 'y la línea breve tiene que nombrarlo');
+  } finally { hijo.kill('SIGKILL'); }
+});

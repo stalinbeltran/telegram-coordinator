@@ -178,7 +178,7 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
 // ⚠ Y `vast_instance\.py trabajo` entró el 2026-10-01 en el MISMO commit que el modo
 // (R11: el freno nunca llega después del acelerador). Cada trabajo es una unidad de
 // systemd con una máquina de Vast alquilada detrás: muere con este server.
-const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|evaluar_kernel\.py|calibrar\.py|vast_instance\.py trabajo|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
+const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|evaluar_kernel\.py|calibrar\.py|vast_instance\.py trabajo|entrenar_paralelo\.sh|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar
