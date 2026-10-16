@@ -289,21 +289,23 @@ export async function crearBot(botInfo?: UserFromGetMe): Promise<Bot> {
       return;
     }
 
-    const lines = execs.map((e) => {
-      // Se MARCA, no se esconde: un comando ausente no se distingue de un repo
-      // que falta, y entonces no sabes si instalar algo o clonar algo.
-      const avisos =
-        (e.origen?.pisados.length ? '  ⚠️ duplicado' : '') +
-        (e.falta?.length ? `  ⛔ falta ${e.falta.join(', ')}` : '');
-      const desc = e.descripcion ?? `encargados: ${e.encargados?.join(', ') || '(ninguno)'}`;
-      return `• ${e.name}   [${repoDe(e)}]${avisos}\n    ${desc}`;
-    });
-    await send(
-      ctx,
-      'Ejecutores (entre corchetes, el repo que lo declara):\n\n' +
-        lines.join('\n') +
-        '\n\nDetalle de uno: /executors <nombre>',
-    );
+    // Sólo la LISTA (pedido por el dueño el 2026-10-16: con 40+ ejecutores
+    // federados, una línea de descripción por cada uno era ilegible desde el
+    // móvil). Agrupados por el repo que los declara, que es lo que explica
+    // de dónde sale uno que no reconoces. La descripción vive en
+    // `/executors <nombre>`. Se MARCA, no se esconde: un comando ausente no se
+    // distingue de un repo que falta, y entonces no sabes si instalar o clonar.
+    const porRepo = new Map<string, string[]>();
+    for (const e of execs) {
+      const marca =
+        (e.origen?.pisados.length ? ' ⚠️' : '') +
+        (e.falta?.length ? ` ⛔(falta ${e.falta.join(', ')})` : '');
+      const repo = repoDe(e);
+      if (!porRepo.has(repo)) porRepo.set(repo, []);
+      porRepo.get(repo)!.push(e.name + marca);
+    }
+    const lines = [...porRepo].map(([repo, nombres]) => `[${repo}]\n${nombres.join(', ')}`);
+    await send(ctx, lines.join('\n\n') + '\n\nDetalle: /executors <nombre>');
   });
 
   bot.command('use', async (ctx) => {
