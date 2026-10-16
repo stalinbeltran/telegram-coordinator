@@ -863,10 +863,14 @@ reentrena lo que cambió. Y `experimentos-cnn` ya va en `types/dev.json`. ✅ **
 entrenar, `val` ≈ 0,08) para probar la restauración destruyendo el dev: el log de la unidad lo grita por compositor. Para los de
 verdad, `/api/reentrenar` en la app. Si al nacer `/use revisor` → `url` no da la URL, el `post` falló (AVISO en el log del
 Lanzador): `instalar` lo repone. Detalle y lo medido, en el README de rizo-2 § «PENDIENTE: revisar el feature vértice».
-⏳ **PENDIENTE, y SÓLO cuando el dueño lo ordene (2026-10-16): entrenar los compositores en SERVERS EN PARALELO**, uno por
-receta, en vez de en serie dentro del dev (~15 min cada uno con extra, más 8 min de features). Va **después** de comprobar que
-la restauración funciona tras destruir el dev. No está diseñado ni se ha lanzado nada: alquila máquinas, así que va por
-`desacoplar-persistente.sh`, con freno (`cerrable`) y con cada `.pt` empujado al almacén al terminar, igual que hoy.
+✅ **HECHO y LANZADO el 2026-10-16 (tarde), por orden del dueño: los compositores se entrenan en SERVERS EN PARALELO**, un
+droplet `dev` sin servicios por receta (`rizo2-<id>`), cada uno corre `servidor.py entrenar <id>` por consola, empuja su `.pt`
+al almacén (con `pull --rebase` y reintento: cuatro empujan a la vez) y se destruye pase lo que pase. Es
+`experimentos-cnn/2026-10-11-rizo-dos/web/entrenar_paralelo.sh` (`lanzar · seco · estado · off`), unidad
+`rizo2-entrenar-paralelo` por `desacoplar-persistente.sh`; desde Telegram `/use rizo2-paralelo`. El freno lo cuenta (droplets
+DO sueltos + el script en `TRABAJOS`). ⚠ La app NO recarga sola los pesos nuevos: tras el aviso, `/use revisor` → `instalar`
+(o reiniciar la unidad `rizo2-revisor`), y los restaura del almacén si la huella coincide. **Primera tanda en vivo**: las 4
+recetas emuladas, lanzada ~16:05 UTC; lo medido va en el README de rizo-2.
 ✅ **Verificado en el dev el 2026-10-16: un entrenamiento REAL pisa al emulado** en el almacén (mismo fichero, commit
 `rizo-2 revisor: pesos de «…»`, sin campo `emulado`): «aprobada + vértice», 15:08 → 15:21 UTC, val 0,9728. Los otros 4 siguen emulados. Ver el README de rizo-2.
 
