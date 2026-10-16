@@ -857,7 +857,12 @@ final del README de rizo-2 (§ «PENDIENTE: revisar el feature vértice»), y ah
 etiquetas a mano del dueño (`web/etiquetas-4.json`) y las recetas de arranque viajan en git; los compositores se reentrenan solos al
 instalar (~2 h con extra la primera vez: calcula las features de extra, 471 s medidos, y entrena 5 recetas). ✅ **Desde el 2026-10-16 ya no**: los pesos de cada compositor se guardan en el almacén
 (`foveal-vision-data/experimentos-cnn-resultados/rizo-2/revisor/`, con su huella) y se restauran al arrancar; un dev nuevo sólo
-reentrena lo que cambió. Y `experimentos-cnn` ya va en `types/dev.json`.
+reentrena lo que cambió. Y `experimentos-cnn` ya va en `types/dev.json`. ✅ **Y desde esa tarde no hay nada que teclear**: el
+`post` del tipo `dev` termina con `web/reponer.sh` (venv, delgado, unidad `rizo2-revisor`, puerto 8050), y al almacén va también la
+**caché de features** (`revisor/cache/*.npz`). ⚠ **Los 5 `.pt` del almacén ese día son EMULADOS** (`web/emular.py`, redes sin
+entrenar, `val` ≈ 0,08) para probar la restauración destruyendo el dev: el log de la unidad lo grita por compositor. Para los de
+verdad, `/api/reentrenar` en la app. Si al nacer `/use revisor` → `url` no da la URL, el `post` falló (AVISO en el log del
+Lanzador): `instalar` lo repone. Detalle y lo medido, en el README de rizo-2 § «PENDIENTE: revisar el feature vértice».
 
 Ese día se construyeron dos cosas que funcionaban en test y no se habían visto
 funcionar enteras, porque el ciclo que las prueba es *destruir un server y
