@@ -869,8 +869,8 @@ al almacén (con `pull --rebase` y reintento: cuatro empujan a la vez) y se dest
 `experimentos-cnn/2026-10-11-rizo-dos/web/entrenar_paralelo.sh` (`lanzar · seco · estado · off`), unidad
 `rizo2-entrenar-paralelo` por `desacoplar-persistente.sh`; desde Telegram `/use rizo2-paralelo`. El freno lo cuenta (droplets
 DO sueltos + el script en `TRABAJOS`). ⚠ La app NO recarga sola los pesos nuevos: tras el aviso, `/use revisor` → `instalar`
-(o reiniciar la unidad `rizo2-revisor`), y los restaura del almacén si la huella coincide. **Primera tanda en vivo**: las 4
-recetas emuladas, lanzada ~16:05 UTC; lo medido va en el README de rizo-2.
+(o reiniciar la unidad `rizo2-revisor`), y los restaura del almacén si la huella coincide. ✅ **Medido ese día**: las 4 recetas emuladas, 15:52 → 16:12 UTC, val 0,968–0,9716, `NRestarts=0`, 0 droplets
+vivos al terminar, aviso en Telegram; detalle en el README de rizo-2 § 96. **Los 5 compositores son reales desde entonces.**
 ✅ **Verificado en el dev el 2026-10-16: un entrenamiento REAL pisa al emulado** en el almacén (mismo fichero, commit
 `rizo-2 revisor: pesos de «…»`, sin campo `emulado`): «aprobada + vértice», 15:08 → 15:21 UTC, val 0,9728. Los otros 4 siguen emulados. Ver el README de rizo-2.
 
