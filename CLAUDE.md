@@ -851,6 +851,12 @@ trabajo lanzado desde un tema atado a un workspace escribía su estado en el `da
 
 ## ⏳ LO PRIMERO SI ACABAS DE NACER: qué quedó a medias (2026-09-10, actualizado esa noche)
 
+⚠ **AÑADIDO el 2026-10-16, el dueño, minutos antes de destruir el dev:** el REVISOR de dígitos de rizo-2 (`experimentos-cnn`,
+`2026-10-11-rizo-dos/web/`, puerto 8050) **no viene en los repos que clona un dev nuevo**: se repone con los cuatro comandos del
+final del README de rizo-2 (§ «PENDIENTE: revisar el feature vértice»), y ahí mismo está lo que quedó por revisar. Las
+etiquetas a mano del dueño (`web/etiquetas-4.json`) y las recetas de arranque viajan en git; los compositores se reentrenan solos al
+instalar (~2 h con extra la primera vez: calcula las features de extra, 471 s medidos, y entrena 5 recetas).
+
 Ese día se construyeron dos cosas que funcionaban en test y no se habían visto
 funcionar enteras, porque el ciclo que las prueba es *destruir un server y
 relanzarlo*. **El ciclo ocurrió esa misma noche y esta máquina es su resultado**,
