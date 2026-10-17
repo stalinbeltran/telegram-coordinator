@@ -1390,8 +1390,12 @@ en [`docs/almacen-contenido-y-objetos-2026-10-03.md` del lanzador](https://githu
 01:16, el resto de un push que murió con el disco lleno. Juntar los packs dio 539 → 534,5 MiB, casi
 nada; el `tmp_pack` era el 33 % del repo. **`gc.pruneExpire=never` también impide que git borre sus
 temporales**, así que cada push que falla por disco lleno deja su pack a medias **para siempre** y el
-disco sigue lleno: el fallo se alimenta a sí mismo. Si vuelve a llenarse, mira primero `garbage:` en
-`count-objects -v`. Hecho así: respaldo en `/var/tmp/fvd-antes-repack-2026-10-17.git` del mini (540 MB,
+disco sigue lleno: el fallo se alimenta a sí mismo. ⚠ Y lo más probable *(deducido, no reproducido)*
+es que lo dejara **el propio `gc --auto` del 10-03**: tiene la hora de un push que sí entró, y un
+repack necesita libre tanto como los packs. ✅ **Arreglado el mismo día en el lanzador (`8c84e6e`)**:
+cron cada hora borra los temporales de git con más de 60 min, y `/use almacen` → `estado` enseña la
+basura y el **margen del gc** (falla si libre < packs). Medido y pendiente, en
+[`docs/almacen.md` §8 del lanzador](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/almacen.md#8-la-basura-de-git-se-limpia-sola-desde-el-2026-10-17). Hecho así: respaldo en `/var/tmp/fvd-antes-repack-2026-10-17.git` del mini (540 MB,
 se borra cuando el dueño lo diga), `rm` del `tmp_pack` (sin nadie abierto, `fuser`), y `git gc` in situ
 (un hilo, `pack.windowMemory=64m`) como unidad `almacen-repack` de systemd. Comprobado después: `fsck
 --full` limpio, objetos y ramas **idénticos** al respaldo, `almacen probar` ×5 en verde.
