@@ -2,3 +2,5 @@
 - [Imagen antes que texto](imagen-antes-que-texto.md) — al dueño no le sirven las descripciones largas; una imagen con los números dentro, y pocas líneas
 - [Revisor en vivo en el dev](revisor-en-vivo-en-el-dev.md) — apps de revisión: cálculo en vivo en el dev y varios modelos entrenados; patrón en rizo-2/web
 - [Entrada: delgado, no tinta](entrada-delgado-no-tinta.md) — en experimentos-cnn features, detectores y figuras van sobre el delgado de delg-cnn; la tinta sólo a propósito y dicho
+- [Entrada: delgado, no tinta](entrada-delgado-no-tinta.md) — en experimentos-cnn TODO va por defecto sobre el delgado de delg-cnn; el vértice aún sobre tinta (pendiente)
+- [Una rejilla por dirección](rejilla-por-direccion.md) — features con dirección: 4 rejillas N E S O (sectores de 90°, sin NE), celdas sin letras de brújula

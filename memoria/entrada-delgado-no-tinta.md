@@ -1,6 +1,6 @@
 ---
 name: entrada-delgado-no-tinta
-description: "en experimentos-cnn la entrada por defecto de features, detectores y figuras es el DELGADO (delg-cnn), no la tinta"
+description: "en experimentos-cnn TODO se calcula por defecto sobre el DELGADO (delg-cnn), no la tinta; el vértice aún va sobre tinta (pendiente)"
 metadata:
   node_type: memory
   type: feedback
@@ -17,7 +17,10 @@ dice en el código, la figura y el README.
 razón, que el cálculo era sobre tinta. Es una transformación que se aplica siempre antes de buscar features.
 
 **How to apply:** al cargar datos para un análisis o una figura de `experimentos-cnn`, cargar `M` del delgado y pintarlo
-de fondo; si aparece `tinta` en el código, justificarlo o cambiarlo. Ojo: el bloque `vertice` del revisor de rizo-2 (§ 95)
-sigue sobre la tinta y eso está anotado como pendiente de decisión del dueño. La regla completa vive en
-`experimentos-cnn/CLAUDE.md` § «la entrada por DEFECTO es el DELGADO». Relacionado: [[imagen-antes-que-texto]],
+de fondo; si aparece `tinta` en el código, justificarlo o cambiarlo. El 2026-10-17 el dueño dijo «por default todo se calcula sobre el delgado… hay un divorcio
+entre lo que yo esperaba y lo que el sistema hace»: en el REVISOR lo único que hoy va sobre la tinta es el VÉRTICE (bloques
+`vertice`, `vertice_1` y el que dibuja el revisor); fuera de él, 33 scripts antiguos de rizo-2/nn y otros 28 experimentos
+leen la tinta (no auditados); pasarlo al delgado está PENDIENTE, sin recalcular, y sin entrenar compositores
+hasta que él lo diga. La regla completa vive en
+`experimentos-cnn/CLAUDE.md` § «POR DEFECTO, TODO se calcula sobre el DELGADO». Relacionado: [[imagen-antes-que-texto]],
 [[revisor-en-vivo-en-el-dev]].
