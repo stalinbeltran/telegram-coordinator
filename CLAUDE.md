@@ -157,7 +157,8 @@ scripts/
 data/
   fuentes.json         dónde buscar ejecutores ADEMÁS de aquí (es dato)
   executors/*.json     { name, command, encargados: [], timeoutMs?,
-                         descripcion?, ejemplos?, cwd?, requiere? }
+                         descripcion?, ejemplos?, cwd?, requiere?,
+                         registrar?, alAbrir? }
   encargados/*.json     { name, command, timeoutMs?, descripcion?, cwd?,
                          requiere? }
   sessions/*.json       (efímero, ignorado por git)
@@ -736,6 +737,18 @@ reportes/
   `#modelo` a secas lo consulta. El texto que siga a esa línea va a claude con
   el perfil nuevo; una orden sola no llama a claude ni toca el marker. Va con
   `#` porque `/` es control del coordinador y no llega al ejecutor.
+
+  **Y sobrevive a destruir el dev** (2026-10-17). `claude-profile/` viaja en la foto
+  del almacén (`estado-por-tema.mjs`), pero la restauración se quedaba con la
+  **primera máquina por orden alfabético**, o sea la más vieja: medido ese día, un
+  dev nuevo volvía a `opus/low` del 10-07 en los dos temas, con `opus/high` elegido
+  después. Ahora gana el **`updated` más reciente**; `#modelo reset` deja una
+  **lápida** con fecha en vez de borrar (borrar no viajaba y el reset se deshacía
+  al renacer); y cada cambio lanza la foto **al momento**, porque una orden sola no
+  llama a claude y no corre el hook que fotografía. `/use c` dice el perfil **del
+  tema** con el campo genérico `alAbrir` del JSON (`{{command}} --perfil`): un
+  comando cuya salida `/use` añade al saludo, sin que el coordinador sepa de
+  modelos. Seis tests nuevos; los seis fallan con el código anterior.
 - **Permisos de claude** (`CLAUDE_PERMISSION_MODE`): `default` (pide permiso,
   suele bloquear en `-p`), `acceptEdits`, o `bypassPermissions` (⚠️ autonomía
   total). Tras cambiarlo, reiniciar el bot.
