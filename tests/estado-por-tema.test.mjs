@@ -279,6 +279,37 @@ test('restaurar trae el #modelo por tema si falta y no pisa el que ya está', ()
   assert.equal(leer(join(m.data, 'claude-profile', '_global.json')), '{"model":"haiku"}\n', 'pisó el local');
 });
 
+test('restaurar el #modelo: gana el `updated` MÁS RECIENTE, no la primera máquina', () => {
+  // Medido el 2026-10-17: el almacén da las máquinas por orden alfabético de id,
+  // y «gana la primera» devolvía en cada dev nuevo el perfil más VIEJO.
+  const p = (model, updated) => JSON.stringify({ model, effort: 'high', updated }) + '\n';
+  const m = maquina({
+    almacen: { 'do-1': { '-100_7': [linea(hace(2), 'x')] } },
+    perfiles: {
+      'do-1': { '-100_7.json': p('viejo', '2026-10-01T00:00:00Z') },
+      'do-2': { '-100_7.json': p('nuevo', '2026-10-09T00:00:00Z') },
+      'do-3': { '-100_7.json': p('medio', '2026-10-05T00:00:00Z') },
+    },
+  });
+  const r = correr(m, ['--restaurar']);
+  assert.equal(r.codigo, 0, r.salida);
+  assert.equal(JSON.parse(leer(join(m.data, 'claude-profile', '-100_7.json'))).model, 'nuevo');
+});
+
+test('restaurar el #modelo: una LÁPIDA de reset más reciente gana al perfil viejo', () => {
+  const m = maquina({
+    almacen: { 'do-1': { '-100_7': [linea(hace(2), 'x')] } },
+    perfiles: {
+      'do-1': { '-100_7.json': '{"model":"opus","updated":"2026-10-01T00:00:00Z"}\n' },
+      'do-2': { '-100_7.json': '{"reset":true,"updated":"2026-10-03T00:00:00Z"}\n' },
+    },
+  });
+  const r = correr(m, ['--restaurar']);
+  assert.equal(r.codigo, 0, r.salida);
+  assert.equal(JSON.parse(leer(join(m.data, 'claude-profile', '-100_7.json'))).reset, true,
+    'el reset del dev anterior no se deshace al renacer');
+});
+
 test('--restaurar --seco dice qué traería y no escribe', () => {
   const m = maquina({ almacen: { 'do-1': { '-100_7': [linea(hace(3), 'a'), linea(hace(2), 'b')] } } });
   const r = correr(m, ['--restaurar', '--seco']);

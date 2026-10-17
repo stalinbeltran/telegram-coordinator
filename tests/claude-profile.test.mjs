@@ -176,14 +176,42 @@ test('el perfil guardado se aplica a los mensajes SIGUIENTES sin repetir la orde
   assert.doesNotMatch(out, /🎛/, 'sin orden no hay aviso');
 });
 
-test('#modelo reset borra el fichero y vuelve a la plantilla', async () => {
+test('#modelo reset deja una LÁPIDA con fecha (no borra) y vuelve a la plantilla', async () => {
+  // Borrar no viajaba al almacén: la foto copia lo que hay y no quita lo que
+  // falta, así que el dev siguiente restauraba el perfil viejo y el reset se
+  // deshacía solo. La lápida compite por `updated` en la restauración.
   const dir = nuevoDataDir();
   const falso = claudeFalso();
   await correrSesion(dir, '#modelo opus', falso);
   const { out, code } = await correrSesion(dir, '#modelo reset', falso);
   assert.equal(code, 0);
   assert.match(out, /borrado/);
-  assert.equal(existsSync(join(dir, 'claude-profile', TEMA.replace(/[^\w.-]/g, '_') + '.json')), false);
+  const lapida = JSON.parse(readFileSync(join(dir, 'claude-profile', TEMA.replace(/[^\w.-]/g, '_') + '.json'), 'utf8'));
+  assert.equal(lapida.reset, true);
+  assert.ok(Date.parse(lapida.updated) > 0, 'la lápida lleva su fecha');
+  await correrSesion(dir, 'sigue', falso);
+  assert.doesNotMatch(llamada(falso).args.join(' '), /--model opus/, 'tras el reset manda la plantilla');
+});
+
+test('--perfil dice el modelo de ESTE tema, no el de la plantilla, y no llama a claude', async () => {
+  const dir = nuevoDataDir();
+  const falso = claudeFalso();
+  const perfil = (tema) => new Promise((res) => {
+    const env = { ...process.env, DATA_DIR: dir, COORD_SESSION: tema, FAKE_OUT: falso.out };
+    const c = spawn(process.execPath, [SESSION_SCRIPT, '--model', 'fable', '--effort', 'max', '--perfil'], { cwd: ROOT, env });
+    let out = '';
+    c.stdout.on('data', (d) => (out += d));
+    c.on('close', (code) => res({ out, code }));
+  });
+  let r = await perfil(TEMA);
+  assert.equal(r.code, 0);
+  assert.match(r.out, /fable\/max \(de la plantilla\)/);
+  await correrSesion(dir, '#modelo opus high', falso);
+  r = await perfil(TEMA);
+  assert.match(r.out, /opus\/high \(de este tema\)/);
+  r = await perfil('-100999_1');
+  assert.match(r.out, /fable\/max/, 'otro tema no hereda el perfil de éste');
+  assert.equal(llamada(falso), null, 'consultar el perfil no llama a claude');
 });
 
 test('una orden mal formada sale con error y NO llama a claude', async () => {

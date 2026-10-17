@@ -1,6 +1,6 @@
 {
   "name": "c",
-  "descripcion": "Conversa con claude (fable, esfuerzo max) con memoria por tema.",
+  "descripcion": "Conversa con claude con memoria por tema. El modelo es POR TEMA: lo dice la línea 🎛 de abajo, se cambia con «#modelo <modelo> [esfuerzo]» y sobrevive a rehacer el dev.",
   "ejemplos": [
     "¿qué cambió en este repo esta semana?"
   ],
@@ -8,6 +8,7 @@
     "claude"
   ],
   "command": "node scripts/claude-session.mjs --model fable --effort max",
+  "alAbrir": "{{command}} --perfil",
   "encargados": [
     "echo",
     "claude-watch"

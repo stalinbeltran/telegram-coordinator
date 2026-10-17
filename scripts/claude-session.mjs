@@ -39,7 +39,8 @@ import {
   writeMarker,
 } from './claude-marker.mjs';
 import { cargarSecretos, pareceFalloDeLogin, pistaDeLogin } from './cargar-secretos.mjs';
-import { parseCommand, applyCommand, resolveProfile, explain } from './claude-profile.mjs';
+import { parseCommand, applyCommand, resolveProfile, explain, lineaAlAbrir } from './claude-profile.mjs';
+import { join, resolve } from 'node:path';
 
 // Los secretos, de disco. Lanzado por el bot no hace falta (el unit arranca con
 // `bash -lc` y ya trae CLAUDE_CODE_OAUTH_TOKEN), pero este script se compone
@@ -53,10 +54,16 @@ const permissionMode = process.env.CLAUDE_PERMISSION_MODE || 'acceptEdits';
 
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
+// `--perfil`: no conversa; imprime qué modelo usará ESTE tema y sale. Lo llama
+// `alAbrir` de `c.json`, para que `/use c` diga el perfil del tema y no el de la
+// plantilla (que es lo que decía la descripción fija: «fable, esfuerzo max»).
+const SOLO_PERFIL = process.argv.includes('--perfil');
+
 // Lee --model / --effort de la plantilla del ejecutor (acepta "--x v" y "--x=v").
 function parseProfile(argv) {
   const profile = {};
   for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--perfil') continue;
     const m = /^--(model|effort)(?:=(.*))?$/.exec(argv[i]);
     if (!m) {
       console.error(`Opción desconocida: ${argv[i]}. Solo se aceptan --model y --effort.`);
@@ -77,6 +84,32 @@ function parseProfile(argv) {
 }
 
 const template = parseProfile(process.argv.slice(2));
+if (SOLO_PERFIL) {
+  process.stdout.write(lineaAlAbrir(template, SESSION));
+  process.exit(0);
+}
+
+// Tras cambiar el perfil, foto al almacén AL MOMENTO y desacoplada: si el dev se
+// destruye antes del próximo turno de claude, el cambio ya viajó. Nunca bloquea
+// ni falla la orden (si no sale, la recoge el archivador en el siguiente turno).
+// ⚠ Sólo con el `data/` DEL COORDINADOR: los tests corren con un DATA_DIR
+// temporal y no pueden poder escribir en el almacén de verdad.
+function fotoAlCambiar() {
+  try {
+    // COORD_HOME y no la carpeta de este script: en un tema atado a un workspace
+    // este script es la COPIA, y el estado por tema vive en el de casa.
+    const home = process.env.COORD_HOME;
+    if (!home || resolve(process.env.DATA_DIR || 'data') !== resolve(home, 'data')) return;
+    const hijo = spawn(process.execPath, [join(home, 'scripts', 'estado-por-tema.mjs'), '--foto'], {
+      cwd: home,
+      detached: true, stdio: 'ignore', windowsHide: true,
+    });
+    hijo.on('error', () => {});
+    hijo.unref();
+  } catch {
+    /* comodidad, no fuente de verdad */
+  }
+}
 // Se rellena tras leer el mensaje: una orden `#modelo` en la primera línea
 // cambia el perfil ANTES de llamar a claude.
 let profileArgs = [];
@@ -124,6 +157,7 @@ if (orden) {
     process.exit(1);
   }
   await applyCommand(orden, SESSION);
+  if (!orden.query) fotoAlCambiar();
   aviso = explain(orden, SESSION, template);
   if (!orden.rest) {
     process.stdout.write(aviso);

@@ -305,6 +305,16 @@ export function fusionarTema(tema, delAlmacen, ruta, { maquina, ahora = Date.now
   return { anadidas: nuevas.length, desde: nuevas[0].ts, hasta: ultima.ts, texto, bytesAntes: bytes };
 }
 
+/** Milisegundos del `updated` de un perfil; 0 si no lo trae o está roto (pierde contra cualquiera). */
+function fechaDePerfil(txt) {
+  try {
+    const t = Date.parse(JSON.parse(txt)?.updated);
+    return Number.isFinite(t) ? t : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Trae del almacén el estado por tema de las máquinas anteriores y lo fusiona en data/.
  * Se NIEGA antes de escribir nada si no puede leer origin/main del almacén (R2).
@@ -324,7 +334,13 @@ export function restaurar({ datos, seco = false, ahora = Date.now() } = {}) {
   if (!ls.ok) return { ok: false, motivo: `no pude listar ${ref}:${CARPETA}/: ${ls.err.split('\n').pop() || '?'}` };
 
   const porTema = new Map();   // tema -> Map(id -> línea)
-  const perfiles = new Map();  // fichero -> texto (gana la primera máquina que lo tenga)
+  // fichero -> {txt, updated}. Gana el de `updated` MÁS RECIENTE, no la primera máquina que lo
+  // tenga: el almacén guarda una foto por máquina y `ls-tree` las da por orden alfabético de id,
+  // así que «la primera» era la MÁS VIEJA. Medido el 2026-10-17: 13 máquinas en el almacén, y el
+  // tema 2 volvía en cada dev nuevo a «opus/low» del 10-07 aunque se hubiera cambiado después.
+  // Un `#modelo reset` deja una LÁPIDA con su `updated` (claude-profile.mjs), y por eso compite
+  // igual que un perfil: si es lo más reciente, el tema vuelve a la plantilla también al renacer.
+  const perfiles = new Map();
   const maquinas = new Set();
   for (const ruta of ls.out.split('\n').filter(Boolean)) {
     const m = new RegExp(`^${CARPETA}/([^/]+)/(mensajes|claude-profile)/([^/]+)$`).exec(ruta);
@@ -339,8 +355,12 @@ export function restaurar({ datos, seco = false, ahora = Date.now() } = {}) {
         try { const o = JSON.parse(l); if (o?.id && o?.autor && !mapa.has(String(o.id))) mapa.set(String(o.id), o); } catch { /* línea rota: no viaja */ }
       }
       porTema.set(tema, mapa);
-    } else if (m[2] === 'claude-profile' && m[3].endsWith('.json') && !perfiles.has(m[3])) {
-      perfiles.set(m[3], contenido.endsWith('\n') ? contenido : contenido + '\n');
+    } else if (m[2] === 'claude-profile' && m[3].endsWith('.json')) {
+      const updated = fechaDePerfil(contenido);
+      const ya = perfiles.get(m[3]);
+      if (!ya || updated > ya.updated) {
+        perfiles.set(m[3], { txt: contenido.endsWith('\n') ? contenido : contenido + '\n', updated });
+      }
     }
   }
 
@@ -360,7 +380,7 @@ export function restaurar({ datos, seco = false, ahora = Date.now() } = {}) {
       aplazado: Boolean(r.anadidas && r.carrera) });
   }
   let perfilesNuevos = 0, perfilesYa = 0;
-  for (const [nombre, txt] of perfiles) {
+  for (const [nombre, { txt }] of perfiles) {
     const ruta = join(dataDir, 'claude-profile', nombre);
     if (existsSync(ruta)) { perfilesYa++; continue; }
     if (!seco) { mkdirSync(dirname(ruta), { recursive: true }); writeFileSync(ruta, txt, 'utf8'); }

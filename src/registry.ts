@@ -48,6 +48,12 @@ export interface Executor {
    * almacén de salidas.
    */
   registrar?: boolean;
+  /**
+   * Comando que `/use` corre al abrir la sesión, y cuya salida añade al saludo:
+   * el ESTADO de este ejecutor en este tema (p.ej. qué modelo usará `c` aquí).
+   * `{{command}}` se sustituye por `command`. Ausente = no se corre nada.
+   */
+  alAbrir?: string;
   /** Relleno al cargar; NO se escribe en el JSON. */
   origen?: Origen;
   /** Relleno al cargar: cuáles de `requiere` NO están. NO se escribe en el JSON. */

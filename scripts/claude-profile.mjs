@@ -26,11 +26,19 @@
 // El prefijo es `#` y no `/` a propósito: lo que empieza por `/` es un comando
 // de control del coordinador y no llega al ejecutor.
 //
-// Estado efímero en `data/claude-profile/` (ignorado por git): si se pierde, el
-// tema vuelve a la plantilla, que es el mismo precio que paga el resto de `data/`.
+// Vive en `data/claude-profile/` (ignorado por git) y SOBREVIVE A DESTRUIR EL DEV
+// por el almacén: `estado-por-tema.mjs --foto` lo copia y `--restaurar` lo trae al
+// nacer el dev siguiente, y entre varias máquinas gana el `updated` más reciente.
+// Por eso cada cambio lanza una foto al momento (claude-session.mjs): una orden
+// `#modelo` sola no llama a claude, así que no corre el hook que fotografía.
+//
+// ⚠ `reset` NO borra el fichero: escribe una LÁPIDA (`{reset: true, updated}`).
+// Borrarlo no viajaba: la foto copia lo que hay, no quita lo que falta, y el dev
+// siguiente restauraba el perfil viejo de otra máquina — el reset se deshacía
+// solo. La lápida compite por `updated` como un perfil y `pick()` la lee como {}.
 
 import { readFileSync } from 'node:fs';
-import { writeFile, mkdir, unlink } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const DATA_DIR = process.env.DATA_DIR || 'data';
@@ -66,11 +74,11 @@ export async function writeOverride(scope, session, override) {
 }
 
 export async function clearOverride(scope, session) {
-  try {
-    await unlink(profilePath(scope, session));
-  } catch {
-    /* no había: ya está borrado */
-  }
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    profilePath(scope, session),
+    JSON.stringify({ reset: true, updated: new Date().toISOString() }, null, 2) + '\n',
+  );
 }
 
 function pick(o) {
@@ -166,6 +174,13 @@ export function describe(p) {
 }
 
 const DONDE = { tema: 'de este tema', global: 'del default global', plantilla: 'de la plantilla', claude: 'de claude' };
+
+/** La línea que enseña `/use c` (vía `alAbrir`): qué perfil usará ESTE tema y de dónde sale. */
+export function lineaAlAbrir(template, session) {
+  const efectivo = resolveProfile(template, session);
+  const de = [...new Set(Object.values(efectivo.origen))].map((o) => DONDE[o]).join(' y ');
+  return `🎛 Modelo en este tema: ${describe(efectivo)} (${de}). Cámbialo con «#modelo <modelo> [esfuerzo]».`;
+}
 
 /** Texto que ve el usuario tras una orden `#modelo`. */
 export function explain(cmd, session, template) {

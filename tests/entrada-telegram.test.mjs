@@ -29,6 +29,12 @@ process.env.COORD_WS_RAIZ = join(raiz, 'ws');
 mkdirSync(join(raiz, 'casa', 'data', 'executors'), { recursive: true });
 writeFileSync(join(raiz, 'casa', 'data', 'executors', 'eco.json'),
   JSON.stringify({ name: 'eco', command: 'cat', encargados: [] }));
+// `alAbrir`: lo que `/use` añade al saludo. Con `{{command}}` para fijar que se
+// sustituye, y con el tema en la salida para fijar que recibe SU entorno.
+writeFileSync(join(raiz, 'casa', 'data', 'executors', 'conestado.json'),
+  JSON.stringify({ name: 'conestado', command: 'echo estado-de', alAbrir: '{{command}} "$COORD_SESSION"', encargados: [] }));
+writeFileSync(join(raiz, 'casa', 'data', 'executors', 'estadoroto.json'),
+  JSON.stringify({ name: 'estadoroto', command: 'cat', alAbrir: 'echo se-rompio >&2; exit 3', encargados: [] }));
 
 const { crearBot } = await import('../src/bot.js');
 const { LIMITE } = await import('../src/buffer.js');
@@ -165,4 +171,18 @@ test('y sigue troceando: el límite es de Telegram, no de quien llame', async ()
   assert.equal(m.length, 3, '9000 caracteres son 3 trozos de 4000');
   assert.equal(m[0].payload.message_thread_id, undefined,
     'sin hilo se manda al General, y mandar un thread inexistente daría error');
+});
+
+test('/use enseña la salida de `alAbrir` con el entorno de ESTE tema', async () => {
+  await enviar('/use conestado', { comando: true });
+  assert.match(respuesta(), /Sesión abierta con "conestado"/);
+  assert.match(respuesta(), new RegExp(`estado-de ${CHAT}_${TEMA}`), 'alAbrir corrió con {{command}} y COORD_SESSION');
+});
+
+test('un `alAbrir` que falla avisa pero NO impide abrir la sesión', async () => {
+  await enviar('/use estadoroto', { comando: true });
+  assert.match(respuesta(), /Sesión abierta con "estadoroto"/);
+  assert.match(respuesta(), /alAbrir de "estadoroto" falló/);
+  await enviar('sigue funcionando');
+  assert.equal(respuesta(), 'sigue funcionando');
 });

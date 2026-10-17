@@ -61,6 +61,59 @@ export async function processIncoming(
   }
 }
 
+/** El entorno que recibe TODO comando de un tema (ejecutor, encargado, `alAbrir`). */
+function entornoDe(sessionId: string): Record<string, string> {
+  // Identidad de sesión expuesta a todo comando, para ejecutores con estado
+  // (p.ej. continuidad de conversación de claude por tema). `COORD_HOME` va
+  // aquí para que un ejecutor de otro repo encuentre notify.mjs o
+  // desacoplar.sh sin suponer dónde está clonado el coordinador.
+  const [chat = '', thread = ''] = sessionId.split('_');
+  const ws = getWorkspace(sessionId);
+  return {
+    COORD_SESSION: sessionId,
+    COORD_CHAT: chat,
+    COORD_THREAD: thread,
+    COORD_HOME,
+    // El workspace de ESTE tema, DECLARADO en vez de deducido del disco (R4).
+    // Ausente = no hay atadura, y quien lo lea cae a lo de siempre
+    // (`dirname(COORD)`), que es la comodidad por defecto que R4 sí admite.
+    ...(ws ? { COORD_WS: ws } : {}),
+    // Absoluto y del coordinador que CORRE. Sin esto, re-enraizar el cwd movería
+    // en silencio el estado por tema (`data/shell-cwd/`, `data/claude-sessions/`)
+    // a la copia del workspace: atar un tema parecería borrarle el `cd` y la
+    // conversación de claude. El estado se indexa por tema y vive en un sitio.
+    DATA_DIR,
+  };
+}
+
+/**
+ * La línea extra que enseña `/use` si el ejecutor declara `alAbrir`: un comando
+ * (dato, no código) que dice el ESTADO de ese ejecutor en este tema. `c` lo usa
+ * para decir qué modelo usará el tema; el coordinador no sabe que eso existe.
+ *
+ * `{{command}}` se sustituye por el comando del ejecutor, para no repetir sus
+ * flags en dos sitios del JSON (dos copias divergen). Corre con el mismo entorno
+ * y cwd que el ejecutor, timeout corto y SIN stdin.
+ *
+ * Nunca lanza ni impide abrir la sesión: si falla, devuelve un aviso de una
+ * línea (y lo registra), porque la sesión ya está abierta y funciona igual.
+ */
+export async function textoAlAbrir(
+  executor: { name: string; command: string; alAbrir?: string; cwd?: string; origen?: { raiz: string } },
+  sessionId: string,
+): Promise<string> {
+  if (!executor.alAbrir) return '';
+  const cmd = executor.alAbrir.split('{{command}}').join(executor.command);
+  const dir = cwdEnWorkspace(executor.cwd, executor.origen?.raiz, getWorkspace(sessionId), cmd);
+  if ('error' in dir) return `⚠ alAbrir de "${executor.name}": ${dir.error}`;
+  const r = await runCommand(cmd, '', entornoDe(sessionId), ALABRIR_TIMEOUT_MS, dir.cwd);
+  if (!r.ok) return fail(`⚠ alAbrir de "${executor.name}" falló: ${r.output.trim().split('\n').pop() ?? ''}`, 'alAbrir');
+  return r.output.trim();
+}
+
+/** `alAbrir` es una consulta, no un trabajo: si tarda más que esto, algo va mal. */
+const ALABRIR_TIMEOUT_MS = 10_000;
+
 /** Un turno completo: ejecutor → encargados → comandos. Siempre dentro del
  *  cerrojo de su sesión; nadie debería llamarlo por fuera. */
 async function correrTurno(
@@ -95,27 +148,8 @@ async function correrTurno(
   };
   anota('usuario', text);
 
-  // Identidad de sesión expuesta a todo comando, para ejecutores con estado
-  // (p.ej. continuidad de conversación de claude por tema). `COORD_HOME` va
-  // aquí para que un ejecutor de otro repo encuentre notify.mjs o
-  // desacoplar.sh sin suponer dónde está clonado el coordinador.
-  const [chat = '', thread = ''] = sessionId.split('_');
   const ws = getWorkspace(sessionId);
-  const env: Record<string, string> = {
-    COORD_SESSION: sessionId,
-    COORD_CHAT: chat,
-    COORD_THREAD: thread,
-    COORD_HOME,
-    // El workspace de ESTE tema, DECLARADO en vez de deducido del disco (R4).
-    // Ausente = no hay atadura, y quien lo lea cae a lo de siempre
-    // (`dirname(COORD)`), que es la comodidad por defecto que R4 sí admite.
-    ...(ws ? { COORD_WS: ws } : {}),
-    // Absoluto y del coordinador que CORRE. Sin esto, re-enraizar el cwd movería
-    // en silencio el estado por tema (`data/shell-cwd/`, `data/claude-sessions/`)
-    // a la copia del workspace: atar un tema parecería borrarle el `cd` y la
-    // conversación de claude. El estado se indexa por tema y vive en un sitio.
-    DATA_DIR,
-  };
+  const env = entornoDe(sessionId);
 
   const dirEjecutor = cwdEnWorkspace(executor.cwd, executor.origen?.raiz, ws, executor.command);
   if ('error' in dirEjecutor) {

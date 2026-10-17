@@ -19,7 +19,7 @@ import {
   decidirWorkspace,
   marcarDefecto,
 } from './workspaces.js';
-import { processIncoming } from './orchestrator.js';
+import { processIncoming, textoAlAbrir } from './orchestrator.js';
 import { arrancarLatido } from './latido.js';
 import { vigilarEntrada } from './entrada.js';
 // @ts-expect-error: modulo JS sin tipos (ver orchestrator.ts)
@@ -331,6 +331,9 @@ export async function crearBot(botInfo?: UserFromGetMe): Promise<Bot> {
         ? `\n\n⛔ Ojo: falta ${exec.falta.join(', ')} en esta máquina. Es probable que falle.`
         : '',
       exec.descripcion ? `\n${exec.descripcion}` : '',
+      // El estado de ESTE tema (p.ej. el modelo de `c`), que la descripción fija
+      // no puede decir: es un dato del ejecutor (`alAbrir`), no un caso aquí.
+      await textoAlAbrir(exec, sidOf(ctx)).then((t) => (t ? `\n${t}` : '')),
       exec.ejemplos?.length ? '\n\nEjemplos:\n' + exec.ejemplos.map((x) => `  ${x}`).join('\n') : '',
     ].join('');
     await send(ctx, `✅ Sesión abierta con "${name}". Envía tus mensajes.${extra}`);
