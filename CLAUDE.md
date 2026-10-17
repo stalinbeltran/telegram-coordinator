@@ -1296,7 +1296,7 @@ no corre con SIGKILL; el `SessionStart` siguiente ya es en otra máquina). Si ac
 
 **Regla del dueño, y manda sobre la costumbre anterior:** *«todo dato, aun siendo temporal,
 se guarda ahí en vez de en el repo de datos como hemos hecho hasta ahora»*. «Ahí» es el
-**almacén**: un volumen de DigitalOcean (`datos`, 1 GB, **`sfo2`** desde el 2026-10-07, 0,10 $/mes) conectado al
+**almacén**: un volumen de DigitalOcean (`datos`, **2 GB desde el 2026-10-17** —se llenó otra vez ese día, 801 MB de 868, y el dueño lo amplió: 46 % tras crecer—, **`sfo2`** desde el 2026-10-07, 0,20 $/mes) conectado al
 mini y montado en `/mnt/datos`, que sirve por SSH **repos git desnudos** desde un usuario
 `datos` sin shell. `foveal-vision-data` vive ahí como ORIGEN; GitHub quedó como remoto
 `github`, **copia congelada que ya no se actualiza**. Git y no un servicio web porque el
