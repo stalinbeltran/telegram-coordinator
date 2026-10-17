@@ -1383,6 +1383,19 @@ pack y al quinto se corre `gc --auto`. El reparto de lo que ocupa (≈42 % sobra
 probablemente) y por qué un almacén de objetos sí pero **MinIO no** (archivado en febrero de 2026),
 en [`docs/almacen-contenido-y-objetos-2026-10-03.md` del lanzador](https://github.com/stalinbeltran/digital-ocean-dropplet-auto-launching/blob/main/docs/almacen-contenido-y-objetos-2026-10-03.md).
 
+✅ **REEMPAQUETADO otra vez el 2026-10-17, por orden del dueño: de 806 MB a 536 MB (46 % → 31 %).**
+⚠⚠ **Y lo que liberó NO fue el repack: fue BASURA que nada iba a limpiar nunca.** Medido ese día con
+`git count-objects -vH` (como `datos`: root da *dubious ownership*): 3 packs disjuntos (4.431 + 6.980 +
+16 objetos, 11.423 únicos, **todos alcanzables**) y un `objects/pack/tmp_pack_*` de **265 MiB** de las
+01:16, el resto de un push que murió con el disco lleno. Juntar los packs dio 539 → 534,5 MiB, casi
+nada; el `tmp_pack` era el 33 % del repo. **`gc.pruneExpire=never` también impide que git borre sus
+temporales**, así que cada push que falla por disco lleno deja su pack a medias **para siempre** y el
+disco sigue lleno: el fallo se alimenta a sí mismo. Si vuelve a llenarse, mira primero `garbage:` en
+`count-objects -v`. Hecho así: respaldo en `/var/tmp/fvd-antes-repack-2026-10-17.git` del mini (540 MB,
+se borra cuando el dueño lo diga), `rm` del `tmp_pack` (sin nadie abierto, `fuser`), y `git gc` in situ
+(un hilo, `pack.windowMemory=64m`) como unidad `almacen-repack` de systemd. Comprobado después: `fsck
+--full` limpio, objetos y ramas **idénticos** al respaldo, `almacen probar` ×5 en verde.
+
 ⚠⚠ **HISTORIA COMPACTADA el 2026-10-03, por orden del dueño** (*«eliminar historias previas,
 manteniendo todos los últimos»*). Cada rama del almacén es ahora **un solo commit** con su
 contenido de ese día —árboles comprobados idénticos antes y después—; `datos-fechados` y `tema-2`
