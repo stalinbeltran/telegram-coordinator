@@ -180,8 +180,8 @@ const REPOS = ['foveal-vision', 'foveal-vision-data', 'telegram-coordinator',
 // systemd con una máquina de Vast alquilada detrás: muere con este server.
 // ⚠ Y `afinar_retrazo\.py`/`correr-retrazo\.sh` entraron el 2026-10-19 con el ajuste del adelgazador de `delgado-cnn`
 // (rizo-2 § 125, ~40 min): el freno decía «1 cambio sin empujar» y NO nombraba el entrenamiento vivo. El `.sh` cubre la cadena
-// entera (afinar → exportar → medir), el `.py` un ajuste lanzado a mano.
-const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|evaluar_kernel\.py|calibrar\.py|vast_instance\.py trabajo|entrenar_paralelo\.sh|afinar_retrazo\.py|correr-retrazo\.sh|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
+// entera (afinar → exportar → medir), el `.py` un ajuste lanzado a mano. `correr-casi\.sh` (§ 126), lo mismo con trazos casi cerrados.
+const TRABAJOS = /estudio_flota\.py|entrenar_vast\.py|adoptar_vast\.py|vigilante_avance\.py|vigilante_prioridades\.py|bench_fleet\.py|bench_dataset\.py|bench_speed\.py|knob_min_size\.py|estudio_lote\.py|sonda_l1\.py|entrenar_local\.py|generar_paginas\.py|evaluar_kernel\.py|calibrar\.py|vast_instance\.py trabajo|entrenar_paralelo\.sh|afinar_retrazo\.py|correr-retrazo\.sh|correr-casi\.sh|fv-train|fv-continue|fv-sweep|fv-oat|fv-study|fv-extract/;
 
 const razones = [];   // por qué NO cerrar
 const dudas = [];     // lo que no se pudo comprobar
