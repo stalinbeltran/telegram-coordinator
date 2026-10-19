@@ -156,6 +156,18 @@ test('un entrenamiento de EXPERIMENTO cuenta: llama al CLI en proceso, no como f
     } finally { hijo.kill('SIGKILL'); }
   });
 
+test('el ajuste del adelgazador (afinar_retrazo.py) impide cerrar y se NOMBRA', async () => {
+    // 2026-10-19, rizo-2 § 125: ~40 min de ajuste en el dev y el freno sólo veía el directorio de pesos sin commitear.
+    const m = maquina({ 'experimentos/delg/nn/afinar_retrazo.py': DORMIR });
+    const hijo = lanzar('node', [join(m.fv, 'experimentos/delg/nn/afinar_retrazo.py')], m.fv);
+    try {
+      await esperarEnPs('afinar_retrazo\\.py');
+      const salida = await correr(m);
+      assert.match(salida, /NO CERRAR/, 'un ajuste de horas se pierde con la máquina');
+      assert.match(salida, /afinar_retrazo\.py/, 'y la línea breve dice QUÉ corre');
+    } finally { hijo.kill('SIGKILL'); }
+  });
+
 test('un entrenamiento en VAST impide cerrar: quien destruye la instancia es ESTE proceso',
   async () => {
     // El caso más caro de los que cuenta esta lista. `entrenar_vast.py` alquila
